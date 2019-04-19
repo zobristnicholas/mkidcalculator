@@ -11,26 +11,26 @@ class Noise:
         self._data = AnalogReadoutNoise()  # dummy class replaced by load()
         log.info("Noise object created. ID: {}".format(id(self)))
 
-    @parameter
+    @property
     def f_bias(self):
         return self._data["f_bias"]
 
-    @parameter
+    @property
     def i_trace(self):
         return self._data["i_trace"]
 
-    @parameter
+    @property
     def q_trace(self):
         return self._data["q_trace"]
 
-    @parameter
+    @property
     def metadata(self):
         return self._data["metadata"]
 
     @classmethod
-    def load(cls, file_name, data_class=AnalogReadoutNoise, **kwargs):
+    def load(cls, file_name, data=AnalogReadoutNoise, **kwargs):
         noise = cls()
-        noise._data = data_class(file_name, **kwargs)
+        noise._data = data(file_name, **kwargs)
         return noise
 
     def compute_phase_and_amplitude(self):

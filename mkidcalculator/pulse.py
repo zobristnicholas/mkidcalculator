@@ -11,30 +11,30 @@ class Pulse:
         self._data = AnalogReadoutPulse()  # dummy class replaced by load()
         log.info("Pulse object created. ID: {}".format(id(self)))
 
-    @parameter
+    @property
     def f_bias(self):
         return self._data["f_bias"]
 
-    @parameter
+    @property
     def i_trace(self):
         return self._data["i_trace"]
 
-    @parameter
+    @property
     def q_trace(self):
         return self._data["q_trace"]
 
-    @parameter
+    @property
     def offset(self):
         return self._data["offset"]
 
-    @parameter
+    @property
     def metadata(self):
         return self._data["metadata"]
 
     @classmethod
-    def load(cls, file_name, data_class=AnalogReadoutPulse, **kwargs):
+    def load(cls, file_name, data=AnalogReadoutPulse, **kwargs):
         pulse = cls()
-        pulse._data = data_class(file_name, **kwargs)
+        pulse._data = data(file_name, **kwargs)
         return pulse
 
     def compute_energies(self):
