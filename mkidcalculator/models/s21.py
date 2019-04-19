@@ -16,6 +16,9 @@ def baseline(params, f):
             The parameters for the model function.
         f: numpy.ndarray, dtype=real, shape=(N,)
             Frequency points corresponding to z.
+    Returns:
+        z: numpy.ndarray
+            The S21 scattering parameter.
     """
     # 0th, 1st, and 2nd terms in a power series to handle magnitude gain different than 1
     gain0 = params['gain0'].value
@@ -36,8 +39,8 @@ def baseline(params, f):
     # Calculate magnitude and phase gain
     gain = gain0 + gain1 * ffm + gain2 * ffm**2
     phase = np.exp(1j * (phase0 + phase1 * ffm + phase2 * ffm**2))
-
-    return gain * phase
+    z = gain * phase
+    return z
 
 
 def resonance(params, f):
@@ -49,6 +52,9 @@ def resonance(params, f):
             The parameters for the model function.
         f: numpy.ndarray, dtype=real, shape=(N,)
             Frequency points corresponding to z.
+    Returns:
+        z: numpy.ndarray
+            The S21 scattering parameter.
     """
     df = params['df'].value  # frequency shift due to mismatched impedances
     f0 = params['f0'].value  # resonant frequency
@@ -84,6 +90,9 @@ def mixer(params, z):
             The parameters for the model function.
         z: numpy.ndarray, dtype=complex, shape=(N,)
             Complex resonator scattering parameter.
+    Returns:
+        z: numpy.ndarray
+            The S21 scattering parameter.
     """
     alpha = params['alpha'].value
     gamma = params['gamma'].value
@@ -102,6 +111,9 @@ def mixer_inverse(params, z):
             (alpha, gamma, offset) where offset is i_offset + i * q_offset.
         z: numpy.ndarray, dtype=complex, shape=(N,)
             Complex resonator scattering parameter.
+    Returns:
+        z: numpy.ndarray
+            The S21 scattering parameter.
     """
     if isinstance(params, lm.Parameters):
         alpha = params['alpha'].value
@@ -127,6 +139,9 @@ def calibrate(params, z, f, mixer_correction=True):
         mixer_correction: bool (optional)
             Remove the mixer correction specified in the params object. The
             default is True.
+    Returns:
+        z: numpy.ndarray
+            The S21 scattering parameter.
     """
     if mixer_correction:
         z = mixer_inverse(params, z) / baseline(params, f)
@@ -147,6 +162,9 @@ def model(params, f, mixer_correction=True):
         mixer_correction: bool (optional)
             Apply the mixer correction specified in the params object. The
             default is True.
+    Returns:
+        z: numpy.ndarray
+            The S21 scattering parameter.
     """
     z = baseline(params, f) * resonance(params, f)
     if mixer_correction:
@@ -172,6 +190,10 @@ def residual(params, z, f, sigma=None, return_real=True):
         return_real: bool (optional)
             Concatenate the real and imaginary parts of the residual into a
             real 1D array of shape (2N,).
+    Returns:
+        res: numpy.ndarray, dtype=(complex or float)
+            Either a complex N or a real 2N element 1D array (depending on
+            return_real) with the normalized residuals.
     """
     # grab the model
     m = model(params, f)
@@ -181,10 +203,10 @@ def residual(params, z, f, sigma=None, return_real=True):
         eps_imag = np.std(sps.detrend(z.imag[0:10]), ddof=1)
         # make sure there are no zeros
         if eps_real == 0:
-            log.warning("zero variance calculated and set to 1 when detrending data")
+            log.warning("zero variance calculated and set to 1 when detrending I data")
             eps_real = 1
         if eps_imag == 0:
-            log.warning("zero variance calculated and set to 1 when detrending data")
+            log.warning("zero variance calculated and set to 1 when detrending Q data")
             eps_imag = 1
         sigma = np.full_like(z, eps_real + 1j * eps_imag)
 
@@ -193,10 +215,11 @@ def residual(params, z, f, sigma=None, return_real=True):
         m_1d = np.concatenate((m.real, m.imag), axis=0)
         z_1d = np.concatenate((z.real, z.imag), axis=0)
         sigma_1d = np.concatenate((sigma.real, sigma.imag), axis=0)
-        return (m_1d - z_1d) / sigma_1d
+        res = (m_1d - z_1d) / sigma_1d
     else:
         # return the complex residual
-        return (m.real - z.real) / sigma.real + 1j * (m.imag - z.imag) / sigma.imag
+        res = (m.real - z.real) / sigma.real + 1j * (m.imag - z.imag) / sigma.imag
+    return res
 
 
 def guess(z, f, mixer_imbalance=None, mixer_offset=0, use_filter=False, filter_length=None, fit_resonance=True,
@@ -253,6 +276,9 @@ def guess(z, f, mixer_imbalance=None, mixer_offset=0, use_filter=False, filter_l
             The offset is highly correlated with the gain parameters and
             typically should not be allowed to vary unless the gain is properly
             calibrated.
+    Returns:
+        params: lmfit.Parameters
+            An object with guesses and bounds for each parameter.
     """
     # undo the mixer calibration for more accurate guess if known ahead of time
     if mixer_imbalance is not None:
