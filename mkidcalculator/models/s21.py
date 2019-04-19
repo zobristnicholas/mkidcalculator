@@ -85,11 +85,53 @@ def mixer(params, z):
         z: numpy.ndarray, dtype=complex, shape=(N,)
             Complex resonator scattering parameter.
     """
-    i_offset = params['i_offset'].value
-    q_offset = params['q_offset'].value
     alpha = params['alpha'].value
     gamma = params['gamma'].value
-    z = (z.real * alpha + 1j * (z.real * np.sin(gamma) + z.imag * np.cos(gamma))) + i_offset + 1j * q_offset
+    offset = params['i_offset'].value + 1j * params['q_offset'].value
+    z = (z.real * alpha + 1j * (z.real * np.sin(gamma) + z.imag * np.cos(gamma))) + offset
+    return z
+
+
+def mixer_inverse(params, z):
+    """
+    Undo the mixer correction specified by the parameters to S21. This is
+    useful for removing the effect of the mixer on real data.
+    Args:
+        params: lmfit.Parameters() object or tuple
+            The parameters for the model function or a tuple with
+            (alpha, gamma, offset) where offset is i_offset + i * q_offset.
+        z: numpy.ndarray, dtype=complex, shape=(N,)
+            Complex resonator scattering parameter.
+    """
+    if isinstance(params, lm.Parameters):
+        alpha = params['alpha'].value
+        gamma = params['gamma'].value
+        offset = params['i_offset'].value + 1j * params['q_offset'].value
+    else:
+        alpha, gamma, offset = params
+    z -= offset
+    z = (z.real / alpha + 1j * (-z.real * np.tan(gamma) / alpha + z.imag / np.cos(gamma)))
+    return z
+
+
+def calibrate(params, z, f, mixer_correction=True):
+    """
+    Remove the baseline and mixer effects from the S21 data.
+    Args:
+        params: lmfit.Parameters() object
+            The parameters for the model function.
+        z: numpy.ndarray, dtype=complex, shape=(N,)
+            Complex resonator scattering parameter.
+        f: numpy.ndarray, dtype=real, shape=(N,)
+            Frequency points corresponding to z.
+        mixer_correction: bool (optional)
+            Remove the mixer correction specified in the params object. The
+            default is True.
+    """
+    if mixer_correction:
+        z = mixer_inverse(params, z) / baseline(params, f)
+    else:
+        z /= baseline(params, f)
     return z
 
 
@@ -230,17 +272,17 @@ def guess(z, f, mixer_imbalance=None, mixer_offset=0, use_filter=False, filter_l
         qp = np.fft.irfft(fft_q, q[0, :].size)
         # TODO: clip Ip and Qp so that they are approximately N periods long to minimize errors
         # compute alpha and gamma
-        amp = np.sqrt(2 * np.mean(qp ** 2, axis=-1))
-        alpha = np.sqrt(2 * np.mean(ip ** 2, axis=-1)) / amp
+        amp = np.sqrt(2 * np.mean(qp**2, axis=-1))
+        alpha = np.sqrt(2 * np.mean(ip**2, axis=-1)) / amp
         ratio = np.angle(np.fft.rfft(ip)[np.arange(3), f_i_ind[:, 0]] /
                          np.fft.rfft(qp)[np.arange(3), f_q_ind[:, 0]])  # for arcsine branch
-        gamma = np.arcsin(np.sign(ratio) * 2 * np.mean(qp * ip, axis=-1) / (alpha * amp ** 2)) + np.pi * (ratio < 0)
+        gamma = np.arcsin(np.sign(ratio) * 2 * np.mean(qp * ip, axis=-1) / (alpha * amp**2)) + np.pi * (ratio < 0)
         # choose the calibration with the highest transmission
         center = int(np.round((len(z) - 1) / 2))
         index = np.argmax([np.abs(z)[0], np.abs(z)[center], np.abs(z)[-1]])
         alpha = alpha[index]
         gamma = gamma[index]
-        z = (z.real / alpha + 1j * (-z.real * np.tan(gamma) / alpha + z.imag / np.cos(gamma)))
+        z = mixer_inverse((alpha, gamma, mixer_offset), z)
     else:
         alpha = 1
         gamma = 0
