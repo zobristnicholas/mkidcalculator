@@ -1,4 +1,5 @@
 import logging
+import scipy.stats as stats
 
 from mkidcalculator.noise import Noise
 from mkidcalculator.pulse import Pulse
@@ -15,10 +16,10 @@ class Loop:
         self._data = AnalogReadoutLoop()  # dummy class replaced by load()
         # noise and pulse classes
         self.noise = []
-        self.f_bias_noise = []
+        self.f_bias_noise = []  # for bias frequency of each noise data set
         self.pulses = []
-        self.f_bias_pulses = []
-        self.energy_pulses = []
+        self.f_bias_pulses = []  # for bias frequency of each pulse data set
+        self.energies_pulses = []  # for known line energies for each pulse data set
         # analysis results
         self.lmfit_results = {'best': None}
         self.emcee_results = {'best': None}
@@ -83,7 +84,7 @@ class Loop:
                 Sort the noise data and pulse data lists by their bias
                 frequency. The default is True. If False, the order of the
                 noise and pulse file names is preserved.
-            kwargs:
+            kwargs: optional keyword arguments
                 extra keyword arguments are sent to loop_data, noise_data, and
                 pulse_data. This is useful in the case of the AnalogReadout*
                 data classes for picking the channel index.
@@ -117,7 +118,7 @@ class Loop:
     def from_pickle(self):
         raise NotImplementedError
 
-    def lmfit(self, residual, guess, label='default', residual_args=None, residual_kwargs=None):
+    def lmfit(self, residual, guess, label='default', residual_args=None, residual_kwargs=None, **kwargs):
         """
         Compute a least squares fit using the supplied residual function and
         guess. The result and other useful information is stored in
@@ -141,21 +142,91 @@ class Loop:
             residual_kwargs:
                 A dictionary of arguments to be passed to the residual
                 function.
+            kwargs: optional keyword arguments
+                Additional keyword arguments are sent to the
+                lmfit.Minimizer.minimize() method.
         Returns:
             result: lmfit.MinimizerResult
                 An object containing the results of the minimization. It is
                 also stored in self.lmfit_results[label]['result'].
+        Raises:
+            ValueError:
+                Improper arguments or keyword arguments.
         """
+        if label == 'best':
+            raise ValueError("'best' is a reserved label and cannot be used")
+        # set up and do minimization
         residual_args = (self.z, self.f, *residual_args)
         minimizer = lm.Minimizer(residual, guess, fcn_args=residual_args, fcn_kws=residual_kwargs)
-        result = minimizer.minimize(method='leastsq')
+        result = minimizer.minimize(**kwargs)
+        # save the results
         self.lmfit_results[label] = {'result': result, 'objective': residual}
+        # if the result is better than has been previously computed, add it to the 'best' key
         if self.lmfit_results['best'] is None:
             self.lmfit_results['best'] = self.lmfit_results[label]
-        elif result.aic < self.lmfit_results['best']['result']:
+            self.lmfit_results['best']['label'] = label
+        elif result.aic < self.lmfit_results['best']['result'].aic:
             self.lmfit_results['best']['result'] = result
             self.lmfit_results['best']['objective'] = residual
+            self.lmfit_results['best']['label'] = label
         return result
 
-    def emcee(self, log_likelihood, guess, label='default', **kwargs):
-        raise NotImplementedError
+    def emcee(self, residual, label='default', residual_args=None, residual_kwargs=None, **kwargs):
+        """
+        Compute a MCMC using the supplied log likelihood function. The result
+        and other useful information is stored in self.emcee_results[label].
+        Args:
+            residual: function
+                The objective function to minimize. It must output a 1D real
+                vector. The first three arguments must be a lmfit.Parameters
+                object, the complex scattering parameter, and the corresponding
+                frequencies. Other arguments can be passed in through the
+                residual_args and residual_kwargs arguments.
+            label: string
+                A label describing the fit, used for storing the results in the
+                self.emcee_results dictionary. A corresponding fit must already
+                exist in the self.lmfit_results dictionary.
+            residual_args: tuple
+                A tuple of arguments to be passed to the residual function.
+            residual_kwargs:
+                A dictionary of arguments to be passed to the residual
+                function.
+            kwargs: optional keyword arguments
+                Additional keyword arguments are sent to the
+                lmfit.Minimizer.minimize() method.
+        Returns:
+            result: lmfit.MinimizerResult
+                An object containing the results of the minimization. It is
+                also stored in self.emcee_results[label]['result'].
+        Raises:
+            ValueError:
+                Improper arguments or keyword arguments.
+        """
+        if label == 'best':
+            raise ValueError("'best' is a reserved label and cannot be used")
+        elif label not in self.lmfit_results.keys():
+            raise ValueError("The MCMC cannot be run unless an lmfit using this label has run first.")
+        # set up and do MCMC
+        residual_args = (self.z, self.f, *residual_args)
+        guess = self.lmfit_results[label]['result'].params
+        minimizer = lm.Minimizer(residual, guess, fcn_args=residual_args, fcn_kws=residual_kwargs)
+        result = minimizer.minimize(method='emcee', **kwargs)
+        # get the MLE, median, and 1 sigma uncertainties around the median for each parameter in the flatchain
+        one_sigma = 1 - 2 * stats.norm.cdf(-1)
+        p = (100 - one_sigma) / 2
+        median = {key: np.percentile(result.flatchain[key], 50) for key in result.flatchain.keys()}
+        sigma = {key: (np.percentile(result.flatchain[key], p), np.percentile(result.flatchain[key], 100 - p))
+                 for key in result.flatchain.keys()}
+        mle = dict(emcee_result.flatchain.iloc[np.argmax(emcee_result.lnprob)])
+        # save the results
+        self.emcee_results[label] = {'result': result, 'objective': residual, 'median': median, 'sigma': sigma,
+                                     'mle': mle}
+        # if the result is better than has been previously computed, add it to the 'best' key
+        if self.emcee_results['best'] is None:
+            self.emcee_results['best'] = self.lmfit_results[label]
+            self.emcee_results['best']['label'] = label
+        elif result.aic < self.emcee_results['best']['result'].aic:
+            self.emcee_results['best']['result'] = result
+            self.emcee_results['best']['objective'] = residual
+            self.emcee_results['best']['label'] = label
+        return result
