@@ -68,3 +68,25 @@ class AnalogReadoutNoise(AnalogReadoutABC):
 class AnalogReadoutPulse(AnalogReadoutABC):
     CONVERT = {"f_bias": "freqs", "i_trace": ("pulses", "I"), "q_trace": ("pulses", "Q"), "offset": "zero",
                "metadata": "metadata"}
+
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        self._energies = []
+
+    def __getitem__(self, item):
+        if item == 'energies':
+            if self._energies:
+                result = self._energies
+            else:
+                metadata = super().__getitem__("metadata")
+                try:
+                    laser_state = np.array(metadata['parameters']['laser'])
+                    laser_state *= np.array([808, 920, 980, 1120, 1310])
+                    laser_state = laser_state[laser_state != 0]
+                    self._energies = tuple(1239.842 / laser_state)  # 1239.842 nm eV = h c
+                except KeyError:
+                    pass
+                result = self._energies
+        else:
+            result = super().__getitem__(item)
+        return result
