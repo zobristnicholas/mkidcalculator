@@ -33,7 +33,7 @@ class Loop:
     @property
     def f(self):
         """The frequencies corresponding to the complex scattering parameter."""
-        return self._data['freqs']
+        return self._data['f']
 
     @property
     def imbalance_calibration(self):
@@ -52,7 +52,8 @@ class Loop:
 
     @classmethod
     def load(cls, loop_file_name, noise_file_names=(), pulse_file_names=(), loop_data=AnalogReadoutLoop,
-             noise_data=AnalogReadoutNoise, pulse_data=AnalogReadoutPulse, sort=True, **kwargs):
+             noise_data=AnalogReadoutNoise, pulse_data=AnalogReadoutPulse, sort=True, channel=None, noise_kwargs=None,
+             pulse_kwargs=None, **kwargs):
         """
         Loop class factory method that returns a Loop() with the loop, noise
         and pulse data loaded.
@@ -84,22 +85,46 @@ class Loop:
                 Sort the noise data and pulse data lists by their bias
                 frequency. The default is True. If False, the order of the
                 noise and pulse file names is preserved.
+            channel: integer
+                Optional channel index which gets added to all of the kwarg
+                dictionaries under the key 'index'. When the default, None, is
+                passed, nothing is added to the dictionaries.
+            noise_kwargs: tuple
+                Tuple of dictionaries for extra keyword arguments to send to
+                noise_data. The order and length correspond to
+                noise_file_names. The default is None, which is equivalent to
+                a tuple of empty dictionaries.
+            pulse_kwargs: tuple
+                Tuple of dictionaries for extra keyword arguments to send to
+                pulse_data. The order and length correspond to
+                pulse_file_names. The default is None, which is equivalent to
+                a tuple of empty dictionaries.
             kwargs: optional keyword arguments
-                extra keyword arguments are sent to loop_data, noise_data, and
-                pulse_data. This is useful in the case of the AnalogReadout*
-                data classes for picking the channel index.
+                extra keyword arguments to send to loop_data.
         Returns:
             loop: object
                 A Loop() object containing the loaded data.
         """
+        # create loop
         loop = cls()
+        # update dictionaries
+        if noise_kwargs is None:
+            noise_kwargs = [{} for _ in range(len(noise_file_names))]
+        if pulse_kwargs is None:
+            pulse_kwargs = [{} for _ in range(len(pulse_file_names))]
+        if channel is not None:
+            kwargs.update({"channel": channel})
+            for kws in noise_kwargs:
+                kws.update({"channel": channel})
+            for kws in pulse_kwargs:
+                kws.update({"channel": channel})
         # load loop
         loop._data = loop_data(loop_file_name, **kwargs)
         # load noise and pulses
-        for noise_file_name in noise_file_names:
-            loop.noise.append(Noise.load(noise_file_name, data=noise_data, **kwargs))
-        for pulse_file_name in pulse_file_names:
-            loop.pulses.append(Pulse.load(pulse_file_name, data=pulse_data, **kwargs))
+        for index, noise_file_name in enumerate(noise_file_names):
+            loop.noise.append(Noise.load(noise_file_name, data=noise_data, **noise_kwargs[index]))
+        for index, pulse_file_name in enumerate(pulse_file_names):
+            loop.pulses.append(Pulse.load(pulse_file_name, data=pulse_data, **pulse_kwargs[index]))
         # pull out the bias frequencies
         for n in loop.noise:
             loop.f_bias_noise.append(n.f_bias)

@@ -9,7 +9,8 @@ _loaded_npz_files = {}  # cache of already loaded files
 
 
 class AnalogReadoutABC:
-    def __init__(self, npz_handle=None, index=None):
+    def __init__(self, npz_handle=None, channel=None, index=None):
+        self.channel = channel
         self.index = index
         global _loaded_npz_files
         # if string load with numpy and save if it hasn't been loaded before
@@ -39,18 +40,34 @@ class AnalogReadoutABC:
             raise ValueError("'npz_handle' must be a valid file name or a numpy npz file object.")
 
     def __getitem__(self, item):
+        # get conversion values
         try:
             convert = self.CONVERT[item]
         except KeyError:
             raise KeyError("allowed keys for this data structure are in {}".format(list(self.CONVERT.keys())))
         try:
+            # get the result from the npz file
             result = self._npz[convert[0] if isinstance(convert, tuple) else convert]
             if result.dtype == np.dtype('O'):
+                # if it's an object unpack it
                 result = result.item()
             else:
-                result = result[self.index]
+                # else get the channel and index
+                if self.channel is not None:
+                    result = result[self.channel]
+                if self.index is not None:
+                    result = result[self.index]
+            # more conversion
             if isinstance(convert, tuple) and len(convert) > 1:
-                result = result[convert[1]]
+                if not callable(convert[1]):
+                    try:
+                        # grab another index
+                        result = result[convert[1]]
+                    except IndexError:
+                        # if that failed run a function (for complex formatted data)
+                        result = convert[2](result)
+                else:
+                    result = convert[1](result)
             return result
         except TypeError:
             raise KeyError("no data has been loaded.")
@@ -61,13 +78,14 @@ class AnalogReadoutLoop(AnalogReadoutABC):
 
 
 class AnalogReadoutNoise(AnalogReadoutABC):
-    CONVERT = {"f_bias": "freqs", "i_trace": ("noise", "I"), "q_trace": ("noise", "Q"), "metadata": "metadata"}
+    CONVERT = {"f_bias": "freqs", "i_trace": ("noise", "I", np.real), "q_trace": ("noise", "Q", np.imag),
+               "metadata": "metadata"}
     # "i_psd": ("psd", "I"), "q_psd": ("psd", "Q"), "f_psd": "f_psd" not using these from file but they are there
 
 
 class AnalogReadoutPulse(AnalogReadoutABC):
-    CONVERT = {"f_bias": "freqs", "i_trace": ("pulses", "I"), "q_trace": ("pulses", "Q"), "offset": "zero",
-               "metadata": "metadata"}
+    CONVERT = {"f_bias": "freqs", "i_trace": ("pulses", "I", np.real), "q_trace": ("pulses", "Q", np.imag),
+               "offset": "zero", "metadata": "metadata"}
 
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)

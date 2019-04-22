@@ -57,7 +57,7 @@ class Pulse:
             kwargs: optional keyword arguments
                 extra keyword arguments are sent to 'data'. This is useful in
                 the case of the AnalogReadout* data classes for picking the
-                channel index.
+                channel and index.
         Returns:
             pulse: object
                 A Pulse() object containing the loaded data.
