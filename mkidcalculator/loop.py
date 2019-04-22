@@ -61,41 +61,41 @@ class Loop:
         Args:
             loop_file_name: string
                 The file name for the loop data.
-            noise_file_names: tuple
+            noise_file_names: tuple (optional)
                 Tuple of file name strings for the noise data. The default is
                 to not load any noise data.
-            pulse_file_names: tuple
+            pulse_file_names: tuple (optional)
                 Tuple of file name strings for the pulse data. The default is
                 to not load any pulse data.
-            loop_data: object
+            loop_data: object (optional)
                 Class or function whose return value allows dictionary-like
                 queries of the attributes required by the Loop class. The
                 default is the AnalogReadoutLoop class, which interfaces
                 with the data products from the analogreadout module.
-            noise_data: object
+            noise_data: object (optional)
                 Class or function whose return value allows dictionary-like
                 queries of the attributes required by the Noise class. The
                 default is the AnalogReadoutNoise class, which interfaces
                 with the data products from the analogreadout module.
-            pulse_data: object
+            pulse_data: object (optional)
                 Class or function whose return value allows dictionary-like
                 queries of the attributes required by the Pulse class. The
                 default is the AnalogReadoutPulse class, which interfaces
                 with the data products from the analogreadout module.
-            sort: boolean
+            sort: boolean (optional)
                 Sort the noise data and pulse data lists by their bias
                 frequency. The default is True. If False, the order of the
                 noise and pulse file names is preserved.
-            channel: integer
+            channel: integer (optional)
                 Optional channel index which gets added to all of the kwarg
                 dictionaries under the key 'index'. When the default, None, is
                 passed, nothing is added to the dictionaries.
-            noise_kwargs: tuple
+            noise_kwargs: tuple (optional)
                 Tuple of dictionaries for extra keyword arguments to send to
                 noise_data. The order and length correspond to
                 noise_file_names. The default is None, which is equivalent to
                 a tuple of empty dictionaries.
-            pulse_kwargs: tuple
+            pulse_kwargs: tuple (optional)
                 Tuple of dictionaries for extra keyword arguments to send to
                 pulse_data. The order and length correspond to
                 pulse_file_names. The default is None, which is equivalent to
@@ -160,16 +160,17 @@ class Loop:
                 A parameters object containing starting values (and bounds if
                 desired) for all of the parameters needed for the residual
                 function.
-            label: string
+            label: string (optional)
                 A label describing the fit, used for storing the results in the
-                self.lmfit_results dictionary.
-            residual_args: tuple
+                self.lmfit_results dictionary. The default is 'default'.
+            residual_args: tuple (optional)
                 A tuple of arguments to be passed to the residual function.
                 Note: these arguments are the non-mandatory ones after the
-                first three.
-            residual_kwargs:
+                first three. The default is an empty tuple.
+            residual_kwargs: dictionary (optional)
                 A dictionary of arguments to be passed to the residual
-                function.
+                function. The default is None, which corresponds to an empty
+                dictionary.
             kwargs: optional keyword arguments
                 Additional keyword arguments are sent to the
                 lmfit.Minimizer.minimize() method.
@@ -198,7 +199,7 @@ class Loop:
             self.lmfit_results['best']['label'] = label
         return result
 
-    def emcee(self, residual, label='default', residual_args=None, residual_kwargs=None, **kwargs):
+    def emcee(self, residual, label='default', residual_args=(), residual_kwargs=None, **kwargs):
         """
         Compute a MCMC using the supplied log likelihood function. The result
         and other useful information is stored in self.emcee_results[label].
@@ -209,15 +210,19 @@ class Loop:
                 object, the complex scattering parameter, and the corresponding
                 frequencies. Other arguments can be passed in through the
                 residual_args and residual_kwargs arguments.
-            label: string
+            label: string (optional)
                 A label describing the fit, used for storing the results in the
                 self.emcee_results dictionary. A corresponding fit must already
-                exist in the self.lmfit_results dictionary.
-            residual_args: tuple
+                exist in the self.lmfit_results dictionary. The default is
+                'default'.
+            residual_args: tuple (optional)
                 A tuple of arguments to be passed to the residual function.
-            residual_kwargs:
+                Note: these arguments are the non-mandatory ones after the
+                first three. The default is an empty tuple.
+            residual_kwargs: dictionary (optional)
                 A dictionary of arguments to be passed to the residual
-                function.
+                function. The default is None, which corresponds to an empty
+                dictionary.
             kwargs: optional keyword arguments
                 Additional keyword arguments are sent to the
                 lmfit.Minimizer.minimize() method.

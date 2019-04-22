@@ -39,7 +39,7 @@ class Noise:
         Args:
             file_name: string
                 The file name for the noise data.
-            data: object
+            data: object (optional)
                 Class or function whose return value allows dictionary-like
                 queries of the attributes required by the Noise class. The
                 default is the AnalogReadoutNoise class, which interfaces

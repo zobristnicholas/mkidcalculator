@@ -9,6 +9,20 @@ _loaded_npz_files = {}  # cache of already loaded files
 
 
 class AnalogReadoutABC:
+    """
+    Abstract base class for handling data from the analogreadout module.
+    Args:
+        npz_handle: string or numpy.lib.npyio.NpzFile object (optional)
+            A file path or numpy npz file object containing the data. The
+            default is None, which creates a dummy object with no data that
+            raises a KeyError when accessed.
+        channel: integer (optional)
+            An integer specifying which channel to load. The default is None
+            and all channels are returned.
+        index: integer (optional)
+            An integer specifying which index to load. The default is None and
+            all indices will be returned.
+    """
     def __init__(self, npz_handle=None, channel=None, index=None):
         self.channel = channel
         self.index = index
@@ -74,16 +88,58 @@ class AnalogReadoutABC:
 
 
 class AnalogReadoutLoop(AnalogReadoutABC):
+    """
+    Class for handling loop data from the analogreadout module.
+    Args:
+        npz_handle: string or numpy.lib.npyio.NpzFile object (optional)
+            A file path or numpy npz file object containing the data. The
+            default is None, which creates a dummy object with no data that
+            raises a KeyError when accessed.
+        channel: integer (optional)
+            An integer specifying which channel to load. The default is None
+            and all channels are returned.
+        index: integer (optional)
+            An integer specifying which index to load. The default is None and
+            all indices will be returned.
+    """
     CONVERT = {"f": "freqs", "z": "z", "imbalance": "calibration", "offset": "z_offset", "metadata": "metadata"}
 
 
 class AnalogReadoutNoise(AnalogReadoutABC):
+    """
+    Class for handling noise data from the analogreadout module.
+    Args:
+        npz_handle: string or numpy.lib.npyio.NpzFile object (optional)
+            A file path or numpy npz file object containing the data. The
+            default is None, which creates a dummy object with no data that
+            raises a KeyError when accessed.
+        channel: integer (optional)
+            An integer specifying which channel to load. The default is None
+            and all channels are returned.
+        index: integer (optional)
+            An integer specifying which index to load. The default is None and
+            all indices will be returned.
+    """
     CONVERT = {"f_bias": "freqs", "i_trace": ("noise", "I", np.real), "q_trace": ("noise", "Q", np.imag),
                "metadata": "metadata"}
     # "i_psd": ("psd", "I"), "q_psd": ("psd", "Q"), "f_psd": "f_psd" not using these from file but they are there
 
 
 class AnalogReadoutPulse(AnalogReadoutABC):
+    """
+    Class for handling pulse data from the analogreadout module.
+    Args:
+        npz_handle: string or numpy.lib.npyio.NpzFile object (optional)
+            A file path or numpy npz file object containing the data. The
+            default is None, which creates a dummy object with no data that
+            raises a KeyError when accessed.
+        channel: integer (optional)
+            An integer specifying which channel to load. The default is None
+            and all channels are returned.
+        index: integer (optional)
+            An integer specifying which index to load. The default is None and
+            all indices will be returned.
+    """
     CONVERT = {"f_bias": "freqs", "i_trace": ("pulses", "I", np.real), "q_trace": ("pulses", "Q", np.imag),
                "offset": "zero", "metadata": "metadata"}
 

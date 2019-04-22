@@ -49,7 +49,7 @@ class Pulse:
         Args:
             file_name: string
                 The file name for the pulse data.
-            data: object
+            data: object (optional)
                 Class or function whose return value allows dictionary-like
                 queries of the attributes required by the Pulse class. The
                 default is the AnalogReadoutPulse class, which interfaces
