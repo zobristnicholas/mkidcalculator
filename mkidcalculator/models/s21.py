@@ -372,7 +372,7 @@ def guess(z, f, mixer_imbalance=None, mixer_offset=0, use_filter=False, filter_l
     qc_guess = 1. / (1. / q0_guess - 1. / qi_guess)
 
     # make the parameters object (coerce all values to float to avoid ints and numpy types)
-    params = lm.Parameters()
+    params = lm.Parameters(usersyms={"fm": f_midpoint})
     # resonance parameters
     params.add('df', value=float(0), vary=fit_resonance)
     params.add('f0', value=float(f0_guess), min=f_min, max=f_max, vary=fit_resonance)
@@ -392,5 +392,8 @@ def guess(z, f, mixer_imbalance=None, mixer_offset=0, use_filter=False, filter_l
     params.add('q_offset', value=float(mixer_offset.imag), vary=fit_offset)
     params.add('alpha', value=float(alpha), vary=fit_imbalance)
     params.add('gamma', value=float(gamma), min=gamma - np.pi / 2, max=gamma + np.pi / 2, vary=fit_imbalance)
+    # add derived parameters
+    params.add("q0", expr="1 / (1 / qi + 1 / qc)")
+    params.add("tau", expr="-phase1 / (2 * pi * fm)")
 
     return params

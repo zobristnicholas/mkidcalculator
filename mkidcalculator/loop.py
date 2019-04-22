@@ -194,8 +194,7 @@ class Loop:
             self.lmfit_results['best'] = self.lmfit_results[label]
             self.lmfit_results['best']['label'] = label
         elif result.aic < self.lmfit_results['best']['result'].aic:
-            self.lmfit_results['best']['result'] = result
-            self.lmfit_results['best']['objective'] = residual
+            self.lmfit_results['best'] = self.lmfit_results[label]
             self.lmfit_results['best']['label'] = label
         return result
 
