@@ -209,7 +209,6 @@ def residual(params, z, f, sigma=None, return_real=True):
             log.warning("zero variance calculated and set to 1 when detrending Q data")
             eps_imag = 1
         sigma = np.full_like(z, eps_real + 1j * eps_imag)
-
     if return_real:
         # convert model, data, and error into a real vector
         m_1d = np.concatenate((m.real, m.imag), axis=0)
@@ -238,9 +237,10 @@ def guess(z, f, mixer_imbalance=None, mixer_offset=0, use_filter=False, filter_l
             three sets correspond to the frequencies at the beginning middle
             and end frequencies. The default is None, which means no
             calibration is assumed.
-        mixer_offset: complex (optional)
+        mixer_offset: complex, iterable (optional)
             A complex number corresponding to the I + iQ mixer offset. The
-            default is 0, corresponding to no offset.
+            default is 0, corresponding to no offset. If the input is iterable,
+            a mean is taken to determine the mixer_offset value.
         use_filter: bool (optional)
             Filter the phase and magnitude data of z before trying to guess the
             parameters. This can be helpful for noisy data, but can also result
@@ -281,6 +281,7 @@ def guess(z, f, mixer_imbalance=None, mixer_offset=0, use_filter=False, filter_l
             An object with guesses and bounds for each parameter.
     """
     # undo the mixer calibration for more accurate guess if known ahead of time
+    mixer_offset = np.mean(mixer_offset)
     if mixer_imbalance is not None:
         i, q = mixer_imbalance.real, mixer_imbalance.imag
         # bandpass filter the I signal
@@ -308,10 +309,10 @@ def guess(z, f, mixer_imbalance=None, mixer_offset=0, use_filter=False, filter_l
         index = np.argmax([np.abs(z)[0], np.abs(z)[center], np.abs(z)[-1]])
         alpha = alpha[index]
         gamma = gamma[index]
-        z = mixer_inverse((alpha, gamma, mixer_offset), z)
     else:
         alpha = 1
         gamma = 0
+    z = mixer_inverse((alpha, gamma, mixer_offset), z)
     # compute the magnitude and phase of the scattering parameter
     magnitude = np.abs(z)
     phase = np.unwrap(np.arctan2(z.imag, z.real))
@@ -370,26 +371,26 @@ def guess(z, f, mixer_imbalance=None, mixer_offset=0, use_filter=False, filter_l
     # 1 / Q0 = 1 / Qc + 1 / Qi
     qc_guess = 1. / (1. / q0_guess - 1. / qi_guess)
 
-    # make the parameters object
+    # make the parameters object (coerce all values to float to avoid ints and numpy types)
     params = lm.Parameters()
     # resonance parameters
-    params.add('df', value=0, vary=fit_resonance)
-    params.add('f0', value=f0_guess, min=f_min, max=f_max, vary=fit_resonance)
-    params.add('qc', value=qc_guess, min=1, max=10**8, vary=fit_resonance)
-    params.add('qi', value=qi_guess, min=1, max=10**8, vary=fit_resonance)
-    params.add('a', value=0, min=0, max=2, vary=nonlinear_resonance and fit_resonance)  # a > 0.77 bifurcation
+    params.add('df', value=float(0), vary=fit_resonance)
+    params.add('f0', value=float(f0_guess), min=f_min, max=f_max, vary=fit_resonance)
+    params.add('qc', value=float(qc_guess), min=1, max=10**8, vary=fit_resonance)
+    params.add('qi', value=float(qi_guess), min=1, max=10**8, vary=fit_resonance)
+    params.add('a', value=float(0), min=0, max=2, vary=nonlinear_resonance and fit_resonance)  # a > 0.77 bifurcation
     # polynomial gain parameters
-    params.add('gain0', value=gain_poly[2], min=0, vary=fit_gain)
-    params.add('gain1', value=gain_poly[1], vary=fit_gain)
-    params.add('gain2', value=gain_poly[0], vary=quadratic_gain and fit_gain)
+    params.add('gain0', value=float(gain_poly[2]), min=0, vary=fit_gain)
+    params.add('gain1', value=float(gain_poly[1]), vary=fit_gain)
+    params.add('gain2', value=float(gain_poly[0]), vary=quadratic_gain and fit_gain)
     # polynomial phase parameters
-    params.add('phase0', value=phase_poly[2], vary=fit_phase)
-    params.add('phase1', value=phase_poly[1], vary=fit_phase)
-    params.add('phase2', value=phase_poly[0], vary=quadratic_phase and fit_phase)
+    params.add('phase0', value=float(phase_poly[2]), vary=fit_phase)
+    params.add('phase1', value=float(phase_poly[1]), vary=fit_phase)
+    params.add('phase2', value=float(phase_poly[0]), vary=quadratic_phase and fit_phase)
     # IQ mixer parameters
-    params.add('i_offset', value=mixer_offset.real, vary=fit_offset)
-    params.add('q_offset', value=mixer_offset.imag, vary=fit_offset)
-    params.add('alpha', value=alpha, vary=fit_imbalance)
-    params.add('gamma', value=gamma, min=gamma - np.pi / 2, max=gamma + np.pi / 2, vary=fit_imbalance)
+    params.add('i_offset', value=float(mixer_offset.real), vary=fit_offset)
+    params.add('q_offset', value=float(mixer_offset.imag), vary=fit_offset)
+    params.add('alpha', value=float(alpha), vary=fit_imbalance)
+    params.add('gamma', value=float(gamma), min=gamma - np.pi / 2, max=gamma + np.pi / 2, vary=fit_imbalance)
 
     return params

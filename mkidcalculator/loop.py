@@ -1,4 +1,5 @@
 import logging
+import lmfit as lm
 import scipy.stats as stats
 
 from mkidcalculator.noise import Noise
@@ -143,7 +144,7 @@ class Loop:
     def from_pickle(self):
         raise NotImplementedError
 
-    def lmfit(self, residual, guess, label='default', residual_args=None, residual_kwargs=None, **kwargs):
+    def lmfit(self, residual, guess, label='default', residual_args=(), residual_kwargs=None, **kwargs):
         """
         Compute a least squares fit using the supplied residual function and
         guess. The result and other useful information is stored in
@@ -164,6 +165,8 @@ class Loop:
                 self.lmfit_results dictionary.
             residual_args: tuple
                 A tuple of arguments to be passed to the residual function.
+                Note: these arguments are the non-mandatory ones after the
+                first three.
             residual_kwargs:
                 A dictionary of arguments to be passed to the residual
                 function.
