@@ -24,8 +24,8 @@ class Loop:
         # internal variables
         self._power_calibration = 0
         # analysis results
-        self.lmfit_results = {'best': None}
-        self.emcee_results = {'best': None}
+        self.lmfit_results = {}
+        self.emcee_results = {}
         log.info("Loop object created. ID: {}".format(id(self)))
 
     @property
@@ -256,7 +256,7 @@ class Loop:
         # save the results
         self.lmfit_results[label] = {'result': result, 'objective': residual}
         # if the result is better than has been previously computed, add it to the 'best' key
-        if self.lmfit_results['best'] is None:
+        if 'best' not in self.lmfit_results.keys():
             self.lmfit_results['best'] = self.lmfit_results[label]
             self.lmfit_results['best']['label'] = label
         elif result.aic < self.lmfit_results['best']['result'].aic:
@@ -314,12 +314,12 @@ class Loop:
         median = {key: np.percentile(result.flatchain[key], 50) for key in result.flatchain.keys()}
         sigma = {key: (np.percentile(result.flatchain[key], p), np.percentile(result.flatchain[key], 100 - p))
                  for key in result.flatchain.keys()}
-        mle = dict(emcee_result.flatchain.iloc[np.argmax(emcee_result.lnprob)])
+        mle = dict(result.flatchain.iloc[np.argmax(result.lnprob)])
         # save the results
         self.emcee_results[label] = {'result': result, 'objective': residual, 'median': median, 'sigma': sigma,
                                      'mle': mle}
         # if the result is better than has been previously computed, add it to the 'best' key
-        if self.emcee_results['best'] is None:
+        if 'best' not in self.emcee_results.keys():
             self.emcee_results['best'] = self.lmfit_results[label]
             self.emcee_results['best']['label'] = label
         elif result.aic < self.emcee_results['best']['result'].aic:
