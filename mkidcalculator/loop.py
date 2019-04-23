@@ -21,6 +21,8 @@ class Loop:
         self.pulses = []
         self.f_bias_pulses = []  # for bias frequency of each pulse data set
         self.energies_pulses = []  # for known line energies for each pulse data set
+        # internal variables
+        self._power_calibration = 0
         # analysis results
         self.lmfit_results = {'best': None}
         self.emcee_results = {'best': None}
@@ -47,9 +49,77 @@ class Loop:
         return self._data['offset']
 
     @property
+    def power_calibration(self):
+        """
+        The calibrated power in dBm at the resonator for zero attenuation. This
+        value is often unknown so it is initialized to zero. If it is known, it
+        can be set directly (e.g. self.power_calibration = value). This value
+        is used primarily in the self.power attribute.
+        """
+        return self._power_calibration
+
+    @power_calibration.setter
+    def power_calibration(self, calibration):
+        self._power_calibration = calibration
+
+    @property
     def metadata(self):
         """A dictionary containing metadata about the loop."""
         return self._data['metadata']
+
+    @property
+    def power(self):
+        """
+        The power in dBm at the resonator. This value is only relative if
+        self.power_calibration has not been set.
+        """
+        return self.power_calibration - self._data['attenuation']
+
+    @property
+    def field(self):
+        """The field value at the resonator."""
+        return self._data['field']
+
+    @property
+    def temperature(self):
+        """The temperature at the resonator."""
+        return self._data['temperature']
+
+    def add_pulses(self, pulses, sort=True):
+        """
+        Add pulse data sets to the loop.
+        Args:
+            pulses: iterable of Pulse() classes
+                The pulse data sets that are to be added to the Loop.
+            sort: boolean (optional)
+                Sort the pulse data list by its bias frequency. The default is
+                True. If False, the order of the pulse data sets is preserved.
+        """
+        # append pulse data
+        for p in pulses:
+            self.pulses.append(p)
+            self.f_bias_pulses.append(p.f_bias)
+        # sort
+        if sort and self.pulses:
+            self.f_bias_pulses, self.pulses = (list(t) for t in zip(*sorted(zip(self.f_bias_pulses, self.pulses))))
+
+    def add_noise(self, noise, sort=True):
+        """
+        Add noise data sets to the loop.
+        Args:
+            noise: iterable of Noise() classes
+                The noise data sets that are to be added to the Loop.
+            sort: boolean (optional)
+                Sort the noise data list by its bias frequency. The default is
+                True. If False, the order of the noise data sets is preserved.
+        """
+        # append noise data
+        for n in noise:
+            self.noise.append(n)
+            self.f_bias_noise.append(n.f_bias)
+        # sort
+        if sort and self.noise:
+            self.f_bias_noise, self.noise = (list(t) for t in zip(*sorted(zip(self.f_bias_noise, self.noise))))
 
     @classmethod
     def load(cls, loop_file_name, noise_file_names=(), pulse_file_names=(), loop_data=AnalogReadoutLoop,
@@ -88,8 +158,8 @@ class Loop:
                 noise and pulse file names is preserved.
             channel: integer (optional)
                 Optional channel index which gets added to all of the kwarg
-                dictionaries under the key 'index'. When the default, None, is
-                passed, nothing is added to the dictionaries.
+                dictionaries under the key 'channel'. When the default, None,
+                is passed, nothing is added to the dictionaries.
             noise_kwargs: tuple (optional)
                 Tuple of dictionaries for extra keyword arguments to send to
                 noise_data. The order and length correspond to
@@ -121,21 +191,16 @@ class Loop:
                 kws.update({"channel": channel})
         # load loop
         loop._data = loop_data(loop_file_name, **kwargs)
-        # load noise and pulses
+        # load noise
+        noise = []
         for index, noise_file_name in enumerate(noise_file_names):
-            loop.noise.append(Noise.load(noise_file_name, data=noise_data, **noise_kwargs[index]))
+            noise.append(Noise.load(noise_file_name, data=noise_data, **noise_kwargs[index]))
+        loop.add_noise(noise, sort=sort)
+        # load pulses
+        pulses = []
         for index, pulse_file_name in enumerate(pulse_file_names):
-            loop.pulses.append(Pulse.load(pulse_file_name, data=pulse_data, **pulse_kwargs[index]))
-        # pull out the bias frequencies
-        for n in loop.noise:
-            loop.f_bias_noise.append(n.f_bias)
-        for p in loop.pulses:
-            loop.f_bias_pulses.append(p.f_bias)
-        # sort the noise and pulses
-        if sort and loop.noise:
-            loop.f_bias_noise, loop.noise = (list(t) for t in zip(*sorted(zip(loop.f_bias_noise, loop.noise))))
-        if sort and loop.pulses:
-            loop.f_bias_pulses, loop.pulses = (list(t) for t in zip(*sorted(zip(loop.f_bias_pulses, loop.pulses))))
+            pulses.append(Pulse.load(pulse_file_name, data=pulse_data, **pulse_kwargs[index]))
+        loop.add_pulses(pulses, sort=sort)
         return loop
 
     def to_pickle(self):

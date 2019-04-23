@@ -8,6 +8,23 @@ log.addHandler(logging.NullHandler())
 _loaded_npz_files = {}  # cache of already loaded files
 
 
+def analogreadout_temperature(metadata):
+    """
+    Returns the average temperature across all the temperatures taken during
+    the data set.
+    Args:
+        metadata: dictionary
+            The metadata dictionary from the analogreadout procedure.
+    Returns:
+        temperature: float
+            The average temperature during the data set.
+    """
+    temperatures = [metadata[key]['thermometer']['temperature'][0]
+                    for key in metadata.keys() if key not in ('parameters', 'file_name')]
+    temperature = np.mean(temperatures)
+    return temperature
+
+
 class AnalogReadoutABC:
     """
     Abstract base class for handling data from the analogreadout module.
@@ -67,17 +84,21 @@ class AnalogReadoutABC:
                 result = result.item()
             else:
                 # else get the channel and index
+                if self.index is not None:
+                    result = result[:, self.index, ...]
                 if self.channel is not None:
                     result = result[self.channel]
-                if self.index is not None:
-                    result = result[self.index]
             # more conversion
             if isinstance(convert, tuple) and len(convert) > 1:
+                # try the first conversion
                 if not callable(convert[1]):
                     try:
-                        # grab another index
-                        result = result[convert[1]]
-                    except IndexError:
+                        if isinstance(convert[1], (tuple, list)):
+                            for c in convert[1]:
+                                result = result[c]
+                        else:
+                            result = result[convert[1]]
+                    except IndexError:  # didn't work try the second
                         # if that failed run a function (for complex formatted data)
                         result = convert[2](result)
                 else:
@@ -102,7 +123,9 @@ class AnalogReadoutLoop(AnalogReadoutABC):
             An integer specifying which index to load. The default is None and
             all indices will be returned.
     """
-    CONVERT = {"f": "freqs", "z": "z", "imbalance": "calibration", "offset": "z_offset", "metadata": "metadata"}
+    CONVERT = {"f": "freqs", "z": "z", "imbalance": "calibration", "offset": "z_offset", "metadata": "metadata",
+               "attenuation": ("metadata", ("parameters", "attenuation")),
+               "field": ("metadata", ("parameters", "field")), "temperature": ("metadata", analogreadout_temperature)}
 
 
 class AnalogReadoutNoise(AnalogReadoutABC):
