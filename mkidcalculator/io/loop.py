@@ -340,7 +340,7 @@ class Loop:
         Args:
             data_kwargs: dictionary
                 Keyword arguments for the data in axes.plot(). The default is
-                None which uses default options.  Keywords in this dictionary
+                None which uses default options. Keywords in this dictionary
                 override the default options.
             plot_fit: boolean
                 Determines whether the fit is plotted or not. The default is
@@ -354,7 +354,7 @@ class Loop:
                 medians. The default is "lmfit".
             fit_kwargs: dictionary
                 Keyword arguments for the fit in axes.plot(). The default is
-                None which uses default options.  Keywords in this dictionary
+                None which uses default options. Keywords in this dictionary
                 override the default options.
             fit_parameters: iterable of strings
                 Parameters to label on the side of the plot. The default is an
@@ -457,7 +457,7 @@ class Loop:
                          parameters_kwargs=None, x_label=None, y_label=None, label_kwargs=None, legend=False,
                          legend_kwargs=None, title=True, title_kwargs=None, axes=None):
         """
-        Plot the IQ data.
+        Plot the residual of the IQ data (data - model).
         Args:
             fit_label: string
                 The label used to store the fit.
@@ -467,7 +467,7 @@ class Loop:
                 medians. The default is "lmfit".
             plot_kwargs: dictionary
                 Keyword arguments for the plot in axes.plot(). The default is
-                None which uses default options.  Keywords in this dictionary
+                None which uses default options. Keywords in this dictionary
                 override the default options.
             fit_parameters: iterable of strings
                 Parameters to label on the side of the plot. The default is an
@@ -554,7 +554,452 @@ class Loop:
         # add fit parameters
         if fit_parameters:
             self._make_parameters_textbox(fit_parameters, result, axes, parameters_kwargs)
+        axes.figure.tight_layout()
+        return axes
 
+    def plot_magnitude(self, data_kwargs=None, plot_fit=False, fit_label="best", fit_type="lmfit", fit_kwargs=None,
+                       fit_parameters=(), parameters_kwargs=None, x_label=None, y_label=None, label_kwargs=None,
+                       legend=True, legend_kwargs=None, title=True, title_kwargs=None, axes=None):
+        """
+        Plot the magnitude data.
+        Args:
+            data_kwargs: dictionary
+                Keyword arguments for the data in axes.plot(). The default is
+                None which uses default options. Keywords in this dictionary
+                override the default options.
+            plot_fit: boolean
+                Determines whether the fit is plotted or not. The default is
+                False. When False, fit_label, fit_type, fit_kwargs,
+                fit_parameters, and parameter_kwargs are ignored.
+            fit_label: string
+                The label used to store the fit.
+            fit_type: string
+                The type of fit to use. Allowed options are "lmfit", "emcee",
+                and "emcee_mle" where MLE estimates are used instead of the
+                medians. The default is "lmfit".
+            fit_kwargs: dictionary
+                Keyword arguments for the fit in axes.plot(). The default is
+                None which uses default options. Keywords in this dictionary
+                override the default options.
+            fit_parameters: iterable of strings
+                Parameters to label on the side of the plot. The default is an
+                empty tuple corresponding to no labels. 'chi2' can also be
+                included in the list to display the reduced chi squared value
+                for the fit. If fit_parameters evaluates to False,
+                parameter_kwargs is ignored.
+            parameters_kwargs: dictionary
+                Keyword arguments for the parameters textbox in axes.text().
+                The default is None which uses default options. Keywords in
+                this dictionary override the default options.
+            x_label: string
+                The label for the x axis. The default is None which uses the
+                default label.
+            y_label: string
+                The label for the y axis. The default is None which uses the
+                default label.
+            label_kwargs:
+                Keyword arguments for the axes labels in axes.set_*label(). The
+                default is None which uses default options. Keywords in this
+                dictionary override the default options.
+            legend: boolean
+                Determines whether the legend is used or not. The default is
+                True. If False, legend_kwargs is ignored.
+            legend_kwargs: dictionary
+                Keyword arguments for the legend in axes.legend(). The default
+                is None which uses default options. Keywords in this
+                dictionary override the default options.
+            title: boolean or string
+                If it is a boolean, it determines whether or not to add the
+                default title. If it is a string, that string is used as the
+                title. If False, title_kwargs is ignored.
+            title_kwargs:
+                Keyword arguments for the axes title in axes.set_title(). The
+                default is None which uses default options. Keywords in this
+                dictionary override the default options.
+            axes: matplotlib.axes.Axes class
+                An Axes class on which to put the plot. The default is None and
+                a new figure is made.
+        Returns:
+            axes: matplotlib.axes.Axes class
+                An Axes class with the plotted loop.
+        """
+        # parse inputs
+        if axes is None:
+            _, axes = plt.subplots()
+        if x_label is None:
+            x_label = "frequency [GHz]"
+        if y_label is None:
+            y_label = "|S₂₁| [V]"
+        # setup axes
+        kwargs = {}
+        if label_kwargs is not None:
+            kwargs.update(label_kwargs)
+        axes.set_xlabel(x_label, **kwargs)
+        axes.set_ylabel(y_label, **kwargs)
+        # plot data
+        kwargs = {"marker": 'o', "markersize": 2, "linestyle": 'None', "label": "data"}
+        if data_kwargs is not None:
+            kwargs.update(data_kwargs)
+        axes.plot(self.f, np.abs(self.z), **kwargs)
+        # plot fit
+        if plot_fit:
+            # get the model
+            fit_name, result_dict = self._get_model(fit_type, fit_label)
+            if fit_name is None:
+                raise ValueError("No fit of type '{}' with the label '{}' has been done".format(fit_type, fit_label))
+            result = result_dict['result']
+            model = result_dict['model']
+            # calculate the model values
+            f = np.linspace(np.min(self.f), np.max(self.f), np.size(self.f) * 10)
+            m = model.model(result.params, f)
+            # add the plot
+            kwargs = {"linestyle": '--', "label": "fit"}
+            if fit_kwargs is not None:
+                kwargs.update(fit_kwargs)
+            axes.plot(f, np.abs(m), **kwargs)
+            label = "power: {:.0f} dBm, field: {:.2f} V, temperature: {:.2f} mK, '{}' fit"
+            title = label.format(self.power, self.field, self.temperature * 1000, fit_name) if title is True else title
+            if fit_parameters:
+                self._make_parameters_textbox(fit_parameters, result, axes, parameters_kwargs)
+        else:
+            label = "power: {:.0f} dBm, field: {:.2f} V, temperature: {:.2f} mK"
+            title = label.format(self.power, self.field, self.temperature * 1000) if title is True else title
+        if legend:
+            kwargs = {}
+            if legend_kwargs is not None:
+                kwargs.update(legend_kwargs)
+            axes.legend(**kwargs)
+        if title:
+            kwargs = {"fontsize": 11}
+            if title_kwargs is not None:
+                kwargs.update(title_kwargs)
+            axes.set_title(title, **kwargs)
+        axes.figure.tight_layout()
+        return axes
+
+    def plot_magnitude_residual(self, fit_label="best", fit_type="lmfit", plot_kwargs=None, fit_parameters=(),
+                                parameters_kwargs=None, x_label=None, y_label=None, label_kwargs=None, legend=False,
+                                legend_kwargs=None, title=True, title_kwargs=None, axes=None):
+        """
+        Plot the residual of the magnitude data (data - model).
+        Args:
+            fit_label: string
+                The label used to store the fit.
+            fit_type: string
+                The type of fit to use. Allowed options are "lmfit", "emcee",
+                and "emcee_mle" where MLE estimates are used instead of the
+                medians. The default is "lmfit".
+            plot_kwargs: dictionary
+                Keyword arguments for the plot in axes.plot(). The default is
+                None which uses default options. Keywords in this dictionary
+                override the default options.
+            fit_parameters: iterable of strings
+                Parameters to label on the side of the plot. The default is an
+                empty tuple corresponding to no labels. 'chi2' can also be
+                included in the list to display the reduced chi squared value
+                for the fit. If fit_parameters evaluates to False,
+                parameter_kwargs is ignored.
+            parameters_kwargs: dictionary
+                Keyword arguments for the parameters textbox in axes.text().
+                The default is None which uses default options. Keywords in
+                this dictionary override the default options.
+            x_label: string
+                The label for the x axis. The default is None which uses the
+                default label.
+            y_label: string
+                The label for the y axis. The default is None which uses the
+                default label.
+            label_kwargs:
+                Keyword arguments for the axes labels in axes.set_*label(). The
+                default is None which uses default options. Keywords in this
+                dictionary override the default options.
+            legend: boolean
+                Determines whether the legend is used or not. The default is
+                False. If False, legend_kwargs is ignored.
+            legend_kwargs: dictionary
+                Keyword arguments for the legend in axes.legend(). The default
+                is None which uses default options. Keywords in this
+                dictionary override the default options.
+            title: boolean or string
+                If it is a boolean, it determines whether or not to add the
+                default title. If it is a string, that string is used as the
+                title. If False, title_kwargs is ignored.
+            title_kwargs:
+                Keyword arguments for the axes title in axes.set_title(). The
+                default is None which uses default options. Keywords in this
+                dictionary override the default options.
+            axes: matplotlib.axes.Axes class
+                An Axes class on which to put the plot. The default is None and
+                a new figure is made.
+        Returns:
+            axes: matplotlib.axes.Axes class
+                An Axes class with the plotted loop.
+        """
+        # parse inputs
+        if axes is None:
+            _, axes = plt.subplots()
+        if x_label is None:
+            x_label = "f [GHz]"
+        if y_label is None:
+            y_label = "|S₂₁| [V]"
+        # setup axes
+        kwargs = {}
+        if label_kwargs is not None:
+            kwargs.update(label_kwargs)
+        axes.set_xlabel(x_label, **kwargs)
+        axes.set_ylabel(y_label, **kwargs)
+        # get the model
+        fit_name, result_dict = self._get_model(fit_type, fit_label)
+        if fit_name is None:
+            raise ValueError("No fit of type '{}' with the label '{}' has been done".format(fit_type, fit_label))
+        result = result_dict['result']
+        model = result_dict['model']
+        m = model.model(result.params, self.f)
+        # plot data
+        kwargs = {"marker": 'o', "markersize": 2, "linestyle": 'None', "label": "residual"}
+        if plot_kwargs is not None:
+            kwargs.update(plot_kwargs)
+        axes.plot(self.f, np.abs(self.z) - np.abs(m), **kwargs)
+        # make the legend
+        if legend:
+            kwargs = {}
+            if legend_kwargs is not None:
+                kwargs.update(legend_kwargs)
+            axes.legend(**kwargs)
+        # make the title
+        if title:
+            label = "power: {:.0f} dBm, field: {:.2f} V, temperature: {:.2f} mK, '{}' fit"
+            text = label.format(self.power, self.field, self.temperature * 1000, fit_name) if title is True else title
+            kwargs = {"fontsize": 11}
+            if title_kwargs is not None:
+                kwargs.update(title_kwargs)
+            axes.set_title(text, **kwargs)
+        # add fit parameters
+        if fit_parameters:
+            self._make_parameters_textbox(fit_parameters, result, axes, parameters_kwargs)
+        axes.figure.tight_layout()
+        return axes
+
+    def plot_phase(self, data_kwargs=None, plot_fit=False, fit_label="best", fit_type="lmfit", fit_kwargs=None,
+                   fit_parameters=(), parameters_kwargs=None, x_label=None, y_label=None, label_kwargs=None,
+                   legend=True, legend_kwargs=None, title=True, title_kwargs=None, axes=None):
+        """
+        Plot the phase data.
+        Args:
+            data_kwargs: dictionary
+                Keyword arguments for the data in axes.plot(). The default is
+                None which uses default options. Keywords in this dictionary
+                override the default options.
+            plot_fit: boolean
+                Determines whether the fit is plotted or not. The default is
+                False. When False, fit_label, fit_type, fit_kwargs,
+                fit_parameters, and parameter_kwargs are ignored.
+            fit_label: string
+                The label used to store the fit.
+            fit_type: string
+                The type of fit to use. Allowed options are "lmfit", "emcee",
+                and "emcee_mle" where MLE estimates are used instead of the
+                medians. The default is "lmfit".
+            fit_kwargs: dictionary
+                Keyword arguments for the fit in axes.plot(). The default is
+                None which uses default options. Keywords in this dictionary
+                override the default options.
+            fit_parameters: iterable of strings
+                Parameters to label on the side of the plot. The default is an
+                empty tuple corresponding to no labels. 'chi2' can also be
+                included in the list to display the reduced chi squared value
+                for the fit. If fit_parameters evaluates to False,
+                parameter_kwargs is ignored.
+            parameters_kwargs: dictionary
+                Keyword arguments for the parameters textbox in axes.text().
+                The default is None which uses default options. Keywords in
+                this dictionary override the default options.
+            x_label: string
+                The label for the x axis. The default is None which uses the
+                default label.
+            y_label: string
+                The label for the y axis. The default is None which uses the
+                default label.
+            label_kwargs:
+                Keyword arguments for the axes labels in axes.set_*label(). The
+                default is None which uses default options. Keywords in this
+                dictionary override the default options.
+            legend: boolean
+                Determines whether the legend is used or not. The default is
+                True. If False, legend_kwargs is ignored.
+            legend_kwargs: dictionary
+                Keyword arguments for the legend in axes.legend(). The default
+                is None which uses default options. Keywords in this
+                dictionary override the default options.
+            title: boolean or string
+                If it is a boolean, it determines whether or not to add the
+                default title. If it is a string, that string is used as the
+                title. If False, title_kwargs is ignored.
+            title_kwargs:
+                Keyword arguments for the axes title in axes.set_title(). The
+                default is None which uses default options. Keywords in this
+                dictionary override the default options.
+            axes: matplotlib.axes.Axes class
+                An Axes class on which to put the plot. The default is None and
+                a new figure is made.
+        Returns:
+            axes: matplotlib.axes.Axes class
+                An Axes class with the plotted loop.
+        """
+        # parse inputs
+        if axes is None:
+            _, axes = plt.subplots()
+        if x_label is None:
+            x_label = "frequency [GHz]"
+        if y_label is None:
+            y_label = "phase [radians]"
+        # setup axes
+        kwargs = {}
+        if label_kwargs is not None:
+            kwargs.update(label_kwargs)
+        axes.set_xlabel(x_label, **kwargs)
+        axes.set_ylabel(y_label, **kwargs)
+        # plot data
+        kwargs = {"marker": 'o', "markersize": 2, "linestyle": 'None', "label": "data"}
+        if data_kwargs is not None:
+            kwargs.update(data_kwargs)
+        axes.plot(self.f, np.unwrap(np.arctan2(self.z.imag, self.z.real)), **kwargs)
+        # plot fit
+        if plot_fit:
+            # get the model
+            fit_name, result_dict = self._get_model(fit_type, fit_label)
+            if fit_name is None:
+                raise ValueError("No fit of type '{}' with the label '{}' has been done".format(fit_type, fit_label))
+            result = result_dict['result']
+            model = result_dict['model']
+            # calculate the model values
+            f = np.linspace(np.min(self.f), np.max(self.f), np.size(self.f) * 10)
+            m = model.model(result.params, f)
+            # add the plot
+            kwargs = {"linestyle": '--', "label": "fit"}
+            if fit_kwargs is not None:
+                kwargs.update(fit_kwargs)
+            axes.plot(f, np.unwrap(np.arctan2(m.imag, m.real)), **kwargs)
+            label = "power: {:.0f} dBm, field: {:.2f} V, temperature: {:.2f} mK, '{}' fit"
+            title = label.format(self.power, self.field, self.temperature * 1000, fit_name) if title is True else title
+            if fit_parameters:
+                self._make_parameters_textbox(fit_parameters, result, axes, parameters_kwargs)
+        else:
+            label = "power: {:.0f} dBm, field: {:.2f} V, temperature: {:.2f} mK"
+            title = label.format(self.power, self.field, self.temperature * 1000) if title is True else title
+        if legend:
+            kwargs = {}
+            if legend_kwargs is not None:
+                kwargs.update(legend_kwargs)
+            axes.legend(**kwargs)
+        if title:
+            kwargs = {"fontsize": 11}
+            if title_kwargs is not None:
+                kwargs.update(title_kwargs)
+            axes.set_title(title, **kwargs)
+        axes.figure.tight_layout()
+        return axes
+
+    def plot_phase_residual(self, fit_label="best", fit_type="lmfit", plot_kwargs=None, fit_parameters=(),
+                            parameters_kwargs=None, x_label=None, y_label=None, label_kwargs=None, legend=False,
+                            legend_kwargs=None, title=True, title_kwargs=None, axes=None):
+        """
+        Plot the residual of the phase data (data - model).
+        Args:
+            fit_label: string
+                The label used to store the fit.
+            fit_type: string
+                The type of fit to use. Allowed options are "lmfit", "emcee",
+                and "emcee_mle" where MLE estimates are used instead of the
+                medians. The default is "lmfit".
+            plot_kwargs: dictionary
+                Keyword arguments for the plot in axes.plot(). The default is
+                None which uses default options. Keywords in this dictionary
+                override the default options.
+            fit_parameters: iterable of strings
+                Parameters to label on the side of the plot. The default is an
+                empty tuple corresponding to no labels. 'chi2' can also be
+                included in the list to display the reduced chi squared value
+                for the fit. If fit_parameters evaluates to False,
+                parameter_kwargs is ignored.
+            parameters_kwargs: dictionary
+                Keyword arguments for the parameters textbox in axes.text().
+                The default is None which uses default options. Keywords in
+                this dictionary override the default options.
+            x_label: string
+                The label for the x axis. The default is None which uses the
+                default label.
+            y_label: string
+                The label for the y axis. The default is None which uses the
+                default label.
+            label_kwargs:
+                Keyword arguments for the axes labels in axes.set_*label(). The
+                default is None which uses default options. Keywords in this
+                dictionary override the default options.
+            legend: boolean
+                Determines whether the legend is used or not. The default is
+                False. If False, legend_kwargs is ignored.
+            legend_kwargs: dictionary
+                Keyword arguments for the legend in axes.legend(). The default
+                is None which uses default options. Keywords in this
+                dictionary override the default options.
+            title: boolean or string
+                If it is a boolean, it determines whether or not to add the
+                default title. If it is a string, that string is used as the
+                title. If False, title_kwargs is ignored.
+            title_kwargs:
+                Keyword arguments for the axes title in axes.set_title(). The
+                default is None which uses default options. Keywords in this
+                dictionary override the default options.
+            axes: matplotlib.axes.Axes class
+                An Axes class on which to put the plot. The default is None and
+                a new figure is made.
+        Returns:
+            axes: matplotlib.axes.Axes class
+                An Axes class with the plotted loop.
+        """
+        # parse inputs
+        if axes is None:
+            _, axes = plt.subplots()
+        if x_label is None:
+            x_label = "f [GHz]"
+        if y_label is None:
+            y_label = "phase [radians]"
+        # setup axes
+        kwargs = {}
+        if label_kwargs is not None:
+            kwargs.update(label_kwargs)
+        axes.set_xlabel(x_label, **kwargs)
+        axes.set_ylabel(y_label, **kwargs)
+        # get the model
+        fit_name, result_dict = self._get_model(fit_type, fit_label)
+        if fit_name is None:
+            raise ValueError("No fit of type '{}' with the label '{}' has been done".format(fit_type, fit_label))
+        result = result_dict['result']
+        model = result_dict['model']
+        m = model.model(result.params, self.f)
+        # plot data
+        kwargs = {"marker": 'o', "markersize": 2, "linestyle": 'None', "label": "residual"}
+        if plot_kwargs is not None:
+            kwargs.update(plot_kwargs)
+        axes.plot(self.f, np.unwrap(np.angle(self.z)) - np.unwrap(np.angle(m)), **kwargs)
+        # make the legend
+        if legend:
+            kwargs = {}
+            if legend_kwargs is not None:
+                kwargs.update(legend_kwargs)
+            axes.legend(**kwargs)
+        # make the title
+        if title:
+            label = "power: {:.0f} dBm, field: {:.2f} V, temperature: {:.2f} mK, '{}' fit"
+            text = label.format(self.power, self.field, self.temperature * 1000, fit_name) if title is True else title
+            kwargs = {"fontsize": 11}
+            if title_kwargs is not None:
+                kwargs.update(title_kwargs)
+            axes.set_title(text, **kwargs)
+        # add fit parameters
+        if fit_parameters:
+            self._make_parameters_textbox(fit_parameters, result, axes, parameters_kwargs)
         axes.figure.tight_layout()
         return axes
 
