@@ -1,6 +1,8 @@
 import logging
 import lmfit as lm
+import numpy as np
 import scipy.stats as stats
+import matplotlib.pyplot as plt
 
 from mkidcalculator.io.noise import Noise
 from mkidcalculator.io.pulse import Pulse
@@ -328,3 +330,69 @@ class Loop:
             self.emcee_results['best']['objective'] = residual
             self.emcee_results['best']['label'] = label
         return result
+
+    def plot_iq(self, data_kwargs=None, plot_fit=False, fit_label="best", fit_type="lmfit", fit_kwargs=None,
+                x_label=None, y_label=None, label_kwargs=None, legend=True, legend_kwargs=None, title=True,
+                title_kwargs=None, axes=None):
+        # parse inputs
+        if axes is None:
+            _, axes = plt.subplots()
+        if x_label is None:
+            x_label = "I [V]"
+        if y_label is None:
+            y_label = "Q [V]"
+        if fit_type not in ['lmfit', 'emcee', 'emcee_mle']:
+            raise ValueError("'fit_type' must be either 'lmfit', 'emcee', or 'emcee_mle'")
+        # setup axes
+        axes.axis('equal')
+        kwargs = {}
+        if label_kwargs is not None:
+            kwargs.update(label_kwargs)
+        axes.set_xlabel(x_label, **kwargs)
+        axes.set_ylabel(y_label, **kwargs)
+        # plot data
+        kwargs = {"marker": 'o', "markersize": 3, "linestyle": 'None', "label": "data"}
+        if data_kwargs is not None:
+            kwargs.update(data_kwargs)
+        axes.plot(self.z.real, self.z.imag, **kwargs)
+        # plot fit
+        if plot_fit:
+            # get the model
+            if fit_type == "lmfit":
+                model = self.lmfit_results[fit_label]["model"]
+                params = self.lmfit_results[fit_label]["result"].params
+                fit_name = self.lmfit_results[fit_label]["label"] if fit_label == "best" else fit_label
+            elif fit_type == "emcee":
+                model = self.emcee_results[fit_label]["model"]
+                params = self.emcee_results[fit_label]["result"].params
+                fit_name = self.lmfit_results[fit_label]["label"] if fit_label == "best" else fit_label
+            else:
+                model = self.emcee_results[fit_label]["model"]
+                params = self.emcee_results[fit_label]["result"].params.copy()  # copy(): don't change existing params
+                for name in params.keys():
+                    params['name'].set(value=self.emcee_results[fit_label]["mle"][name])
+                fit_name = self.lmfit_results[fit_label]["label"] if fit_label == "best" else fit_label
+            # calculate the model values
+            f = np.linspace(np.min(self.f), np.max(self.f), np.size(self.f) * 10)
+            m = model.model(params, f)
+            # add the plot
+            kwargs = {"linestyle": '--', "label": "fit"}
+            if fit_kwargs is not None:
+                kwargs.update(fit_kwargs)
+            axes.plot(m.real, m.imag, **kwargs)
+            label = "power: {:.0f} dBm, field: {:.2f} V, temperature: {:.2f} mK, '{}' fit"
+            title = label.format(self.power, self.field, self.temperature * 1000, fit_name) if title is True else title
+        else:
+            label = "power: {:.0f} dBm, field: {:.2f} V, temperature: {:.2f} mK"
+            title = label.format(self.power, self.field, self.temperature * 1000) if title is True else title
+        if legend:
+            kwargs = {}
+            if legend_kwargs is not None:
+                kwargs.update(legend_kwargs)
+            axes.legend(**kwargs)
+        if title:
+            kwargs = {"fontsize": 11}
+            if title_kwargs is not None:
+                kwargs.update(title_kwargs)
+            axes.set_title(title, **kwargs)
+        axes.figure.tight_layout()
