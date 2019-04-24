@@ -1,1 +1,1 @@
-import mkidcalculator.models.s21 as s21
+from mkidcalculator.models.s21 import S21
