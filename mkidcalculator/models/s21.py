@@ -378,7 +378,7 @@ def guess(z, f, mixer_imbalance=None, mixer_offset=0, use_filter=False, filter_l
     params.add('f0', value=float(f0_guess), min=f_min, max=f_max, vary=fit_resonance)
     params.add('qc', value=float(qc_guess), min=1, max=10**8, vary=fit_resonance)
     params.add('qi', value=float(qi_guess), min=1, max=10**8, vary=fit_resonance)
-    params.add('a_sqrt', value=float(0), min=0, max=5, vary=nonlinear_resonance and fit_resonance)  # bifurcation at 0.9
+    params.add('a_sqrt', value=float(0), vary=nonlinear_resonance and fit_resonance)  # bifurcation at a=0.7698
     # polynomial gain parameters
     params.add('gain0', value=float(gain_poly[2]), min=0, vary=fit_gain)
     params.add('gain1', value=float(gain_poly[1]), vary=fit_gain)
