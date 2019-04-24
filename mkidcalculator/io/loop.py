@@ -209,18 +209,19 @@ class Loop:
     def from_pickle(self):
         raise NotImplementedError
 
-    def lmfit(self, residual, guess, label='default', residual_args=(), residual_kwargs=None, **kwargs):
+    def lmfit(self, model, guess, label='default', residual_args=(), residual_kwargs=None, **kwargs):
         """
         Compute a least squares fit using the supplied residual function and
         guess. The result and other useful information is stored in
         self.lmfit_results[label].
         Args:
-            residual: function
-                The objective function to minimize. It must output a 1D real
-                vector. The first three arguments must be a lmfit.Parameters
-                object, the complex scattering parameter, and the corresponding
-                frequencies. Other arguments can be passed in through the
-                residual_args and residual_kwargs arguments.
+            model: module or object-like
+                model.residual should give the objective function to minimize.
+                It must output a 1D real vector. The first three arguments must
+                be a lmfit.Parameters object, the complex scattering parameter,
+                and the corresponding frequencies. Other arguments can be
+                passed in through the residual_args and residual_kwargs
+                arguments.
             guess: lmfit.Parameters object
                 A parameters object containing starting values (and bounds if
                 desired) for all of the parameters needed for the residual
@@ -251,10 +252,10 @@ class Loop:
             raise ValueError("'best' is a reserved label and cannot be used")
         # set up and do minimization
         residual_args = (self.z, self.f, *residual_args)
-        minimizer = lm.Minimizer(residual, guess, fcn_args=residual_args, fcn_kws=residual_kwargs)
+        minimizer = lm.Minimizer(model.residual, guess, fcn_args=residual_args, fcn_kws=residual_kwargs)
         result = minimizer.minimize(**kwargs)
         # save the results
-        self.lmfit_results[label] = {'result': result, 'objective': residual}
+        self.lmfit_results[label] = {'result': result, 'model': model}
         # if the result is better than has been previously computed, add it to the 'best' key
         if 'best' not in self.lmfit_results.keys():
             self.lmfit_results['best'] = self.lmfit_results[label]
@@ -264,17 +265,18 @@ class Loop:
             self.lmfit_results['best']['label'] = label
         return result
 
-    def emcee(self, residual, label='default', residual_args=(), residual_kwargs=None, **kwargs):
+    def emcee(self, model, label='default', residual_args=(), residual_kwargs=None, **kwargs):
         """
         Compute a MCMC using the supplied log likelihood function. The result
         and other useful information is stored in self.emcee_results[label].
         Args:
-            residual: function
-                The objective function to minimize. It must output a 1D real
-                vector. The first three arguments must be a lmfit.Parameters
-                object, the complex scattering parameter, and the corresponding
-                frequencies. Other arguments can be passed in through the
-                residual_args and residual_kwargs arguments.
+            model: module or object-like
+                model.residual should give the objective function to minimize.
+                It must output a 1D real vector. The first three arguments must
+                be a lmfit.Parameters object, the complex scattering parameter,
+                and the corresponding frequencies. Other arguments can be
+                passed in through the residual_args and residual_kwargs
+                arguments.
             label: string (optional)
                 A label describing the fit, used for storing the results in the
                 self.emcee_results dictionary. A corresponding fit must already
@@ -306,7 +308,7 @@ class Loop:
         # set up and do MCMC
         residual_args = (self.z, self.f, *residual_args)
         guess = self.lmfit_results[label]['result'].params
-        minimizer = lm.Minimizer(residual, guess, fcn_args=residual_args, fcn_kws=residual_kwargs)
+        minimizer = lm.Minimizer(model.residual, guess, fcn_args=residual_args, fcn_kws=residual_kwargs)
         result = minimizer.minimize(method='emcee', **kwargs)
         # get the MLE, median, and 1 sigma uncertainties around the median for each parameter in the flatchain
         one_sigma = 1 - 2 * stats.norm.cdf(-1)
@@ -316,8 +318,7 @@ class Loop:
                  for key in result.flatchain.keys()}
         mle = dict(result.flatchain.iloc[np.argmax(result.lnprob)])
         # save the results
-        self.emcee_results[label] = {'result': result, 'objective': residual, 'median': median, 'sigma': sigma,
-                                     'mle': mle}
+        self.emcee_results[label] = {'result': result, 'model': model, 'median': median, 'sigma': sigma, 'mle': mle}
         # if the result is better than has been previously computed, add it to the 'best' key
         if 'best' not in self.emcee_results.keys():
             self.emcee_results['best'] = self.lmfit_results[label]
