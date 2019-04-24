@@ -1,3 +1,4 @@
+import copy
 import logging
 import lmfit as lm
 import numpy as np
@@ -332,8 +333,8 @@ class Loop:
         return result
 
     def plot_iq(self, data_kwargs=None, plot_fit=False, fit_label="best", fit_type="lmfit", fit_kwargs=None,
-                fit_parameters=(), parameters_kwargs=None, x_label=None, y_label=None,
-                label_kwargs=None, legend=True, legend_kwargs=None, title=True, title_kwargs=None, axes=None):
+                fit_parameters=(), parameters_kwargs=None, x_label=None, y_label=None, label_kwargs=None, legend=True,
+                legend_kwargs=None, title=True, title_kwargs=None, axes=None):
         """
         Plot the IQ data.
         Args:
@@ -357,8 +358,10 @@ class Loop:
                 override the default options.
             fit_parameters: iterable of strings
                 Parameters to label on the side of the plot. The default is an
-                empty tuple corresponding to no labels. If fit_parameters
-                evaluates to False, parameter_kwargs is ignored.
+                empty tuple corresponding to no labels. 'chi2' can also be
+                included in the list to display the reduced chi squared value
+                for the fit. If fit_parameters evaluates to False,
+                parameter_kwargs is ignored.
             parameters_kwargs: dictionary
                 Keyword arguments for the parameters textbox in axes.text().
                 The default is None which uses default options. Keywords in
@@ -402,8 +405,6 @@ class Loop:
             x_label = "I [V]"
         if y_label is None:
             y_label = "Q [V]"
-        if fit_type not in ['lmfit', 'emcee', 'emcee_mle']:
-            raise ValueError("'fit_type' must be either 'lmfit', 'emcee', or 'emcee_mle'")
         # setup axes
         axes.axis('equal')
         kwargs = {}
@@ -412,30 +413,21 @@ class Loop:
         axes.set_xlabel(x_label, **kwargs)
         axes.set_ylabel(y_label, **kwargs)
         # plot data
-        kwargs = {"marker": 'o', "markersize": 3, "linestyle": 'None', "label": "data"}
+        kwargs = {"marker": 'o', "markersize": 2, "linestyle": 'None', "label": "data"}
         if data_kwargs is not None:
             kwargs.update(data_kwargs)
         axes.plot(self.z.real, self.z.imag, **kwargs)
         # plot fit
         if plot_fit:
             # get the model
-            if fit_type == "lmfit":
-                model = self.lmfit_results[fit_label]["model"]
-                params = self.lmfit_results[fit_label]["result"].params
-                fit_name = self.lmfit_results[fit_label]["label"] if fit_label == "best" else fit_label
-            elif fit_type == "emcee":
-                model = self.emcee_results[fit_label]["model"]
-                params = self.emcee_results[fit_label]["result"].params
-                fit_name = self.lmfit_results[fit_label]["label"] if fit_label == "best" else fit_label
-            else:
-                model = self.emcee_results[fit_label]["model"]
-                params = self.emcee_results[fit_label]["result"].params.copy()  # copy(): don't change existing params
-                for name in params.keys():
-                    params['name'].set(value=self.emcee_results[fit_label]["mle"][name])
-                fit_name = self.lmfit_results[fit_label]["label"] if fit_label == "best" else fit_label
+            fit_name, result_dict = self._get_model(fit_type, fit_label)
+            if fit_name is None:
+                raise ValueError("No fit of type '{}' with the label '{}' has been done".format(fit_type, fit_label))
+            result = result_dict['result']
+            model = result_dict['model']
             # calculate the model values
             f = np.linspace(np.min(self.f), np.max(self.f), np.size(self.f) * 10)
-            m = model.model(params, f)
+            m = model.model(result.params, f)
             # add the plot
             kwargs = {"linestyle": '--', "label": "fit"}
             if fit_kwargs is not None:
@@ -444,21 +436,7 @@ class Loop:
             label = "power: {:.0f} dBm, field: {:.2f} V, temperature: {:.2f} mK, '{}' fit"
             title = label.format(self.power, self.field, self.temperature * 1000, fit_name) if title is True else title
             if fit_parameters:
-                text = []
-                for name in fit_parameters:
-                    text.append("{} = {:g}".format(name, params[name].value))
-                text = "\n".join(text)
-                kwargs = {"transform": axes.transAxes, "fontsize": 10, "va": "top", "ha": "left", "ma": "center",
-                          "bbox": dict(boxstyle='round', facecolor='wheat', alpha=0.5)}
-                if parameters_kwargs is not None:
-                    kwargs.update(parameters_kwargs)
-                axes_width = axes.bbox.width
-                t = axes.text(1.05, 0.95, text, **kwargs)
-                if t.get_bbox_patch() is not None:
-                    text_width = t.get_bbox_patch().get_width()
-                else:
-                    text_width = 0.1 * axes_width
-                axes.figure.set_figwidth(axes.figure.get_figwidth() + text_width)
+                self._make_parameters_textbox(fit_parameters, result, axes, parameters_kwargs)
         else:
             label = "power: {:.0f} dBm, field: {:.2f} V, temperature: {:.2f} mK"
             title = label.format(self.power, self.field, self.temperature * 1000) if title is True else title
@@ -474,3 +452,148 @@ class Loop:
             axes.set_title(title, **kwargs)
         axes.figure.tight_layout()
         return axes
+
+    def plot_iq_residual(self, fit_label="best", fit_type="lmfit", plot_kwargs=None, fit_parameters=(),
+                         parameters_kwargs=None, x_label=None, y_label=None, label_kwargs=None, legend=False,
+                         legend_kwargs=None, title=True, title_kwargs=None, axes=None):
+        """
+        Plot the IQ data.
+        Args:
+            fit_label: string
+                The label used to store the fit.
+            fit_type: string
+                The type of fit to use. Allowed options are "lmfit", "emcee",
+                and "emcee_mle" where MLE estimates are used instead of the
+                medians. The default is "lmfit".
+            plot_kwargs: dictionary
+                Keyword arguments for the plot in axes.plot(). The default is
+                None which uses default options.  Keywords in this dictionary
+                override the default options.
+            fit_parameters: iterable of strings
+                Parameters to label on the side of the plot. The default is an
+                empty tuple corresponding to no labels. 'chi2' can also be
+                included in the list to display the reduced chi squared value
+                for the fit. If fit_parameters evaluates to False,
+                parameter_kwargs is ignored.
+            parameters_kwargs: dictionary
+                Keyword arguments for the parameters textbox in axes.text().
+                The default is None which uses default options. Keywords in
+                this dictionary override the default options.
+            x_label: string
+                The label for the x axis. The default is None which uses the
+                default label.
+            y_label: string
+                The label for the y axis. The default is None which uses the
+                default label.
+            label_kwargs:
+                Keyword arguments for the axes labels in axes.set_*label(). The
+                default is None which uses default options. Keywords in this
+                dictionary override the default options.
+            legend: boolean
+                Determines whether the legend is used or not. The default is
+                False. If False, legend_kwargs is ignored.
+            legend_kwargs: dictionary
+                Keyword arguments for the legend in axes.legend(). The default
+                is None which uses default options. Keywords in this
+                dictionary override the default options.
+            title: boolean or string
+                If it is a boolean, it determines whether or not to add the
+                default title. If it is a string, that string is used as the
+                title. If False, title_kwargs is ignored.
+            title_kwargs:
+                Keyword arguments for the axes title in axes.set_title(). The
+                default is None which uses default options. Keywords in this
+                dictionary override the default options.
+            axes: matplotlib.axes.Axes class
+                An Axes class on which to put the plot. The default is None and
+                a new figure is made.
+        Returns:
+            axes: matplotlib.axes.Axes class
+                An Axes class with the plotted loop.
+        """
+        # parse inputs
+        if axes is None:
+            _, axes = plt.subplots()
+        if x_label is None:
+            x_label = "I [V]"
+        if y_label is None:
+            y_label = "Q [V]"
+        # setup axes
+        axes.axis('equal')
+        kwargs = {}
+        if label_kwargs is not None:
+            kwargs.update(label_kwargs)
+        axes.set_xlabel(x_label, **kwargs)
+        axes.set_ylabel(y_label, **kwargs)
+        # get the model
+        fit_name, result_dict = self._get_model(fit_type, fit_label)
+        if fit_name is None:
+            raise ValueError("No fit of type '{}' with the label '{}' has been done".format(fit_type, fit_label))
+        result = result_dict['result']
+        model = result_dict['model']
+        m = model.model(result.params, self.f)
+        # plot data
+        kwargs = {"marker": 'o', "markersize": 2, "linestyle": '--', "linewidth": 0.2, "label": "residual"}
+        if plot_kwargs is not None:
+            kwargs.update(plot_kwargs)
+        axes.plot(self.z.real - m.real, self.z.imag - m.imag, **kwargs)
+        # make the legend
+        if legend:
+            kwargs = {}
+            if legend_kwargs is not None:
+                kwargs.update(legend_kwargs)
+            axes.legend(**kwargs)
+        # make the title
+        if title:
+            label = "power: {:.0f} dBm, field: {:.2f} V, temperature: {:.2f} mK, '{}' fit"
+            text = label.format(self.power, self.field, self.temperature * 1000, fit_name) if title is True else title
+            kwargs = {"fontsize": 11}
+            if title_kwargs is not None:
+                kwargs.update(title_kwargs)
+            axes.set_title(text, **kwargs)
+        # add fit parameters
+        if fit_parameters:
+            self._make_parameters_textbox(fit_parameters, result, axes, parameters_kwargs)
+
+        axes.figure.tight_layout()
+        return axes
+
+    def _get_model(self, fit_type, fit_label):
+        if fit_type not in ['lmfit', 'emcee', 'emcee_mle']:
+            raise ValueError("'fit_type' must be either 'lmfit', 'emcee', or 'emcee_mle'")
+        if fit_type == "lmfit" and fit_label in self.lmfit_results.keys():
+            result_dict = self.lmfit_results[fit_label]
+            label = self.lmfit_results[fit_label]["label"] if fit_label == "best" else fit_label
+        elif fit_type == "emcee" and fit_label in self.emcee_results.keys():
+            result_dict = self.emcee_results[fit_label]
+            label = self.lmfit_results[fit_label]["label"] if fit_label == "best" else fit_label
+        elif fit_type == "emcee_mle" and fit_label in self.emcee_results.keys():
+            result_dict = copy.deepcopy(self.emcee_results[fit_label])
+            for name in result_dict['result'].params.keys():
+                result_dict['result'].params[name].set(value=self.emcee_results[fit_label]["mle"][name])
+            label = self.lmfit_results[fit_label]["label"] if fit_label == "best" else fit_label
+        else:
+            result_dict = None
+            label = None
+        return label, result_dict
+
+    @staticmethod
+    def _make_parameters_textbox(fit_parameters, result, axes, parameters_kwargs):
+        text = []
+        for name in fit_parameters:
+            if name == "chi2":
+                text.append(r"$\chi^2 = {:g}$".format(result.redchi))
+            else:
+                text.append("{} = {:g}".format(name, result.params[name].value))
+        text = "\n".join(text)
+        kwargs = {"transform": axes.transAxes, "fontsize": 10, "va": "top", "ha": "left", "ma": "center",
+                  "bbox": dict(boxstyle='round', facecolor='wheat', alpha=0.5)}
+        if parameters_kwargs is not None:
+            kwargs.update(parameters_kwargs)
+        axes_width = axes.bbox.width
+        t = axes.text(1.05, 0.95, text, **kwargs)
+        if t.get_bbox_patch() is not None:
+            text_width = t.get_bbox_patch().get_width()
+        else:
+            text_width = 0.1 * axes_width
+        axes.figure.set_figwidth(axes.figure.get_figwidth() + text_width)
