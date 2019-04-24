@@ -3,8 +3,8 @@ import pandas as pd
 from operator import itemgetter
 from scipy.cluster.vq import kmeans2, ClusterError
 
-from mkidcalculator.loop import Loop
-from mkidcalculator.data import analogreadout_sweep
+from mkidcalculator.io.loop import Loop
+from mkidcalculator.io.data import analogreadout_sweep
 
 
 class Sweep:

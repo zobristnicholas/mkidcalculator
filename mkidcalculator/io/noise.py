@@ -1,6 +1,6 @@
 import logging
 
-from mkidcalculator.data import AnalogReadoutNoise
+from mkidcalculator.io.data import AnalogReadoutNoise
 
 log = logging.getLogger(__name__)
 log.addHandler(logging.NullHandler())

@@ -1,6 +1,6 @@
 import logging
 
-from mkidcalculator.data import AnalogReadoutPulse
+from mkidcalculator.io.data import AnalogReadoutPulse
 
 log = logging.getLogger(__name__)
 log.addHandler(logging.NullHandler())

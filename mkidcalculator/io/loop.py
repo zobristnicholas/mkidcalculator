@@ -2,9 +2,9 @@ import logging
 import lmfit as lm
 import scipy.stats as stats
 
-from mkidcalculator.noise import Noise
-from mkidcalculator.pulse import Pulse
-from mkidcalculator.data import AnalogReadoutLoop, AnalogReadoutNoise, AnalogReadoutPulse
+from mkidcalculator.io.noise import Noise
+from mkidcalculator.io.pulse import Pulse
+from mkidcalculator.io.data import AnalogReadoutLoop, AnalogReadoutNoise, AnalogReadoutPulse
 
 log = logging.getLogger(__name__)
 log.addHandler(logging.NullHandler())
