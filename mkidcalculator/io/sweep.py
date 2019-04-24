@@ -42,14 +42,8 @@ class Sweep:
         parameter_names = set()
         parameters = []
         for loop in self.loops:
-            if fit_type == "lmfit" and label in loop.lmfit_results.keys():  # only include lmfit
-                p = loop.lmfit_results[label]['result'].params.valuesdict()
-            elif fit_type == "emcee" and label in loop.emcee_results.keys():  # only include emcee
-                p = loop.emcee_results[label]['median']
-            elif fit_type == "emcee_mle" and label in loop.emcee_results.keys():  # only include emcee mle values
-                p = loop.emcee_results[label]['mle']
-            else:
-                p = None
+            _, result_dict = loop._get_model(fit_type, label)
+            p = result_dict['result'].params.valuesdict() if result_dict is not None else None
             # save the parameters and collect all the names into the set
             parameters.append(p)
             if p is not None:
