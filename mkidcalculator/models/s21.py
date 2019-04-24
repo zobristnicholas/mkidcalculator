@@ -255,7 +255,7 @@ def guess(z, f, mixer_imbalance=None, mixer_offset=0, use_filter=False, filter_l
             True.
         nonlinear_resonance: bool (optional)
             Allow the resonance model to fit for nonlinear behavior. The
-            default is True.
+            default is False.
         fit_gain: bool (optional)
             Allow the gain parameters to vary in the fit. The default is True.
         quadratic_gain: bool (optional)
