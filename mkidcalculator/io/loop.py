@@ -1,4 +1,5 @@
 import copy
+import pickle
 import logging
 import lmfit as lm
 import numpy as np
@@ -87,6 +88,19 @@ class Loop:
     def temperature(self):
         """The temperature at the resonator."""
         return self._data['temperature']
+
+    def to_pickle(self, file_name):
+        """Pickle and save the class as the file 'file_name'."""
+        with open(file_name, "wb") as f:
+            pickle.dump(self, f)
+
+    @classmethod
+    def from_pickle(cls, file_name):
+        """Returns a Loop class from the pickle file 'file_name'."""
+        with open(file_name, "rb") as f:
+            loop = pickle.load(f)
+        assert isinstance(loop, cls), "'{}' does not contain a Loop class.".format(file_name)
+        return loop
 
     def add_pulses(self, pulses, sort=True):
         """
@@ -206,19 +220,13 @@ class Loop:
         loop.add_pulses(pulses, sort=sort)
         return loop
 
-    def to_pickle(self):
-        raise NotImplementedError
-
-    def from_pickle(self):
-        raise NotImplementedError
-
     def lmfit(self, model, guess, label='default', residual_args=(), residual_kwargs=None, **kwargs):
         """
         Compute a least squares fit using the supplied residual function and
         guess. The result and other useful information is stored in
         self.lmfit_results[label].
         Args:
-            model: module or object-like
+            model: object-like
                 model.residual should give the objective function to minimize.
                 It must output a 1D real vector. The first three arguments must
                 be a lmfit.Parameters object, the complex scattering parameter,

@@ -1,3 +1,4 @@
+import pickle
 import numpy as np
 import pandas as pd
 from operator import itemgetter
@@ -16,6 +17,19 @@ class Sweep:
         self.temperature_groups = []
         # analysis results
         self.loop_parameters = {}
+
+    def to_pickle(self, file_name):
+        """Pickle and save the class as the file 'file_name'."""
+        with open(file_name, "wb") as f:
+            pickle.dump(self, f)
+
+    @classmethod
+    def from_pickle(cls, file_name):
+        """Returns a Sweep class from the pickle file 'file_name'."""
+        with open(file_name, "rb") as f:
+            sweep = pickle.load(f)
+        assert isinstance(sweep, cls), "'{}' does not contain a Sweep class.".format(file_name)
+        return sweep
 
     def create_parameters(self, label="best", fit_type="lmfit", group=True, n_groups=None):
         # check inputs

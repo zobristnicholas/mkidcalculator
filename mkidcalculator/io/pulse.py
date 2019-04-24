@@ -1,3 +1,4 @@
+import pickle
 import logging
 
 from mkidcalculator.io.data import AnalogReadoutPulse
@@ -41,6 +42,19 @@ class Pulse:
     def energies(self):
         """The known photon energies in this data set."""
         return self._data["energies"]
+
+    def to_pickle(self, file_name):
+        """Pickle and save the class as the file 'file_name'."""
+        with open(file_name, "wb") as f:
+            pickle.dump(self, f)
+
+    @classmethod
+    def from_pickle(cls, file_name):
+        """Returns a Pulse class from the pickle file 'file_name'."""
+        with open(file_name, "rb") as f:
+            pulse = pickle.load(f)
+        assert isinstance(pulse, cls), "'{}' does not contain a Pulse class.".format(file_name)
+        return pulse
 
     @classmethod
     def load(cls, file_name, data=AnalogReadoutPulse, **kwargs):

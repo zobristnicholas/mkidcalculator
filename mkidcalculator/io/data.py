@@ -70,6 +70,20 @@ class AnalogReadoutABC:
         else:
             raise ValueError("'npz_handle' must be a valid file name or a numpy npz file object.")
 
+    def __getstate__(self):
+        file_name = os.path.abspath(self._npz.fid.name)
+        __dict__ = self.__dict__.copy()
+        __dict__['_npz'] = file_name
+        return __dict__
+
+    def __setstate__(self, state):
+        self.__dict__ = state
+        global _loaded_npz_files
+        npz = np.load(self._npz)
+        if self._npz not in _loaded_npz_files.keys():
+            _loaded_npz_files[self._npz] = npz
+        self._npz = npz
+
     def __getitem__(self, item):
         # get conversion values
         try:

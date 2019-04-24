@@ -1,3 +1,4 @@
+import pickle
 import logging
 
 from mkidcalculator.io.data import AnalogReadoutNoise
@@ -31,6 +32,19 @@ class Noise:
     def metadata(self):
         """A dictionary containing metadata about the pulse."""
         return self._data["metadata"]
+
+    def to_pickle(self, file_name):
+        """Pickle and save the class as the file 'file_name'."""
+        with open(file_name, "wb") as f:
+            pickle.dump(self, f)
+
+    @classmethod
+    def from_pickle(cls, file_name):
+        """Returns a Noise class from the pickle file 'file_name'."""
+        with open(file_name, "rb") as f:
+            noise = pickle.load(f)
+        assert isinstance(noise, cls), "'{}' does not contain a Noise class.".format(file_name)
+        return noise
 
     @classmethod
     def load(cls, file_name, data=AnalogReadoutNoise, **kwargs):
