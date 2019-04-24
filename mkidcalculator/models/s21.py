@@ -232,11 +232,12 @@ def guess(z, f, mixer_imbalance=None, mixer_offset=0, use_filter=False, filter_l
             Complex resonator scattering parameter.
         f: numpy.ndarray, dtype=real, shape=(N,)
             Frequency points corresponding to z.
-        mixer_imbalance: numpy.ndarray, dtype=complex, shape=(3, M) (optional)
-            Mixer calibration data (three data sets of I and Q beating). The
-            three sets correspond to the frequencies at the beginning middle
-            and end frequencies. The default is None, which means no
-            calibration is assumed.
+        mixer_imbalance: numpy.ndarray, dtype=complex, shape=(M, L) (optional)
+            Mixer calibration data (three data sets of I and Q beating). Each
+            of the M data sets is it's own calibration, potentially taken at
+            different frequencies and frequency offsets. The results of the M
+            data sets are averaged together. The default is None, which means
+            no calibration is assumed.
         mixer_offset: complex, iterable (optional)
             A complex number corresponding to the I + iQ mixer offset. The
             default is 0, corresponding to no offset. If the input is iterable,
@@ -304,11 +305,8 @@ def guess(z, f, mixer_imbalance=None, mixer_offset=0, use_filter=False, filter_l
         ratio = np.angle(np.fft.rfft(ip)[np.arange(3), f_i_ind[:, 0]] /
                          np.fft.rfft(qp)[np.arange(3), f_q_ind[:, 0]])  # for arcsine branch
         gamma = np.arcsin(np.sign(ratio) * 2 * np.mean(qp * ip, axis=-1) / (alpha * amp**2)) + np.pi * (ratio < 0)
-        # choose the calibration with the highest transmission
-        center = int(np.round((len(z) - 1) / 2))
-        index = np.argmax([np.abs(z)[0], np.abs(z)[center], np.abs(z)[-1]])
-        alpha = alpha[index]
-        gamma = gamma[index]
+        alpha = np.mean(alpha)
+        gamma = np.mean(gamma)
     else:
         alpha = 1
         gamma = 0
