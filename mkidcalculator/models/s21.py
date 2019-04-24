@@ -315,7 +315,7 @@ def guess(z, f, mixer_imbalance=None, mixer_offset=0, use_filter=False, filter_l
     z = mixer_inverse((alpha, gamma, mixer_offset), z)
     # compute the magnitude and phase of the scattering parameter
     magnitude = np.abs(z)
-    phase = np.unwrap(np.arctan2(z.imag, z.real))
+    phase = np.unwrap(np.angle(z))
     # filter the magnitude and phase if requested
     if use_filter:
         if filter_length is None:
