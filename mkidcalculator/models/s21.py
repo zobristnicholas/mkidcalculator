@@ -298,7 +298,6 @@ def guess(z, f, mixer_imbalance=None, mixer_offset=0, use_filter=False, filter_l
         f_q_ind = np.argmax(np.abs(fft_q), axis=-1)[:, np.newaxis]
         fft_q[np.logical_or(indices < f_q_ind - 1, indices > f_q_ind + 1)] = 0
         qp = np.fft.irfft(fft_q, q[0, :].size)
-        # TODO: clip Ip and Qp so that they are approximately N periods long to minimize errors
         # compute alpha and gamma
         amp = np.sqrt(2 * np.mean(qp**2, axis=-1))
         alpha = np.sqrt(2 * np.mean(ip**2, axis=-1)) / amp
