@@ -332,8 +332,69 @@ class Loop:
         return result
 
     def plot_iq(self, data_kwargs=None, plot_fit=False, fit_label="best", fit_type="lmfit", fit_kwargs=None,
-                x_label=None, y_label=None, label_kwargs=None, legend=True, legend_kwargs=None, title=True,
-                title_kwargs=None, axes=None):
+                fit_parameters=(), parameters_kwargs=None, x_label=None, y_label=None,
+                label_kwargs=None, legend=True, legend_kwargs=None, title=True, title_kwargs=None, axes=None):
+        """
+        Plot the IQ data.
+        Args:
+            data_kwargs: dictionary
+                Keyword arguments for the data in axes.plot(). The default is
+                None which uses default options.  Keywords in this dictionary
+                override the default options.
+            plot_fit: boolean
+                Determines whether the fit is plotted or not. The default is
+                False. When False, fit_label, fit_type, fit_kwargs,
+                fit_parameters, and parameter_kwargs are ignored.
+            fit_label: string
+                The label used to store the fit.
+            fit_type: string
+                The type of fit to use. Allowed options are "lmfit", "emcee",
+                and "emcee_mle" where MLE estimates are used instead of the
+                medians. The default is "lmfit".
+            fit_kwargs: dictionary
+                Keyword arguments for the fit in axes.plot(). The default is
+                None which uses default options.  Keywords in this dictionary
+                override the default options.
+            fit_parameters: iterable of strings
+                Parameters to label on the side of the plot. The default is an
+                empty tuple corresponding to no labels. If fit_parameters
+                evaluates to False, parameter_kwargs is ignored.
+            parameters_kwargs: dictionary
+                Keyword arguments for the parameters textbox in axes.text().
+                The default is None which uses default options. Keywords in
+                this dictionary override the default options.
+            x_label: string
+                The label for the x axis. The default is None which uses the
+                default label.
+            y_label: string
+                The label for the y axis. The default is None which uses the
+                default label.
+            label_kwargs:
+                Keyword arguments for the axes labels in axes.set_*label(). The
+                default is None which uses default options. Keywords in this
+                dictionary override the default options.
+            legend: boolean
+                Determines whether the legend is used or not. The default is
+                True. If False, legend_kwargs is ignored.
+            legend_kwargs: dictionary
+                Keyword arguments for the legend in axes.legend(). The default
+                is None which uses default options. Keywords in this
+                dictionary override the default options.
+            title: boolean or string
+                If it is a boolean, it determines whether or not to add the
+                default title. If it is a string, that string is used as the
+                title. If False, title_kwargs is ignored.
+            title_kwargs:
+                Keyword arguments for the axes title in axes.set_title(). The
+                default is None which uses default options. Keywords in this
+                dictionary override the default options.
+            axes: matplotlib.axes.Axes class
+                An Axes class on which to put the plot. The default is None and
+                a new figure is made.
+        Returns:
+            axes: matplotlib.axes.Axes class
+                An Axes class with the plotted loop.
+        """
         # parse inputs
         if axes is None:
             _, axes = plt.subplots()
@@ -382,6 +443,22 @@ class Loop:
             axes.plot(m.real, m.imag, **kwargs)
             label = "power: {:.0f} dBm, field: {:.2f} V, temperature: {:.2f} mK, '{}' fit"
             title = label.format(self.power, self.field, self.temperature * 1000, fit_name) if title is True else title
+            if fit_parameters:
+                text = []
+                for name in fit_parameters:
+                    text.append("{} = {:g}".format(name, params[name].value))
+                text = "\n".join(text)
+                kwargs = {"transform": axes.transAxes, "fontsize": 10, "va": "top", "ha": "left", "ma": "center",
+                          "bbox": dict(boxstyle='round', facecolor='wheat', alpha=0.5)}
+                if parameters_kwargs is not None:
+                    kwargs.update(parameters_kwargs)
+                axes_width = axes.bbox.width
+                t = axes.text(1.05, 0.95, text, **kwargs)
+                if t.get_bbox_patch() is not None:
+                    text_width = t.get_bbox_patch().get_width()
+                else:
+                    text_width = 0.1 * axes_width
+                axes.figure.set_figwidth(axes.figure.get_figwidth() + text_width)
         else:
             label = "power: {:.0f} dBm, field: {:.2f} V, temperature: {:.2f} mK"
             title = label.format(self.power, self.field, self.temperature * 1000) if title is True else title
@@ -396,3 +473,4 @@ class Loop:
                 kwargs.update(title_kwargs)
             axes.set_title(title, **kwargs)
         axes.figure.tight_layout()
+        return axes
