@@ -332,6 +332,156 @@ class Loop:
             self.emcee_results['best']['label'] = label
         return result
 
+    def plot(self, plot_types=("iq", "magnitude", "phase"), plot_fit=False, fit_label="best", fit_type="lmfit",
+             n_rows=2, title=True, title_kwargs=None, legend=True, legend_kwargs=None, fit_parameters=(),
+             parameters_kwargs=None, plot_kwargs=None, axes_list=None):
+        """
+        Plot a variety of data representations in a matplotlib pyplot.subplots
+        grid.
+        Args:
+            plot_types: iterable of strings
+                The types of plots to show. Valid types are 'iq', 'magnitude',
+                and 'phase'. If a fit was computed with the appropriate
+                fit_label and fit_type, 'r_iq', 'r_magnitude', and 'r_phase'
+                can be used to make residual plots. The default is ('iq',
+                'magnitude', 'phase')
+            plot_fit: boolean
+                Determines whether the fit is plotted or not. The default is
+                False. The residual plots can still be rendered if requested in
+                the plot_types. fit_parameters and parameters_kwargs are
+                ignored if False.
+            fit_label: string
+                The label used to store the fit. The default is "best".
+            fit_type: string
+                The type of fit to use. Allowed options are "lmfit", "emcee",
+                and "emcee_mle" where MLE estimates are used instead of the
+                medians. The default is "lmfit".
+            n_rows: integer
+                An integer specifying how many rows there are in the subplots
+                grid. The default is 2.
+            title: boolean or string
+                If it is a boolean, it determines whether or not to add the
+                default title. If it is a string, that string is used as the
+                title. If False, title_kwargs is ignored. The default is True.
+            title_kwargs:
+                Keyword arguments for the axes title in figure.suptitle(). The
+                default is None which uses default options. Keywords in this
+                dictionary override the default options.
+            legend: boolean
+                Determines whether the legend is used or not. The default is
+                True, and a legend is plotted in the first axes. If False,
+                legend_kwargs is ignored.
+            legend_kwargs: dictionary
+                Keyword arguments for the legend in axes.legend(). The default
+                is None which uses default options. Keywords in this
+                dictionary override the default options.
+            fit_parameters: iterable of strings
+                Parameters to label on the side of the plot. The default is an
+                empty tuple corresponding to no labels. 'chi2' can also be
+                included in the list to display the reduced chi squared value
+                for the fit. If fit_parameters evaluates to False,
+                parameter_kwargs is ignored.
+            parameters_kwargs: dictionary
+                Keyword arguments for the parameters textbox in axes.text().
+                The default is None which uses default options. Keywords in
+                this dictionary override the default options.
+            plot_kwargs: an iterable of dictionaries
+                A list of keyword arguments for each plot type. The default is
+                None which uses default options. Keywords in this dictionary
+                override the default options. Valid keyword arguments can be
+                found in the documentation for the specific plot functions.
+                'iq': Loop.plot_iq
+                'magnitude': Loop.plot_magnitude
+                'phase': Loop.plot_phase
+                'r_iq': Loop.plot_iq_residual
+                'r_magnitude': Loop.plot_magnitude_residual
+                'r_phase': Loop.plot_phase_residual
+            axes_list: an iterable of matplotlib.axes.Axes classes
+                A list of Axes classes on which to put the plots. The default
+                is None and a new figure is made.
+        Returns:
+            axes_list: an iterable of matplotlib.axes.Axes classes
+                A list of Axes classes with the plotted data.
+        """
+        # parse inputs
+        n_plots = len(plot_types)
+        n_columns = int(np.ceil(n_plots / n_rows))
+        if axes_list is None:
+            figure, axes_list = plt.subplots(n_rows, n_columns, figsize=(4.3 * n_columns, 4.0 * n_rows))
+            axes_list = list(axes_list.flatten())
+        else:
+            if isinstance(axes_list, np.ndarray):
+                axes_list = list(axes_list.flatten())
+            figure = axes_list[0].figure
+        if plot_kwargs is None:
+            plot_kwargs = [{}] * n_plots
+        # make main plots
+        index = 0  # if plot_types = ()
+        for index, plot_type in enumerate(plot_types):
+            kwargs = {"title": False, "legend": False, "axes": axes_list[index]}
+            if plot_type == "iq":
+                kwargs.update({"plot_fit": plot_fit, "fit_label": fit_label, "fit_type": fit_type})
+                kwargs.update(plot_kwargs[index])
+                self.plot_iq(**kwargs)
+            elif plot_type == "r_iq":
+                kwargs.update(plot_kwargs[index])
+                self.plot_iq_residual(**kwargs)
+            elif plot_type == "magnitude":
+                kwargs.update({"plot_fit": plot_fit, "fit_label": fit_label, "fit_type": fit_type})
+                kwargs.update(plot_kwargs[index])
+                self.plot_magnitude(**kwargs)
+            elif plot_type == "r_magnitude":
+                kwargs.update(plot_kwargs[index])
+                self.plot_magnitude_residual(**kwargs)
+            elif plot_type == "phase":
+                kwargs.update({"plot_fit": plot_fit, "fit_label": fit_label, "fit_type": fit_type})
+                kwargs.update(plot_kwargs[index])
+                self.plot_phase(**kwargs)
+            elif plot_type == "r_phase":
+                kwargs.update(plot_kwargs[index])
+                self.plot_phase_residual(**kwargs)
+            else:
+                raise ValueError("'{}' is not a recognized plot type".format(plot_type))
+        # turn off unused axes
+        if index < len(axes_list) - 1:
+            for axes in axes_list[index + 1:]:
+                axes.axis('off')
+        if plot_fit:
+            fit_name, result_dict = self._get_model(fit_type, fit_label)
+            if fit_parameters:
+                if index == len(axes_list) - 1:
+                    axes = axes_list[n_columns - 1]
+                    self._make_parameters_textbox(fit_parameters, result_dict['result'], axes, parameters_kwargs)
+                else:
+                    axes = axes_list[index + 1]
+                    text = self._make_parameters_text(fit_parameters, result_dict['result'])
+                    kwargs = {"transform": axes.transAxes, "fontsize": 10, "va": "center", "ha": "center",
+                              "ma": "center", "bbox": dict(boxstyle='round', facecolor='wheat', alpha=0.5)}
+                    if parameters_kwargs is not None:
+                        kwargs.update(parameters_kwargs)
+                    axes.text(0.5, 0.5, text, **kwargs)
+            label = ("power: {:.0f} dBm, field: {:.2f} V, temperature: {:.2f} mK, '{}' fit"
+                     .format(self.power, self.field, self.temperature * 1000, fit_name))
+        else:
+            label = ("power: {:.0f} dBm, field: {:.2f} V, temperature: {:.2f} mK"
+                     .format(self.power, self.field, self.temperature * 1000))
+        if legend:
+            kwargs = {}
+            if legend_kwargs is not None:
+                kwargs.update(legend_kwargs)
+            axes_list[0].legend(**kwargs)
+        if title:
+            title = label if title is True else title
+            kwargs = {"fontsize": 11}
+            if title_kwargs is not None:
+                kwargs.update(title_kwargs)
+            figure.tight_layout()
+            figure.suptitle(title, **kwargs).set_y(0.95)
+            figure.subplots_adjust(top=0.9)
+        else:
+            figure.tight_layout()
+        return axes_list
+
     def plot_iq(self, data_kwargs=None, plot_fit=False, fit_label="best", fit_type="lmfit", fit_kwargs=None,
                 fit_parameters=(), parameters_kwargs=None, x_label=None, y_label=None, label_kwargs=None, legend=True,
                 legend_kwargs=None, title=True, title_kwargs=None, axes=None):
@@ -347,7 +497,7 @@ class Loop:
                 False. When False, fit_label, fit_type, fit_kwargs,
                 fit_parameters, and parameter_kwargs are ignored.
             fit_label: string
-                The label used to store the fit.
+                The label used to store the fit. The default is "best".
             fit_type: string
                 The type of fit to use. Allowed options are "lmfit", "emcee",
                 and "emcee_mle" where MLE estimates are used instead of the
@@ -386,7 +536,7 @@ class Loop:
             title: boolean or string
                 If it is a boolean, it determines whether or not to add the
                 default title. If it is a string, that string is used as the
-                title. If False, title_kwargs is ignored.
+                title. If False, title_kwargs is ignored. The default is True.
             title_kwargs:
                 Keyword arguments for the axes title in axes.set_title(). The
                 default is None which uses default options. Keywords in this
@@ -460,7 +610,7 @@ class Loop:
         Plot the residual of the IQ data (data - model).
         Args:
             fit_label: string
-                The label used to store the fit.
+                The label used to store the fit. The default is "best".
             fit_type: string
                 The type of fit to use. Allowed options are "lmfit", "emcee",
                 and "emcee_mle" where MLE estimates are used instead of the
@@ -499,7 +649,7 @@ class Loop:
             title: boolean or string
                 If it is a boolean, it determines whether or not to add the
                 default title. If it is a string, that string is used as the
-                title. If False, title_kwargs is ignored.
+                title. If False, title_kwargs is ignored. The default is True.
             title_kwargs:
                 Keyword arguments for the axes title in axes.set_title(). The
                 default is None which uses default options. Keywords in this
@@ -509,7 +659,7 @@ class Loop:
                 a new figure is made.
         Returns:
             axes: matplotlib.axes.Axes class
-                An Axes class with the plotted loop.
+                An Axes class with the plotted residuals.
         """
         # parse inputs
         if axes is None:
@@ -572,7 +722,7 @@ class Loop:
                 False. When False, fit_label, fit_type, fit_kwargs,
                 fit_parameters, and parameter_kwargs are ignored.
             fit_label: string
-                The label used to store the fit.
+                The label used to store the fit. The default is "best".
             fit_type: string
                 The type of fit to use. Allowed options are "lmfit", "emcee",
                 and "emcee_mle" where MLE estimates are used instead of the
@@ -611,7 +761,7 @@ class Loop:
             title: boolean or string
                 If it is a boolean, it determines whether or not to add the
                 default title. If it is a string, that string is used as the
-                title. If False, title_kwargs is ignored.
+                title. If False, title_kwargs is ignored. The default is True.
             title_kwargs:
                 Keyword arguments for the axes title in axes.set_title(). The
                 default is None which uses default options. Keywords in this
@@ -621,7 +771,7 @@ class Loop:
                 a new figure is made.
         Returns:
             axes: matplotlib.axes.Axes class
-                An Axes class with the plotted loop.
+                An Axes class with the plotted magnitude.
         """
         # parse inputs
         if axes is None:
@@ -684,7 +834,7 @@ class Loop:
         Plot the residual of the magnitude data (data - model).
         Args:
             fit_label: string
-                The label used to store the fit.
+                The label used to store the fit. The default is "best".
             fit_type: string
                 The type of fit to use. Allowed options are "lmfit", "emcee",
                 and "emcee_mle" where MLE estimates are used instead of the
@@ -723,7 +873,7 @@ class Loop:
             title: boolean or string
                 If it is a boolean, it determines whether or not to add the
                 default title. If it is a string, that string is used as the
-                title. If False, title_kwargs is ignored.
+                title. If False, title_kwargs is ignored. The default is True.
             title_kwargs:
                 Keyword arguments for the axes title in axes.set_title(). The
                 default is None which uses default options. Keywords in this
@@ -733,7 +883,7 @@ class Loop:
                 a new figure is made.
         Returns:
             axes: matplotlib.axes.Axes class
-                An Axes class with the plotted loop.
+                An Axes class with the plotted residuals.
         """
         # parse inputs
         if axes is None:
@@ -795,7 +945,7 @@ class Loop:
                 False. When False, fit_label, fit_type, fit_kwargs,
                 fit_parameters, and parameter_kwargs are ignored.
             fit_label: string
-                The label used to store the fit.
+                The label used to store the fit. The default is "best".
             fit_type: string
                 The type of fit to use. Allowed options are "lmfit", "emcee",
                 and "emcee_mle" where MLE estimates are used instead of the
@@ -834,7 +984,7 @@ class Loop:
             title: boolean or string
                 If it is a boolean, it determines whether or not to add the
                 default title. If it is a string, that string is used as the
-                title. If False, title_kwargs is ignored.
+                title. If False, title_kwargs is ignored. The default is True.
             title_kwargs:
                 Keyword arguments for the axes title in axes.set_title(). The
                 default is None which uses default options. Keywords in this
@@ -844,7 +994,7 @@ class Loop:
                 a new figure is made.
         Returns:
             axes: matplotlib.axes.Axes class
-                An Axes class with the plotted loop.
+                An Axes class with the plotted phase.
         """
         # parse inputs
         if axes is None:
@@ -907,7 +1057,7 @@ class Loop:
         Plot the residual of the phase data (data - model).
         Args:
             fit_label: string
-                The label used to store the fit.
+                The label used to store the fit. The default is "best".
             fit_type: string
                 The type of fit to use. Allowed options are "lmfit", "emcee",
                 and "emcee_mle" where MLE estimates are used instead of the
@@ -946,7 +1096,7 @@ class Loop:
             title: boolean or string
                 If it is a boolean, it determines whether or not to add the
                 default title. If it is a string, that string is used as the
-                title. If False, title_kwargs is ignored.
+                title. If False, title_kwargs is ignored. The default is True.
             title_kwargs:
                 Keyword arguments for the axes title in axes.set_title(). The
                 default is None which uses default options. Keywords in this
@@ -956,7 +1106,7 @@ class Loop:
                 a new figure is made.
         Returns:
             axes: matplotlib.axes.Axes class
-                An Axes class with the plotted loop.
+                An Axes class with the plotted residuals.
         """
         # parse inputs
         if axes is None:
@@ -1022,15 +1172,8 @@ class Loop:
             label = None
         return label, result_dict
 
-    @staticmethod
-    def _make_parameters_textbox(fit_parameters, result, axes, parameters_kwargs):
-        text = []
-        for name in fit_parameters:
-            if name == "chi2":
-                text.append(r"$\chi^2 = {:g}$".format(result.redchi))
-            else:
-                text.append("{} = {:g}".format(name, result.params[name].value))
-        text = "\n".join(text)
+    def _make_parameters_textbox(self, fit_parameters, result, axes, parameters_kwargs):
+        text = self._make_parameters_text(fit_parameters, result)
         kwargs = {"transform": axes.transAxes, "fontsize": 10, "va": "top", "ha": "left", "ma": "center",
                   "bbox": dict(boxstyle='round', facecolor='wheat', alpha=0.5)}
         if parameters_kwargs is not None:
@@ -1042,3 +1185,15 @@ class Loop:
         else:
             text_width = 0.1 * axes_width
         axes.figure.set_figwidth(axes.figure.get_figwidth() + text_width)
+
+    @staticmethod
+    def _make_parameters_text(fit_parameters, result):
+        text = []
+        for name in fit_parameters:
+            if name == "chi2":
+                text.append(r"$\chi^2 = {:g}$".format(result.redchi))
+            else:
+                text.append("{} = {:g}".format(name, result.params[name].value))
+        text = "\n".join(text)
+
+        return text
