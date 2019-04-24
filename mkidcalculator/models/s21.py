@@ -60,7 +60,7 @@ def resonance(params, f):
     f0 = params['f0'].value  # resonant frequency
     qc = params['qc'].value  # coupling Q
     qi = params['qi'].value  # internal Q
-    a = params['a'].value  # nonlinearity parameter (Swenson et al. 2013)
+    a = params['a_sqrt'].value**2  # nonlinearity parameter (Swenson et al. 2013)
 
     # calculate the total Q
     q0 = 1. / (1. / qi + 1. / qc)
@@ -378,7 +378,7 @@ def guess(z, f, mixer_imbalance=None, mixer_offset=0, use_filter=False, filter_l
     params.add('f0', value=float(f0_guess), min=f_min, max=f_max, vary=fit_resonance)
     params.add('qc', value=float(qc_guess), min=1, max=10**8, vary=fit_resonance)
     params.add('qi', value=float(qi_guess), min=1, max=10**8, vary=fit_resonance)
-    params.add('a', value=float(0), min=0, max=2, vary=nonlinear_resonance and fit_resonance)  # a > 0.77 bifurcation
+    params.add('a_sqrt', value=float(0), min=0, max=5, vary=nonlinear_resonance and fit_resonance)  # bifurcation at 0.9
     # polynomial gain parameters
     params.add('gain0', value=float(gain_poly[2]), min=0, vary=fit_gain)
     params.add('gain1', value=float(gain_poly[1]), vary=fit_gain)
@@ -393,6 +393,7 @@ def guess(z, f, mixer_imbalance=None, mixer_offset=0, use_filter=False, filter_l
     params.add('alpha', value=float(alpha), vary=fit_imbalance)
     params.add('gamma', value=float(gamma), min=gamma - np.pi / 2, max=gamma + np.pi / 2, vary=fit_imbalance)
     # add derived parameters
+    params.add("a", expr="a_sqrt**2")
     params.add("q0", expr="1 / (1 / qi + 1 / qc)")
     params.add("tau", expr="-phase1 / (2 * pi * fm)")
 
