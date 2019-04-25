@@ -72,7 +72,7 @@ class S21:
         # accounting for nonlinearity
         if a != 0:
             y0 = q0 * (f - f0) / f0
-            select_root = np.min if f[0] - f[1] > 0 else np.max  # min is low to high, max is high to low sweep
+            select_root = np.min if f[1] - f[0] > 0 else np.max  # min is low to high, max is high to low sweep
             y = np.zeros(y0.shape)
             for ii, y0_ii in enumerate(y0):
                 roots = np.roots([4, -4 * y0_ii, 1, -(y0_ii + a)])
