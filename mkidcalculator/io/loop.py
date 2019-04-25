@@ -188,7 +188,7 @@ class Loop:
                 pulse_file_names. The default is None, which is equivalent to
                 a tuple of empty dictionaries.
             kwargs: optional keyword arguments
-                extra keyword arguments to send to loop_data.
+                Extra keyword arguments to send to loop_data.
         Returns:
             loop: object
                 A Loop() object containing the loaded data.
@@ -371,7 +371,7 @@ class Loop:
                 If it is a boolean, it determines whether or not to add the
                 default title. If it is a string, that string is used as the
                 title. If False, title_kwargs is ignored. The default is True.
-            title_kwargs:
+            title_kwargs: dictionary
                 Keyword arguments for the axes title in figure.suptitle(). The
                 default is None which uses default options. Keywords in this
                 dictionary override the default options.
@@ -536,7 +536,7 @@ class Loop:
                 The label for the y axis. The default is None which uses the
                 default label. If y_label evaluates to False, parameter_kwargs
                 is ignored.
-            label_kwargs:
+            label_kwargs: dictionary
                 Keyword arguments for the axes labels in axes.set_*label(). The
                 default is None which uses default options. Keywords in this
                 dictionary override the default options.
@@ -551,7 +551,7 @@ class Loop:
                 If it is a boolean, it determines whether or not to add the
                 default title. If it is a string, that string is used as the
                 title. If False, title_kwargs is ignored. The default is True.
-            title_kwargs:
+            title_kwargs: dictionary
                 Keyword arguments for the axes title in axes.set_title(). The
                 default is None which uses default options. Keywords in this
                 dictionary override the default options.
@@ -657,7 +657,7 @@ class Loop:
                 The label for the y axis. The default is None which uses the
                 default label. If y_label evaluates to False, parameter_kwargs
                 is ignored.
-            label_kwargs:
+            label_kwargs: dictionary
                 Keyword arguments for the axes labels in axes.set_*label(). The
                 default is None which uses default options. Keywords in this
                 dictionary override the default options.
@@ -672,7 +672,7 @@ class Loop:
                 If it is a boolean, it determines whether or not to add the
                 default title. If it is a string, that string is used as the
                 title. If False, title_kwargs is ignored. The default is True.
-            title_kwargs:
+            title_kwargs: dictionary dictionary
                 Keyword arguments for the axes title in axes.set_title(). The
                 default is None which uses default options. Keywords in this
                 dictionary override the default options.
@@ -776,7 +776,7 @@ class Loop:
                 The label for the y axis. The default is None which uses the
                 default label. If y_label evaluates to False, parameter_kwargs
                 is ignored.
-            label_kwargs:
+            label_kwargs: dictionary
                 Keyword arguments for the axes labels in axes.set_*label(). The
                 default is None which uses default options. Keywords in this
                 dictionary override the default options.
@@ -791,7 +791,7 @@ class Loop:
                 If it is a boolean, it determines whether or not to add the
                 default title. If it is a string, that string is used as the
                 title. If False, title_kwargs is ignored. The default is True.
-            title_kwargs:
+            title_kwargs: dictionary
                 Keyword arguments for the axes title in axes.set_title(). The
                 default is None which uses default options. Keywords in this
                 dictionary override the default options.
@@ -895,7 +895,7 @@ class Loop:
                 The label for the y axis. The default is None which uses the
                 default label. If y_label evaluates to False, parameter_kwargs
                 is ignored.
-            label_kwargs:
+            label_kwargs: dictionary
                 Keyword arguments for the axes labels in axes.set_*label(). The
                 default is None which uses default options. Keywords in this
                 dictionary override the default options.
@@ -910,7 +910,7 @@ class Loop:
                 If it is a boolean, it determines whether or not to add the
                 default title. If it is a string, that string is used as the
                 title. If False, title_kwargs is ignored. The default is True.
-            title_kwargs:
+            title_kwargs: dictionary
                 Keyword arguments for the axes title in axes.set_title(). The
                 default is None which uses default options. Keywords in this
                 dictionary override the default options.
@@ -928,7 +928,7 @@ class Loop:
         if axes is None:
             _, axes = plt.subplots()
         if x_label is None:
-            x_label = "f [GHz]"
+            x_label = "frequency [GHz]"
         if y_label is None:
             y_label = "|S₂₁| [V]"
         # setup axes
@@ -1013,7 +1013,7 @@ class Loop:
                 The label for the y axis. The default is None which uses the
                 default label. If y_label evaluates to False, parameter_kwargs
                 is ignored.
-            label_kwargs:
+            label_kwargs: dictionary
                 Keyword arguments for the axes labels in axes.set_*label(). The
                 default is None which uses default options. Keywords in this
                 dictionary override the default options.
@@ -1028,7 +1028,7 @@ class Loop:
                 If it is a boolean, it determines whether or not to add the
                 default title. If it is a string, that string is used as the
                 title. If False, title_kwargs is ignored. The default is True.
-            title_kwargs:
+            title_kwargs: dictionary
                 Keyword arguments for the axes title in axes.set_title(). The
                 default is None which uses default options. Keywords in this
                 dictionary override the default options.
@@ -1132,7 +1132,7 @@ class Loop:
                 The label for the y axis. The default is None which uses the
                 default label. If y_label evaluates to False, parameter_kwargs
                 is ignored.
-            label_kwargs:
+            label_kwargs: dictionary
                 Keyword arguments for the axes labels in axes.set_*label(). The
                 default is None which uses default options. Keywords in this
                 dictionary override the default options.
@@ -1147,7 +1147,7 @@ class Loop:
                 If it is a boolean, it determines whether or not to add the
                 default title. If it is a string, that string is used as the
                 title. If False, title_kwargs is ignored. The default is True.
-            title_kwargs:
+            title_kwargs: dictionary
                 Keyword arguments for the axes title in axes.set_title(). The
                 default is None which uses default options. Keywords in this
                 dictionary override the default options.
@@ -1165,7 +1165,7 @@ class Loop:
         if axes is None:
             _, axes = plt.subplots()
         if x_label is None:
-            x_label = "f [GHz]"
+            x_label = "frequency [GHz]"
         if y_label is None:
             y_label = "phase [radians]"
         # setup axes
