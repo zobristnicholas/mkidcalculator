@@ -1,4 +1,5 @@
 import pickle
+import matplotlib
 import numpy as np
 import pandas as pd
 from operator import itemgetter
@@ -145,3 +146,173 @@ class Sweep:
 
     def emcee(self):
         raise NotImplementedError
+
+    def plot_loops(self, power=None, field=None, temperature=None, color_data='temperature', colormap=None,
+                   colorbar=True, colorbar_kwargs=None, colorbar_label=True, colorbar_label_kwargs=None, **loop_kwargs):
+        """
+        Plot a subset of the loops in the sweep by combining multiple
+        loop.plot() calls.
+        Args:
+            power: number or tuple of two numbers
+                Inclusive range of powers to plot. A single number will cause
+                only that value to be plotted. The default is to include all of
+                the powers.
+            field: number or tuple of two numbers
+                Inclusive range of fields to plot. A single number will cause
+                only that value to be plotted. The default is to include all of
+                the fields.
+            temperature: number or tuple of two numbers
+                Inclusive range of temperatures to plot. A single number will
+                cause only that value to be plotted. The default is to include
+                all of the temperatures.
+            color_data: string
+                Either 'temperature', 'field', or 'power' indicating off what
+                type of data to base the colormap. The default is
+                'temperature'.
+            colormap: matplotlib.colors.Colormap
+                A matplotlib colormap for coloring the data. If the default
+                None is used, a colormap is chosen based on color_data.
+            colorbar: boolean
+                Determines whether to include a colorbar. The default is True.
+                If False, colorbar_kwargs, colorbar_label, and
+                colorbar_label_kwargs are ignored.
+            colorbar_kwargs: dictionary
+                Keyword arguments for the colorbar in figure.colorbar(). The
+                default is None which uses default options. Keywords in this
+                dictionary override the default options.
+            colorbar_label: boolean or string
+                If it is a boolean, it determines whether or not to add the
+                default colorbar label. If it is a string, that string is used
+                as the colorbar label. If False, colorbar_label_kwargs is
+                ignored. The default is True.
+            colorbar_label_kwargs: dictionary
+                Keyword arguments for the colorbar in colorbar.set_label(). The
+                default is None which uses default options. Keywords in this
+                dictionary override the default options.
+            loop_kwargs: optional keyword arguments
+                Extra keyword arguments to send to loop.plot().
+        Returns:
+            axes_list: an iterable of matplotlib.axes.Axes classes
+                A list of Axes classes with the plotted data.
+        """
+        # parse inputs
+        if "fit_parameters" in loop_kwargs.keys():
+            raise TypeError("'fit_parameters' is not a valid keyword argument")
+        if "parameters_kwargs" in loop_kwargs.keys():
+            raise TypeError("'parameters_kwargs' is not a valid keyword argument")
+        if power is None:
+            power = (-np.inf, np.inf)
+        elif not isinstance(power, (tuple, list, np.ndarray)):
+            power = (power, power)
+        if field is None:
+            field = (-np.inf, np.inf)
+        elif not isinstance(field, (tuple, list, np.ndarray)):
+            field = (field, field)
+        if temperature is None:
+            temperature = (-np.inf, np.inf)
+        elif not isinstance(temperature, (tuple, list, np.ndarray)):
+            temperature = (temperature, temperature)
+        if color_data == 'temperature':
+            cmap = matplotlib.cm.get_cmap('coolwarm') if colormap is None else colormap
+            cdata = np.array(self.temperatures) * 1000
+        elif color_data == 'field':
+            cmap = matplotlib.cm.get_cmap('viridis') if colormap is None else colormap
+            cdata = self.fields
+        elif color_data == 'power':
+            cmap = matplotlib.cm.get_cmap('plasma') if colormap is None else colormap
+            cdata = self.powers
+        else:
+            raise ValueError("'{}' is not a valid value of color_data.".format(color_data))
+        norm = matplotlib.colors.Normalize(vmin=min(cdata), vmax=max(cdata))
+        n_plots = 3 if 'plot_types' not in loop_kwargs.keys() else len(loop_kwargs['plot_types'])
+        axes_list = None
+        # format title
+        title = loop_kwargs.get("title", True)
+        if title is True:
+            # power
+            if power[0] == power[1]:
+                title = "{:.0f} dBm, ".format(power[0])
+            elif np.isinf(power[0]) and np.isinf(power[1]):
+                title = "All Powers, "
+            else:
+                title = "({:.0f}, {:.0f}) dBm, ".format(power[0], power[1])
+            # field
+            if field[0] == field[1]:
+                title += "{:.0f} V, ".format(field[0])
+            elif np.isinf(field[0]) and np.isinf(field[1]):
+                title += "All Fields, "
+            else:
+                title += "({:.0f}, {:.0f}) V, ".format(field[0], field[1])
+            # temperature
+            if temperature[0] == temperature[1]:
+                title += "{:.0f} mK".format(temperature[0] * 1000)
+            elif np.isinf(temperature[0]) and np.isinf(temperature[1]):
+                title += "All Temperatures"
+            else:
+                title += "({:.0f}, {:.0f}) mK".format(temperature[0] * 1000, temperature[1] * 1000)
+        # store key word options
+        user_plot_kwargs = loop_kwargs.get('plot_kwargs', [])
+        user_data_kwargs = []
+        for kw in user_plot_kwargs:
+            user_data_kwargs.append(kw.get("data_kwargs", {}))
+        user_fit_kwargs = []
+        for kw in user_plot_kwargs:
+            user_fit_kwargs.append(kw.get("fit_kwargs", {}))
+        # make a plot for each loop
+        plot_index = 0
+        for index, loop in enumerate(self.loops):
+            condition = (power[0] <= loop.power <= power[1] and
+                         field[0] <= loop.field <= field[1] and
+                         temperature[0] <= loop.temperature <= temperature[1])
+            if condition:
+                # default plot key words
+                if plot_index == 0:
+                    plot_kwargs = [{'data_kwargs': {'color': cmap(norm(cdata[index]))},
+                                    'fit_kwargs': {'color': 'k'}}] * n_plots
+                else:
+                    plot_kwargs = [{'x_label': '', 'y_label': '', 'data_kwargs': {'color': cmap(norm(cdata[index]))},
+                                    'fit_kwargs': {'color': 'k'}}] * n_plots
+                # update data key words with user defaults
+                for kw_index, data_kw in enumerate(user_data_kwargs):
+                    plot_kwargs[kw_index]['data_kwargs'].update(data_kw)
+                # update fit key words with user defaults
+                for kw_index, fit_kw in enumerate(user_fit_kwargs):
+                    plot_kwargs[kw_index]['fit_kwargs'].update(fit_kw)
+                # update plot key words with user defaults
+                for kw_index, kws in enumerate(user_plot_kwargs):
+                    kws = kws.copy()
+                    kws.pop('data_kwargs')
+                    kws.pop('fit_kwargs')
+                    plot_kwargs[kw_index].update(kws)
+                # update loop kwargs
+                if plot_index == 0:
+                    loop_kwargs.update({"plot_kwargs": plot_kwargs, "title": title})
+                else:
+                    loop_kwargs.update({"axes_list": axes_list, "title": False, "legend": False, "tighten": False,
+                                        "plot_kwargs": plot_kwargs})
+                axes_list = loop.plot(**loop_kwargs)
+                plot_index += 1
+        # if we didn't plot anything exit the function
+        if axes_list is None:
+            return
+        if colorbar:
+            mappable = matplotlib.cm.ScalarMappable(norm, cmap)
+            mappable.set_array([])
+            kwargs = {'aspect': 30}
+            if colorbar_kwargs is not None:
+                kwargs.update(colorbar_kwargs)
+            cbar = axes_list[0].figure.colorbar(mappable, ax=axes_list, **kwargs)
+            if colorbar_label:
+                if color_data == 'temperature':
+                    label = "temperature [mK]" if colorbar_label is True else colorbar_label
+                elif color_data == 'field':
+                    label = "field [V]" if colorbar_label is True else colorbar_label
+                else:
+                    label = "power [dBm]" if colorbar_label is True else colorbar_label
+                kwargs = {"rotation": 270, 'va': 'bottom'}
+                if colorbar_label_kwargs is not None:
+                    kwargs.update(colorbar_label_kwargs)
+                cbar.set_label(label, **kwargs)
+            cbar_width = cbar.ax.get_window_extent().transformed(axes_list[0].figure.dpi_scale_trans.inverted()).width
+            axes_list[0].figure.set_figwidth(axes_list[0].figure.get_figwidth() + cbar_width)
+        return axes_list
