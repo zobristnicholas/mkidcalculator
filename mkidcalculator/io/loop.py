@@ -342,7 +342,7 @@ class Loop:
 
     def plot(self, plot_types=("iq", "magnitude", "phase"), plot_fit=False, fit_label="best", fit_type="lmfit",
              n_rows=2, title=True, title_kwargs=None, legend=True, legend_kwargs=None, fit_parameters=(),
-             parameters_kwargs=None, plot_kwargs=None, axes_list=None):
+             parameters_kwargs=None, tighten=True, plot_kwargs=None, axes_list=None):
         """
         Plot a variety of data representations in a matplotlib pyplot.subplots
         grid.
@@ -393,6 +393,9 @@ class Loop:
                 Keyword arguments for the parameters textbox in axes.text().
                 The default is None which uses default options. Keywords in
                 this dictionary override the default options.
+            tighten: boolean
+                Determines whether figure.tight_layout() is called. The default
+                is True.
             plot_kwargs: an iterable of dictionaries
                 A list of keyword arguments for each plot type. The default is
                 None which uses default options. Keywords in this dictionary
@@ -426,7 +429,7 @@ class Loop:
         # make main plots
         index = 0  # if plot_types = ()
         for index, plot_type in enumerate(plot_types):
-            kwargs = {"title": False, "legend": False, "axes": axes_list[index]}
+            kwargs = {"title": False, "legend": False, "axes": axes_list[index], "tighten": tighten}
             if plot_type == "iq":
                 kwargs.update({"plot_fit": plot_fit, "fit_label": fit_label, "fit_type": fit_type})
                 kwargs.update(plot_kwargs[index])
@@ -483,16 +486,17 @@ class Loop:
             kwargs = {"fontsize": 11}
             if title_kwargs is not None:
                 kwargs.update(title_kwargs)
-            figure.tight_layout()
+            if tighten:
+                figure.tight_layout()
             figure.suptitle(title, **kwargs).set_y(0.95)
             figure.subplots_adjust(top=0.9)
-        else:
+        elif tighten:
             figure.tight_layout()
         return axes_list
 
     def plot_iq(self, data_kwargs=None, plot_fit=False, fit_label="best", fit_type="lmfit", fit_kwargs=None,
                 fit_parameters=(), parameters_kwargs=None, x_label=None, y_label=None, label_kwargs=None, legend=True,
-                legend_kwargs=None, title=True, title_kwargs=None, axes=None):
+                legend_kwargs=None, title=True, title_kwargs=None, tighten=True, axes=None):
         """
         Plot the IQ data.
         Args:
@@ -551,6 +555,9 @@ class Loop:
                 Keyword arguments for the axes title in axes.set_title(). The
                 default is None which uses default options. Keywords in this
                 dictionary override the default options.
+            tighten: boolean
+                Determines whether figure.tight_layout() is called. The default
+                is True.
             axes: matplotlib.axes.Axes class
                 An Axes class on which to put the plot. The default is None and
                 a new figure is made.
@@ -612,12 +619,13 @@ class Loop:
             if title_kwargs is not None:
                 kwargs.update(title_kwargs)
             axes.set_title(title, **kwargs)
-        axes.figure.tight_layout()
+        if tighten:
+            axes.figure.tight_layout()
         return axes
 
     def plot_iq_residual(self, fit_label="best", fit_type="lmfit", plot_kwargs=None, fit_parameters=(),
                          parameters_kwargs=None, x_label=None, y_label=None, label_kwargs=None, legend=False,
-                         legend_kwargs=None, title=True, title_kwargs=None, axes=None):
+                         legend_kwargs=None, title=True, title_kwargs=None, tighten=True, axes=None):
         """
         Plot the residual of the IQ data (data - model).
         Args:
@@ -668,6 +676,9 @@ class Loop:
                 Keyword arguments for the axes title in axes.set_title(). The
                 default is None which uses default options. Keywords in this
                 dictionary override the default options.
+            tighten: boolean
+                Determines whether figure.tight_layout() is called. The default
+                is True.
             axes: matplotlib.axes.Axes class
                 An Axes class on which to put the plot. The default is None and
                 a new figure is made.
@@ -720,12 +731,13 @@ class Loop:
         # add fit parameters
         if fit_parameters:
             self._make_parameters_textbox(fit_parameters, result, axes, parameters_kwargs)
-        axes.figure.tight_layout()
+        if tighten:
+            axes.figure.tight_layout()
         return axes
 
     def plot_magnitude(self, data_kwargs=None, plot_fit=False, fit_label="best", fit_type="lmfit", fit_kwargs=None,
                        fit_parameters=(), parameters_kwargs=None, x_label=None, y_label=None, label_kwargs=None,
-                       legend=True, legend_kwargs=None, title=True, title_kwargs=None, axes=None):
+                       legend=True, legend_kwargs=None, title=True, title_kwargs=None, tighten=True, axes=None):
         """
         Plot the magnitude data.
         Args:
@@ -783,6 +795,9 @@ class Loop:
                 Keyword arguments for the axes title in axes.set_title(). The
                 default is None which uses default options. Keywords in this
                 dictionary override the default options.
+            tighten: boolean
+                Determines whether figure.tight_layout() is called. The default
+                is True.
             axes: matplotlib.axes.Axes class
                 An Axes class on which to put the plot. The default is None and
                 a new figure is made.
@@ -843,12 +858,13 @@ class Loop:
             if title_kwargs is not None:
                 kwargs.update(title_kwargs)
             axes.set_title(title, **kwargs)
-        axes.figure.tight_layout()
+        if tighten:
+            axes.figure.tight_layout()
         return axes
 
     def plot_magnitude_residual(self, fit_label="best", fit_type="lmfit", plot_kwargs=None, fit_parameters=(),
                                 parameters_kwargs=None, x_label=None, y_label=None, label_kwargs=None, legend=False,
-                                legend_kwargs=None, title=True, title_kwargs=None, axes=None):
+                                legend_kwargs=None, title=True, title_kwargs=None, tighten=True, axes=None):
         """
         Plot the residual of the magnitude data (data - model).
         Args:
@@ -898,6 +914,9 @@ class Loop:
                 Keyword arguments for the axes title in axes.set_title(). The
                 default is None which uses default options. Keywords in this
                 dictionary override the default options.
+            tighten: boolean
+                Determines whether figure.tight_layout() is called. The default
+                is True.
             axes: matplotlib.axes.Axes class
                 An Axes class on which to put the plot. The default is None and
                 a new figure is made.
@@ -949,12 +968,13 @@ class Loop:
         # add fit parameters
         if fit_parameters:
             self._make_parameters_textbox(fit_parameters, result, axes, parameters_kwargs)
-        axes.figure.tight_layout()
+        if tighten:
+            axes.figure.tight_layout()
         return axes
 
     def plot_phase(self, data_kwargs=None, plot_fit=False, fit_label="best", fit_type="lmfit", fit_kwargs=None,
                    fit_parameters=(), parameters_kwargs=None, x_label=None, y_label=None, label_kwargs=None,
-                   legend=True, legend_kwargs=None, title=True, title_kwargs=None, axes=None):
+                   legend=True, legend_kwargs=None, title=True, title_kwargs=None, tighten=True, axes=None):
         """
         Plot the phase data.
         Args:
@@ -1012,6 +1032,9 @@ class Loop:
                 Keyword arguments for the axes title in axes.set_title(). The
                 default is None which uses default options. Keywords in this
                 dictionary override the default options.
+            tighten: boolean
+                Determines whether figure.tight_layout() is called. The default
+                is True.
             axes: matplotlib.axes.Axes class
                 An Axes class on which to put the plot. The default is None and
                 a new figure is made.
@@ -1072,12 +1095,13 @@ class Loop:
             if title_kwargs is not None:
                 kwargs.update(title_kwargs)
             axes.set_title(title, **kwargs)
-        axes.figure.tight_layout()
+        if tighten:
+            axes.figure.tight_layout()
         return axes
 
     def plot_phase_residual(self, fit_label="best", fit_type="lmfit", plot_kwargs=None, fit_parameters=(),
                             parameters_kwargs=None, x_label=None, y_label=None, label_kwargs=None, legend=False,
-                            legend_kwargs=None, title=True, title_kwargs=None, axes=None):
+                            legend_kwargs=None, title=True, title_kwargs=None, tighten=True, axes=None):
         """
         Plot the residual of the phase data (data - model).
         Args:
@@ -1127,6 +1151,9 @@ class Loop:
                 Keyword arguments for the axes title in axes.set_title(). The
                 default is None which uses default options. Keywords in this
                 dictionary override the default options.
+            tighten: boolean
+                Determines whether figure.tight_layout() is called. The default
+                is True.
             axes: matplotlib.axes.Axes class
                 An Axes class on which to put the plot. The default is None and
                 a new figure is made.
@@ -1178,7 +1205,8 @@ class Loop:
         # add fit parameters
         if fit_parameters:
             self._make_parameters_textbox(fit_parameters, result, axes, parameters_kwargs)
-        axes.figure.tight_layout()
+        if tighten:
+            axes.figure.tight_layout()
         return axes
 
     def _get_model(self, fit_type, fit_label):
