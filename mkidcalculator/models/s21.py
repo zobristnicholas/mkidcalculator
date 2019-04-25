@@ -3,6 +3,8 @@ import numpy as np
 import lmfit as lm
 import scipy.signal as sps
 
+from mkidcalculator.models.nonlinearity import swenson
+
 log = logging.getLogger(__name__)
 log.addHandler(logging.NullHandler())
 
@@ -72,11 +74,8 @@ class S21:
         # accounting for nonlinearity
         if a != 0:
             y0 = q0 * (f - f0) / f0
-            select_root = np.min if f[1] - f[0] > 0 else np.max  # min is low to high, max is high to low sweep
-            y = np.zeros(y0.shape)
-            for ii, y0_ii in enumerate(y0):
-                roots = np.roots([4, -4 * y0_ii, 1, -(y0_ii + a)])
-                y[ii] = select_root(roots[np.isreal(roots)].real)
+            increasing = True if f[1] - f[0] >= 0 else False
+            y = swenson(y0, a, increasing=increasing)
             ff = y / q0
         else:
             ff = (f - f0) / f0
