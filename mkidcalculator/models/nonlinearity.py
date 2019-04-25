@@ -17,12 +17,13 @@ def swenson(y0, a, increasing=True):
     y = np.empty(y0.shape)
     if increasing:
         # try to compute analytically
-        a2 = ((y0 / 3) ** 3 + y0 / 12 + a / 8) ** 2 - ((y0 / 3) ** 2 - 1 / 12) ** 3
-        analytic = (a2 >= 0)  # formula breaks down here
-        k2 = np.sqrt(a2[analytic])
-        a1 = a / 8 + y0 / 12 + k2 + (y0 / 3) ** 3
-        k1 = np.sign(a1) * np.abs(a1) ** (1 / 3)  # need the real branch if a1 < 0
-        y[analytic] = y0 / 3 + ((y0 / 3) ** 2 - 1 / 12) / k1 + k1
+        a2 = ((y0 / 3)**3 + y0 / 12 + a / 8)**2 - ((y0 / 3)**2 - 1 / 12)**3
+        k2 = np.sqrt(a2)
+        a1 = a / 8 + y0 / 12 + k2 + (y0 / 3)**3
+        analytic = np.logical_and(a2 >= 0, a1 != 0)  # formula breaks down here
+        k1 = np.sign(a1[analytic]) * np.abs(a1[analytic])**(1 / 3)  # need the real branch if a1 < 0
+        y0_analytic = y0[analytic]
+        y[analytic] = y0_analytic / 3 + ((y0_analytic / 3)**2 - 1 / 12) / k1 + k1
         # use numeric calculation if required
         numeric = np.logical_not(analytic)
         y_numeric = np.empty(numeric.sum())
