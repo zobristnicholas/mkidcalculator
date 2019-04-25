@@ -526,10 +526,12 @@ class Loop:
                 this dictionary override the default options.
             x_label: string
                 The label for the x axis. The default is None which uses the
-                default label.
+                default label. If x_label evaluates to False, parameter_kwargs
+                is ignored.
             y_label: string
                 The label for the y axis. The default is None which uses the
-                default label.
+                default label. If y_label evaluates to False, parameter_kwargs
+                is ignored.
             label_kwargs:
                 Keyword arguments for the axes labels in axes.set_*label(). The
                 default is None which uses default options. Keywords in this
@@ -568,8 +570,10 @@ class Loop:
         kwargs = {}
         if label_kwargs is not None:
             kwargs.update(label_kwargs)
-        axes.set_xlabel(x_label, **kwargs)
-        axes.set_ylabel(y_label, **kwargs)
+        if x_label:
+            axes.set_xlabel(x_label, **kwargs)
+        if y_label:
+            axes.set_ylabel(y_label, **kwargs)
         # plot data
         kwargs = {"marker": 'o', "markersize": 2, "linestyle": 'None', "label": "data"}
         if data_kwargs is not None:
@@ -639,10 +643,12 @@ class Loop:
                 this dictionary override the default options.
             x_label: string
                 The label for the x axis. The default is None which uses the
-                default label.
+                default label. If x_label evaluates to False, parameter_kwargs
+                is ignored.
             y_label: string
                 The label for the y axis. The default is None which uses the
-                default label.
+                default label. If y_label evaluates to False, parameter_kwargs
+                is ignored.
             label_kwargs:
                 Keyword arguments for the axes labels in axes.set_*label(). The
                 default is None which uses default options. Keywords in this
@@ -681,8 +687,10 @@ class Loop:
         kwargs = {}
         if label_kwargs is not None:
             kwargs.update(label_kwargs)
-        axes.set_xlabel(x_label, **kwargs)
-        axes.set_ylabel(y_label, **kwargs)
+        if x_label:
+            axes.set_xlabel(x_label, **kwargs)
+        if y_label:
+            axes.set_ylabel(y_label, **kwargs)
         # get the model
         fit_name, result_dict = self._get_model(fit_type, fit_label)
         if fit_name is None:
@@ -754,7 +762,8 @@ class Loop:
                 default label.
             y_label: string
                 The label for the y axis. The default is None which uses the
-                default label.
+                default label. If y_label evaluates to False, parameter_kwargs
+                is ignored.
             label_kwargs:
                 Keyword arguments for the axes labels in axes.set_*label(). The
                 default is None which uses default options. Keywords in this
@@ -792,8 +801,10 @@ class Loop:
         kwargs = {}
         if label_kwargs is not None:
             kwargs.update(label_kwargs)
-        axes.set_xlabel(x_label, **kwargs)
-        axes.set_ylabel(y_label, **kwargs)
+        if x_label:
+            axes.set_xlabel(x_label, **kwargs)
+        if y_label:
+            axes.set_ylabel(y_label, **kwargs)
         # plot data
         kwargs = {"marker": 'o', "markersize": 2, "linestyle": 'None', "label": "data"}
         if data_kwargs is not None:
@@ -866,7 +877,8 @@ class Loop:
                 default label.
             y_label: string
                 The label for the y axis. The default is None which uses the
-                default label.
+                default label. If y_label evaluates to False, parameter_kwargs
+                is ignored.
             label_kwargs:
                 Keyword arguments for the axes labels in axes.set_*label(). The
                 default is None which uses default options. Keywords in this
@@ -904,8 +916,10 @@ class Loop:
         kwargs = {}
         if label_kwargs is not None:
             kwargs.update(label_kwargs)
-        axes.set_xlabel(x_label, **kwargs)
-        axes.set_ylabel(y_label, **kwargs)
+        if x_label:
+            axes.set_xlabel(x_label, **kwargs)
+        if y_label:
+            axes.set_ylabel(y_label, **kwargs)
         # get the model
         fit_name, result_dict = self._get_model(fit_type, fit_label)
         if fit_name is None:
@@ -977,7 +991,8 @@ class Loop:
                 default label.
             y_label: string
                 The label for the y axis. The default is None which uses the
-                default label.
+                default label. If y_label evaluates to False, parameter_kwargs
+                is ignored.
             label_kwargs:
                 Keyword arguments for the axes labels in axes.set_*label(). The
                 default is None which uses default options. Keywords in this
@@ -1015,8 +1030,10 @@ class Loop:
         kwargs = {}
         if label_kwargs is not None:
             kwargs.update(label_kwargs)
-        axes.set_xlabel(x_label, **kwargs)
-        axes.set_ylabel(y_label, **kwargs)
+        if x_label:
+            axes.set_xlabel(x_label, **kwargs)
+        if y_label:
+            axes.set_ylabel(y_label, **kwargs)
         # plot data
         kwargs = {"marker": 'o', "markersize": 2, "linestyle": 'None', "label": "data"}
         if data_kwargs is not None:
@@ -1089,7 +1106,8 @@ class Loop:
                 default label.
             y_label: string
                 The label for the y axis. The default is None which uses the
-                default label.
+                default label. If y_label evaluates to False, parameter_kwargs
+                is ignored.
             label_kwargs:
                 Keyword arguments for the axes labels in axes.set_*label(). The
                 default is None which uses default options. Keywords in this
@@ -1127,8 +1145,10 @@ class Loop:
         kwargs = {}
         if label_kwargs is not None:
             kwargs.update(label_kwargs)
-        axes.set_xlabel(x_label, **kwargs)
-        axes.set_ylabel(y_label, **kwargs)
+        if x_label:
+            axes.set_xlabel(x_label, **kwargs)
+        if y_label:
+            axes.set_ylabel(y_label, **kwargs)
         # get the model
         fit_name, result_dict = self._get_model(fit_type, fit_label)
         if fit_name is None:
