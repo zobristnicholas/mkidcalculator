@@ -14,6 +14,8 @@ class Pulse:
         self._data = AnalogReadoutPulse()  # dummy class replaced by load()
         # loop reference for computing phase and amplitude
         self._loop = None
+        # noise reference for computing energies
+        self._noise = None
         log.info("Pulse object created. ID: {}".format(id(self)))
 
     @property
@@ -68,6 +70,23 @@ class Pulse:
         self._loop = loop
         self.clear_loop_data()
 
+    @property
+    def noise(self):
+        """
+        A settable property that contains the Noise object required for doing
+        pulse calculations like optimal filtering. If the noise has not been
+        set, it will raise an AttributeError. When the noise is set, all
+        information created from the previous noise is deleted.
+        """
+        if self._noise is None:
+            raise AttributeError("The noise object for this pulse has not been set yet.")
+        return self._noise
+
+    @noise.setter
+    def noise(self, noise):
+        self._noise = noise
+        self.clear_noise_data()
+
     def clear_loop_data(self):
         """Remove all data calculated from the pulse.loop attribute."""
         pass  # TODO: clear amplitude and phase objects when a new loop is set
@@ -90,11 +109,11 @@ class Pulse:
         pass
 
     @classmethod
-    def load(cls, file_name, data=AnalogReadoutPulse, loop=None, **kwargs):
+    def load(cls, pulse_file_name, data=AnalogReadoutPulse, loop=None, noise=None, **kwargs):
         """
         Pulse class factory method that returns a Pulse() with the data loaded.
         Args:
-            file_name: string
+            pulse_file_name: string
                 The file name for the pulse data.
             data: object (optional)
                 Class or function whose return value allows dictionary-like
@@ -102,9 +121,14 @@ class Pulse:
                 default is the AnalogReadoutPulse class, which interfaces
                 with the data products from the analogreadout module.
             loop: Loop object (optional)
-                The loop object needed for computing phase and amplitude. It
-                can be specified later or changed with pulse.set_loop(). The
+                The Loop object needed for computing phase and amplitude. It
+                can be specified later or changed with pulse.loop = loop. The
                 default is None, which signifies that the loop has not been
+                set.
+            noise: Noise object (optional)
+                The Noise object needed for computing the pulse energies. It
+                can be specified later or changed with pulse.noise = noise. The
+                default is None, which signifies that the noise has not been
                 set.
             kwargs: optional keyword arguments
                 extra keyword arguments are sent to 'data'. This is useful in
@@ -115,9 +139,11 @@ class Pulse:
                 A Pulse() object containing the loaded data.
         """
         pulse = cls()
-        pulse._data = data(file_name, **kwargs)
-        if loop is not None:  # don't call set_loop unless needed.
+        pulse._data = data(pulse_file_name, **kwargs)
+        if loop is not None:  # don't set loop unless needed.
             pulse.loop = loop
+        if noise is not None:
+            pulse.noise = noise
         return pulse
 
     def compute_photon_energies(self):
