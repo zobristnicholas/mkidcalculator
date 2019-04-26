@@ -116,13 +116,15 @@ class Sweep:
         """
         Add loop data sets to the sweep.
         Args:
-            loops: iterable of Loop() classes
+            loops: Loop class or iterable of Loop classes
                 The loop data sets that are to be added to the Sweep.
             sort: boolean (optional)
                 Sort the loop data list by its power, field, and temperature.
                 The default is True. If False, the order of the loop data sets
                 is preserved.
         """
+        if isinstance(loops, Loop):
+            loops = [loops]
         # append loop data
         for loop in loops:
             self.loops.append(loop)

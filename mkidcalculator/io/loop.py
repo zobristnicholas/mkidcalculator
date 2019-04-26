@@ -106,12 +106,14 @@ class Loop:
         """
         Add pulse data sets to the loop.
         Args:
-            pulses: iterable of Pulse() classes
+            pulses: Pulse class or iterable of Pulse classes
                 The pulse data sets that are to be added to the Loop.
             sort: boolean (optional)
                 Sort the pulse data list by its bias frequency. The default is
                 True. If False, the order of the pulse data sets is preserved.
         """
+        if isinstance(pulses, Pulse):
+            pulses = [pulses]
         # append pulse data
         for p in pulses:
             self.pulses.append(p)
@@ -124,12 +126,14 @@ class Loop:
         """
         Add noise data sets to the loop.
         Args:
-            noise: iterable of Noise() classes
+            noise: Noise class or iterable of Noise classes
                 The noise data sets that are to be added to the Loop.
             sort: boolean (optional)
                 Sort the noise data list by its bias frequency. The default is
                 True. If False, the order of the noise data sets is preserved.
         """
+        if isinstance(noise, Noise):
+            noise = [noise]
         # append noise data
         for n in noise:
             self.noise.append(n)
