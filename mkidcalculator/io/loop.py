@@ -255,9 +255,6 @@ class Loop:
             result: lmfit.MinimizerResult
                 An object containing the results of the minimization. It is
                 also stored in self.lmfit_results[label]['result'].
-        Raises:
-            ValueError:
-                Improper arguments or keyword arguments.
         """
         if label == 'best':
             raise ValueError("'best' is a reserved label and cannot be used")
@@ -308,9 +305,6 @@ class Loop:
             result: lmfit.MinimizerResult
                 An object containing the results of the minimization. It is
                 also stored in self.emcee_results[label]['result'].
-        Raises:
-            ValueError:
-                Improper arguments or keyword arguments.
         """
         if label == 'best':
             raise ValueError("'best' is a reserved label and cannot be used")
