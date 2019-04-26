@@ -19,7 +19,7 @@ class S21:
         Args:
             params: lmfit.Parameters() object
                 The parameters for the model function.
-            f: numpy.ndarray, dtype=real, shape=(N,)
+            f: numpy.ndarray, dtype=real
                 Frequency points corresponding to z.
         Returns:
             z: numpy.ndarray
@@ -38,7 +38,7 @@ class S21:
         # the gain should be referenced to the file midpoint so that the baseline
         # coefficients do not drift with changes in f0
         # this breaks down if different sweeps have different frequency ranges
-        fm = f[int(np.round((len(f) - 1) / 2.0))]
+        fm = np.median(f)
         ffm = (f - fm) / fm
 
         # Calculate magnitude and phase gain
@@ -55,7 +55,7 @@ class S21:
         Args:
             params: lmfit.Parameters() object
                 The parameters for the model function.
-            f: numpy.ndarray, dtype=real, shape=(N,)
+            f: numpy.ndarray, dtype=real
                 Frequency points corresponding to z.
         Returns:
             z: numpy.ndarray
@@ -90,7 +90,7 @@ class S21:
         Args:
             params: lmfit.Parameters() object
                 The parameters for the model function.
-            z: numpy.ndarray, dtype=complex, shape=(N,)
+            z: numpy.ndarray, dtype=complex
                 Complex resonator scattering parameter.
         Returns:
             z: numpy.ndarray
@@ -111,7 +111,7 @@ class S21:
             params: lmfit.Parameters() object or tuple
                 The parameters for the model function or a tuple with
                 (alpha, gamma, offset) where offset is i_offset + i * q_offset.
-            z: numpy.ndarray, dtype=complex, shape=(N,)
+            z: numpy.ndarray, dtype=complex
                 Complex resonator scattering parameter.
         Returns:
             z: numpy.ndarray
@@ -134,9 +134,9 @@ class S21:
         Args:
             params: lmfit.Parameters() object
                 The parameters for the model function.
-            z: numpy.ndarray, dtype=complex, shape=(N,)
+            z: numpy.ndarray, dtype=complex
                 Complex resonator scattering parameter.
-            f: numpy.ndarray, dtype=real, shape=(N,)
+            f: numpy.ndarray, dtype=real
                 Frequency points corresponding to z.
             mixer_correction: bool (optional)
                 Remove the mixer correction specified in the params object. The
@@ -159,7 +159,7 @@ class S21:
         Args:
             params: lmfit.Parameters() object
                 The parameters for the model function.
-            f: numpy.ndarray, dtype=real, shape=(N,)
+            f: numpy.ndarray, dtype=real
                 Frequency points corresponding to z.
             mixer_correction: bool (optional)
                 Apply the mixer correction specified in the params object. The
@@ -329,9 +329,8 @@ class S21:
         # calculate useful indices
         f_index_end = len(f) - 1  # last frequency index
         f_index_5pc = int(len(f) * 0.05)  # end of first 5% of data
-        f_index_center = int(np.round(f_index_end / 2))  # center index
         # set up a unitless, reduced, midpoint frequency for baselines
-        f_midpoint = f[f_index_center]  # frequency at the center of the data
+        f_midpoint = np.median(f)  # frequency at the center of the data
 
         def ffm(fx):
             return (fx - f_midpoint) / f_midpoint
@@ -355,7 +354,7 @@ class S21:
         f_min = min(f[f_index_5pc],  f[f_index_end - f_index_5pc])
         f_max = max(f[f_index_5pc],  f[f_index_end - f_index_5pc])
         if not f_min < f0_guess < f_max:
-            f0_guess = f[f_index_center]
+            f0_guess = f_midpoint
 
         # guess Q values
         mag_max = np.polyval(gain_poly, ffm(f[f_index_min]))
@@ -395,5 +394,5 @@ class S21:
         params.add("a", expr="a_sqrt**2")
         params.add("q0", expr="1 / (1 / qi + 1 / qc)")
         params.add("tau", expr="-phase1 / (2 * pi * fm)")
-
+        params.add("radius", expr="q0 / (2 * qc)")
         return params
