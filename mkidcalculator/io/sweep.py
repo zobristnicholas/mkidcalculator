@@ -112,9 +112,6 @@ class Sweep:
                 df.loc[indices[index]]["temperature"] = self.temperatures[index]
         self.loop_parameters[label] = df
 
-    def save(self):
-        raise NotImplementedError
-
     def add_loops(self, loops, sort=True):
         """
         Add loop data sets to the sweep.
