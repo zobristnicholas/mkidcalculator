@@ -136,6 +136,21 @@ class Sweep:
             lp = zip(*sorted(zip(self.powers, self.fields, self.temperatures, self.loops), key=itemgetter(0, 1, 2)))
             self.powers, self.fields, self.temperatures, self.loops = (list(t) for t in lp)
 
+    def remove_loops(self, indices):
+        """
+        Remove loops from the sweep.
+        Args:
+            indices: integer or iterable of integers
+                The indices in sweep.loops that should be deleted.
+        """
+        if not isinstance(indices, (tuple, list)):
+            indices = [indices]
+        for ii in sorted(indices, reverse=True):
+            self.loops.pop(ii)
+            self.powers.pop(ii)
+            self.fields.pop(ii)
+            self.temperatures.pop(ii)
+
     @classmethod
     def from_config(cls, sweep_file_name, data=analogreadout_sweep, sort=True, **kwargs):
         """
