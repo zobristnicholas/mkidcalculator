@@ -33,6 +33,36 @@ class Sweep:
         return sweep
 
     def create_parameters(self, label="best", fit_type="lmfit", group=True, n_groups=None):
+        """
+        Creates the loop parameters pandas DataFrame by looking at all of the
+        loop fits. in
+        Args:
+            label: string
+                Corresponds to the label in the loop.lmfit_results or
+                loop.emcee_results dictionaries where the fit parameters are.
+                The resulting DataFrame is stored in
+                self.loop_parameters[label]. The default is "best", which gets
+                the parameters from the best fits.
+            fit_type: string
+                The type of fit to use. Allowed options are "lmfit", "emcee",
+                and "emcee_mle" where MLE estimates are used instead of the
+                medians. The default is "lmfit".
+            group: boolean
+                Determines if the temperature data is grouped together in the
+                table. This is useful for when data is taken at the same
+                temperature but the actual temperature has some fluctuations.
+                The default is True, and the actual temperature is stored under
+                the column 'temperature'. If False, n_groups is ignored.
+            n_groups: integer
+                An integer that determines how many temperature groups to
+                include. The default is None, and n_groups is calculated. This
+                procedure only works if the data is 'square' (same number of
+                temperature points per unique power and field combination).
+        Raises:
+            scipy.cluster.vq.ClusterError:
+                The temperature data is too disordered to cluster into the
+                specified number of groups.
+        """
         # check inputs
         if fit_type not in ['lmfit', 'emcee', 'emcee_mle']:
             raise ValueError("'fit_type' must be either 'lmfit', 'emcee', or 'emcee_mle'")
@@ -43,13 +73,13 @@ class Sweep:
                 n_groups = temperatures.size // (np.unique(self.powers).size * np.unique(self.fields).size)
             k = np.linspace(temperatures.min(), temperatures.max(), n_groups)
             try:
-                centroids, label = kmeans2(temperatures, k=k, minit='matrix', missing='raise')
+                centroids, groups = kmeans2(temperatures, k=k, minit='matrix', missing='raise')
             except ClusterError:
                 message = "The temperature data is too disordered to cluster into {} groups".format(n_groups)
                 raise ClusterError(message)
             self.temperature_groups = np.empty(temperatures.shape)
             for index, centroid in enumerate(centroids):
-                self.temperature_groups[label == index] = centroid
+                self.temperature_groups[groups == index] = centroid
             self.temperature_groups = list(self.temperature_groups)
         else:
             self.temperature_groups = self.temperatures
@@ -70,8 +100,8 @@ class Sweep:
             if "temperature" in parameter_names:
                 raise ValueError("'temperature' can not be a fit parameter name if group=True")
             parameter_names.append("temperature")
-        indices = zip(self.powers, self.fields, self.temperature_groups)
-        multi_index = pd.MultiIndex.from_tuples(indices, names=["power", "field", "temperature group"])
+        indices = list(zip(self.powers, self.fields, self.temperature_groups))
+        multi_index = pd.MultiIndex.from_tuples(indices, names=["power", "field", "temperature"])
         df = pd.DataFrame(np.nan, index=multi_index, columns=parameter_names)
         # fill the data frame
         for index, loop in enumerate(self.loops):
