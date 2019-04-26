@@ -52,11 +52,11 @@ class Noise:
         return noise
 
     @classmethod
-    def load(cls, file_name, data=AnalogReadoutNoise, **kwargs):
+    def load(cls, noise_file_name, data=AnalogReadoutNoise, **kwargs):
         """
         Noise class factory method that returns a Noise() with the data loaded.
         Args:
-            file_name: string
+            noise_file_name: string
                 The file name for the noise data.
             data: object (optional)
                 Class or function whose return value allows dictionary-like
@@ -72,7 +72,7 @@ class Noise:
                 A Noise() object containing the loaded data.
         """
         noise = cls()
-        noise._data = data(file_name, **kwargs)
+        noise._data = data(noise_file_name, **kwargs)
         return noise
 
     def compute_phase_and_amplitude(self):

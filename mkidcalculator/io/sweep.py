@@ -137,16 +137,15 @@ class Sweep:
             self.powers, self.fields, self.temperatures, self.loops = (list(t) for t in lp)
 
     @classmethod
-    def from_config(cls, sweep_file_name, sweep_data=analogreadout_sweep, sort=True, **kwargs):
+    def from_config(cls, sweep_file_name, data=analogreadout_sweep, sort=True, **kwargs):
         """
         Sweep class factory method that returns a Sweep() with the loop, noise
         and pulse data loaded.
         Args:
             sweep_file_name: string
-                The file name for the sweep data. Typically it is a
-                configuration file with all the information needed to load in
-                the data.
-            sweep_data: object (optional)
+                The configuration file name for the sweep data. It has all the
+                information needed to load in the loop, pulse, and noise data.
+            data: object (optional)
                 Class or function whose return value is a list of dictionaries
                 with each being the desired keyword arguments to Loop.load().
             sort: boolean (optional)
@@ -155,12 +154,12 @@ class Sweep:
                 The default is True. If False, the input order is preserved.
             kwargs: optional keyword arguments
                 Extra keyword arguments to send to Loop.load() not
-                specified by sweep_data.
+                specified by data.
         """
         # create sweep
         sweep = cls()
         # load loop kwargs based on the sweep file
-        loop_kwargs_list = sweep_data(sweep_file_name)
+        loop_kwargs_list = data(sweep_file_name)
         loops = []
         # load loops
         for kws in loop_kwargs_list:

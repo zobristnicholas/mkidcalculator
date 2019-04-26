@@ -149,7 +149,7 @@ class Loop:
             self.f_bias_noise, self.noise = (list(t) for t in zip(*sorted(zip(self.f_bias_noise, self.noise))))
 
     @classmethod
-    def load(cls, loop_file_name, noise_file_names=(), pulse_file_names=(), loop_data=AnalogReadoutLoop,
+    def load(cls, loop_file_name, noise_file_names=(), pulse_file_names=(), data=AnalogReadoutLoop,
              noise_data=AnalogReadoutNoise, pulse_data=AnalogReadoutPulse, sort=True, channel=None, noise_kwargs=None,
              pulse_kwargs=None, **kwargs):
         """
@@ -164,7 +164,7 @@ class Loop:
             pulse_file_names: tuple (optional)
                 Tuple of file name strings for the pulse data. The default is
                 to not load any pulse data.
-            loop_data: object (optional)
+            data: object (optional)
                 Class or function whose return value allows dictionary-like
                 queries of the attributes required by the Loop class. The
                 default is the AnalogReadoutLoop class, which interfaces
@@ -217,7 +217,7 @@ class Loop:
             for kws in pulse_kwargs:
                 kws.update({"channel": channel})
         # load loop
-        loop._data = loop_data(loop_file_name, **kwargs)
+        loop._data = data(loop_file_name, **kwargs)
         # load noise
         noise = []
         for index, noise_file_name in enumerate(noise_file_names):
