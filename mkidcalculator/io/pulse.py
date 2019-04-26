@@ -42,6 +42,11 @@ class Pulse:
         return self._data["metadata"]
 
     @property
+    def attenuation(self):
+        """The DAC attenuation used for the data set."""
+        return self._data['attenuation']
+
+    @property
     def energies(self):
         """The known photon energies in this data set."""
         return self._data["energies"]

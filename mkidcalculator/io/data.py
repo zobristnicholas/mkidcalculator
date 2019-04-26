@@ -158,7 +158,7 @@ class AnalogReadoutNoise(AnalogReadoutABC):
             all indices will be returned.
     """
     CONVERT = {"f_bias": "freqs", "i_trace": ("noise", "I", np.real), "q_trace": ("noise", "Q", np.imag),
-               "metadata": "metadata"}
+               "metadata": "metadata", "attenuation": ("metadata", ("parameters", "attenuation"))}
     # "i_psd": ("psd", "I"), "q_psd": ("psd", "Q"), "f_psd": "f_psd" not using these from file but they are there
 
 
@@ -178,7 +178,7 @@ class AnalogReadoutPulse(AnalogReadoutABC):
             all indices will be returned.
     """
     CONVERT = {"f_bias": "freqs", "i_trace": ("pulses", "I", np.real), "q_trace": ("pulses", "Q", np.imag),
-               "offset": "zero", "metadata": "metadata"}
+               "offset": "zero", "metadata": "metadata", "attenuation": ("metadata", ("parameters", "attenuation"))}
 
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)

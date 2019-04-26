@@ -72,12 +72,17 @@ class Loop:
         return self._data['metadata']
 
     @property
+    def attenuation(self):
+        """The DAC attenuation used for the data set."""
+        return self._data['attenuation']
+
+    @property
     def power(self):
         """
         The power in dBm at the resonator. This value is only relative if
         self.power_calibration has not been set.
         """
-        return self.power_calibration - self._data['attenuation']
+        return self.power_calibration - self.attenuation
 
     @property
     def field(self):

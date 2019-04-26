@@ -33,6 +33,11 @@ class Noise:
         """A dictionary containing metadata about the pulse."""
         return self._data["metadata"]
 
+    @property
+    def attenuation(self):
+        """The DAC attenuation used for the data set."""
+        return self._data['attenuation']
+
     def to_pickle(self, file_name):
         """Pickle and save the class as the file 'file_name'."""
         with open(file_name, "wb") as f:
