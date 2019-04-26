@@ -339,7 +339,7 @@ class Loop:
             self.emcee_results['best']['label'] = label
         return result
 
-    def plot(self, plot_types=("iq", "magnitude", "phase"), plot_fit=False, fit_label="best", fit_type="lmfit",
+    def plot(self, plot_types=("iq", "magnitude", "phase"), plot_fit=False, label="best", fit_type="lmfit",
              n_rows=2, title=True, title_kwargs=None, legend=True, legend_kwargs=None, fit_parameters=(),
              parameters_kwargs=None, tighten=True, plot_kwargs=None, axes_list=None):
         """
@@ -349,7 +349,7 @@ class Loop:
             plot_types: iterable of strings
                 The types of plots to show. Valid types are 'iq', 'magnitude',
                 and 'phase'. If a fit was computed with the appropriate
-                fit_label and fit_type, 'r_iq', 'r_magnitude', and 'r_phase'
+                label and fit_type, 'r_iq', 'r_magnitude', and 'r_phase'
                 can be used to make residual plots. The default is ('iq',
                 'magnitude', 'phase')
             plot_fit: boolean
@@ -357,7 +357,7 @@ class Loop:
                 False. The residual plots can still be rendered if requested in
                 the plot_types. fit_parameters and parameters_kwargs are
                 ignored if False.
-            fit_label: string
+            label: string
                 The label used to store the fit. The default is "best".
             fit_type: string
                 The type of fit to use. Allowed options are "lmfit", "emcee",
@@ -430,21 +430,21 @@ class Loop:
         for index, plot_type in enumerate(plot_types):
             kwargs = {"title": False, "legend": False, "axes": axes_list[index], "tighten": tighten}
             if plot_type == "iq":
-                kwargs.update({"plot_fit": plot_fit, "fit_label": fit_label, "fit_type": fit_type})
+                kwargs.update({"plot_fit": plot_fit, "label": label, "fit_type": fit_type})
                 kwargs.update(plot_kwargs[index])
                 self.plot_iq(**kwargs)
             elif plot_type == "r_iq":
                 kwargs.update(plot_kwargs[index])
                 self.plot_iq_residual(**kwargs)
             elif plot_type == "magnitude":
-                kwargs.update({"plot_fit": plot_fit, "fit_label": fit_label, "fit_type": fit_type})
+                kwargs.update({"plot_fit": plot_fit, "label": label, "fit_type": fit_type})
                 kwargs.update(plot_kwargs[index])
                 self.plot_magnitude(**kwargs)
             elif plot_type == "r_magnitude":
                 kwargs.update(plot_kwargs[index])
                 self.plot_magnitude_residual(**kwargs)
             elif plot_type == "phase":
-                kwargs.update({"plot_fit": plot_fit, "fit_label": fit_label, "fit_type": fit_type})
+                kwargs.update({"plot_fit": plot_fit, "label": label, "fit_type": fit_type})
                 kwargs.update(plot_kwargs[index])
                 self.plot_phase(**kwargs)
             elif plot_type == "r_phase":
@@ -457,7 +457,7 @@ class Loop:
             for axes in axes_list[index + 1:]:
                 axes.axis('off')
         if plot_fit:
-            fit_name, result_dict = self._get_model(fit_type, fit_label)
+            fit_name, result_dict = self._get_model(fit_type, label)
             if fit_parameters:
                 if index == len(axes_list) - 1:
                     axes = axes_list[n_columns - 1]
@@ -470,18 +470,18 @@ class Loop:
                     if parameters_kwargs is not None:
                         kwargs.update(parameters_kwargs)
                     axes.text(0.5, 0.5, text, **kwargs)
-            label = ("power: {:.0f} dBm, field: {:.2f} V, temperature: {:.2f} mK, '{}' fit"
-                     .format(self.power, self.field, self.temperature * 1000, fit_name))
+            string = ("power: {:.0f} dBm, field: {:.2f} V, temperature: {:.2f} mK, '{}' fit"
+                      .format(self.power, self.field, self.temperature * 1000, fit_name))
         else:
-            label = ("power: {:.0f} dBm, field: {:.2f} V, temperature: {:.2f} mK"
-                     .format(self.power, self.field, self.temperature * 1000))
+            string = ("power: {:.0f} dBm, field: {:.2f} V, temperature: {:.2f} mK"
+                      .format(self.power, self.field, self.temperature * 1000))
         if legend:
             kwargs = {}
             if legend_kwargs is not None:
                 kwargs.update(legend_kwargs)
             axes_list[0].legend(**kwargs)
         if title:
-            title = label if title is True else title
+            title = string if title is True else title
             kwargs = {"fontsize": 11}
             if title_kwargs is not None:
                 kwargs.update(title_kwargs)
@@ -493,7 +493,7 @@ class Loop:
             figure.tight_layout()
         return axes_list
 
-    def plot_iq(self, data_kwargs=None, plot_fit=False, fit_label="best", fit_type="lmfit", fit_kwargs=None,
+    def plot_iq(self, data_kwargs=None, plot_fit=False, label="best", fit_type="lmfit", fit_kwargs=None,
                 fit_parameters=(), parameters_kwargs=None, x_label=None, y_label=None, label_kwargs=None, legend=True,
                 legend_kwargs=None, title=True, title_kwargs=None, tighten=True, axes=None):
         """
@@ -505,9 +505,9 @@ class Loop:
                 override the default options.
             plot_fit: boolean
                 Determines whether the fit is plotted or not. The default is
-                False. When False, fit_label, fit_type, fit_kwargs,
+                False. When False, label, fit_type, fit_kwargs,
                 fit_parameters, and parameter_kwargs are ignored.
-            fit_label: string
+            label: string
                 The label used to store the fit. The default is "best".
             fit_type: string
                 The type of fit to use. Allowed options are "lmfit", "emcee",
@@ -588,9 +588,9 @@ class Loop:
         # plot fit
         if plot_fit:
             # get the model
-            fit_name, result_dict = self._get_model(fit_type, fit_label)
+            fit_name, result_dict = self._get_model(fit_type, label)
             if fit_name is None:
-                raise ValueError("No fit of type '{}' with the label '{}' has been done".format(fit_type, fit_label))
+                raise ValueError("No fit of type '{}' with the label '{}' has been done".format(fit_type, label))
             result = result_dict['result']
             model = result_dict['model']
             # calculate the model values
@@ -601,13 +601,13 @@ class Loop:
             if fit_kwargs is not None:
                 kwargs.update(fit_kwargs)
             axes.plot(m.real, m.imag, **kwargs)
-            label = "power: {:.0f} dBm, field: {:.2f} V, temperature: {:.2f} mK, '{}' fit"
-            title = label.format(self.power, self.field, self.temperature * 1000, fit_name) if title is True else title
+            string = "power: {:.0f} dBm, field: {:.2f} V, temperature: {:.2f} mK, '{}' fit"
+            title = string.format(self.power, self.field, self.temperature * 1000, fit_name) if title is True else title
             if fit_parameters:
                 self._make_parameters_textbox(fit_parameters, result, axes, parameters_kwargs)
         else:
-            label = "power: {:.0f} dBm, field: {:.2f} V, temperature: {:.2f} mK"
-            title = label.format(self.power, self.field, self.temperature * 1000) if title is True else title
+            string = "power: {:.0f} dBm, field: {:.2f} V, temperature: {:.2f} mK"
+            title = string.format(self.power, self.field, self.temperature * 1000) if title is True else title
         if legend:
             kwargs = {}
             if legend_kwargs is not None:
@@ -622,13 +622,13 @@ class Loop:
             axes.figure.tight_layout()
         return axes
 
-    def plot_iq_residual(self, fit_label="best", fit_type="lmfit", plot_kwargs=None, fit_parameters=(),
+    def plot_iq_residual(self, label="best", fit_type="lmfit", plot_kwargs=None, fit_parameters=(),
                          parameters_kwargs=None, x_label=None, y_label=None, label_kwargs=None, legend=False,
                          legend_kwargs=None, title=True, title_kwargs=None, tighten=True, axes=None):
         """
         Plot the residual of the IQ data (data - model).
         Args:
-            fit_label: string
+            label: string
                 The label used to store the fit. The default is "best".
             fit_type: string
                 The type of fit to use. Allowed options are "lmfit", "emcee",
@@ -702,9 +702,9 @@ class Loop:
         if y_label:
             axes.set_ylabel(y_label, **kwargs)
         # get the model
-        fit_name, result_dict = self._get_model(fit_type, fit_label)
+        fit_name, result_dict = self._get_model(fit_type, label)
         if fit_name is None:
-            raise ValueError("No fit of type '{}' with the label '{}' has been done".format(fit_type, fit_label))
+            raise ValueError("No fit of type '{}' with the label '{}' has been done".format(fit_type, label))
         result = result_dict['result']
         model = result_dict['model']
         m = model.model(result.params, self.f)
@@ -721,8 +721,8 @@ class Loop:
             axes.legend(**kwargs)
         # make the title
         if title:
-            label = "power: {:.0f} dBm, field: {:.2f} V, temperature: {:.2f} mK, '{}' fit"
-            text = label.format(self.power, self.field, self.temperature * 1000, fit_name) if title is True else title
+            string = "power: {:.0f} dBm, field: {:.2f} V, temperature: {:.2f} mK, '{}' fit"
+            text = string.format(self.power, self.field, self.temperature * 1000, fit_name) if title is True else title
             kwargs = {"fontsize": 11}
             if title_kwargs is not None:
                 kwargs.update(title_kwargs)
@@ -734,7 +734,7 @@ class Loop:
             axes.figure.tight_layout()
         return axes
 
-    def plot_magnitude(self, data_kwargs=None, plot_fit=False, fit_label="best", fit_type="lmfit", fit_kwargs=None,
+    def plot_magnitude(self, data_kwargs=None, plot_fit=False, label="best", fit_type="lmfit", fit_kwargs=None,
                        fit_parameters=(), parameters_kwargs=None, x_label=None, y_label=None, label_kwargs=None,
                        legend=True, legend_kwargs=None, title=True, title_kwargs=None, tighten=True, axes=None):
         """
@@ -746,9 +746,9 @@ class Loop:
                 override the default options.
             plot_fit: boolean
                 Determines whether the fit is plotted or not. The default is
-                False. When False, fit_label, fit_type, fit_kwargs,
+                False. When False, label, fit_type, fit_kwargs,
                 fit_parameters, and parameter_kwargs are ignored.
-            fit_label: string
+            label: string
                 The label used to store the fit. The default is "best".
             fit_type: string
                 The type of fit to use. Allowed options are "lmfit", "emcee",
@@ -827,9 +827,9 @@ class Loop:
         # plot fit
         if plot_fit:
             # get the model
-            fit_name, result_dict = self._get_model(fit_type, fit_label)
+            fit_name, result_dict = self._get_model(fit_type, label)
             if fit_name is None:
-                raise ValueError("No fit of type '{}' with the label '{}' has been done".format(fit_type, fit_label))
+                raise ValueError("No fit of type '{}' with the label '{}' has been done".format(fit_type, label))
             result = result_dict['result']
             model = result_dict['model']
             # calculate the model values
@@ -840,13 +840,13 @@ class Loop:
             if fit_kwargs is not None:
                 kwargs.update(fit_kwargs)
             axes.plot(f, np.abs(m), **kwargs)
-            label = "power: {:.0f} dBm, field: {:.2f} V, temperature: {:.2f} mK, '{}' fit"
-            title = label.format(self.power, self.field, self.temperature * 1000, fit_name) if title is True else title
+            string = "power: {:.0f} dBm, field: {:.2f} V, temperature: {:.2f} mK, '{}' fit"
+            title = string.format(self.power, self.field, self.temperature * 1000, fit_name) if title is True else title
             if fit_parameters:
                 self._make_parameters_textbox(fit_parameters, result, axes, parameters_kwargs)
         else:
-            label = "power: {:.0f} dBm, field: {:.2f} V, temperature: {:.2f} mK"
-            title = label.format(self.power, self.field, self.temperature * 1000) if title is True else title
+            string = "power: {:.0f} dBm, field: {:.2f} V, temperature: {:.2f} mK"
+            title = string.format(self.power, self.field, self.temperature * 1000) if title is True else title
         if legend:
             kwargs = {}
             if legend_kwargs is not None:
@@ -861,13 +861,13 @@ class Loop:
             axes.figure.tight_layout()
         return axes
 
-    def plot_magnitude_residual(self, fit_label="best", fit_type="lmfit", plot_kwargs=None, fit_parameters=(),
+    def plot_magnitude_residual(self, label="best", fit_type="lmfit", plot_kwargs=None, fit_parameters=(),
                                 parameters_kwargs=None, x_label=None, y_label=None, label_kwargs=None, legend=False,
                                 legend_kwargs=None, title=True, title_kwargs=None, tighten=True, axes=None):
         """
         Plot the residual of the magnitude data (data - model).
         Args:
-            fit_label: string
+            label: string
                 The label used to store the fit. The default is "best".
             fit_type: string
                 The type of fit to use. Allowed options are "lmfit", "emcee",
@@ -939,9 +939,9 @@ class Loop:
         if y_label:
             axes.set_ylabel(y_label, **kwargs)
         # get the model
-        fit_name, result_dict = self._get_model(fit_type, fit_label)
+        fit_name, result_dict = self._get_model(fit_type, label)
         if fit_name is None:
-            raise ValueError("No fit of type '{}' with the label '{}' has been done".format(fit_type, fit_label))
+            raise ValueError("No fit of type '{}' with the label '{}' has been done".format(fit_type, label))
         result = result_dict['result']
         model = result_dict['model']
         m = model.model(result.params, self.f)
@@ -958,8 +958,8 @@ class Loop:
             axes.legend(**kwargs)
         # make the title
         if title:
-            label = "power: {:.0f} dBm, field: {:.2f} V, temperature: {:.2f} mK, '{}' fit"
-            text = label.format(self.power, self.field, self.temperature * 1000, fit_name) if title is True else title
+            string = "power: {:.0f} dBm, field: {:.2f} V, temperature: {:.2f} mK, '{}' fit"
+            text = string.format(self.power, self.field, self.temperature * 1000, fit_name) if title is True else title
             kwargs = {"fontsize": 11}
             if title_kwargs is not None:
                 kwargs.update(title_kwargs)
@@ -971,7 +971,7 @@ class Loop:
             axes.figure.tight_layout()
         return axes
 
-    def plot_phase(self, data_kwargs=None, plot_fit=False, fit_label="best", fit_type="lmfit", fit_kwargs=None,
+    def plot_phase(self, data_kwargs=None, plot_fit=False, label="best", fit_type="lmfit", fit_kwargs=None,
                    fit_parameters=(), parameters_kwargs=None, x_label=None, y_label=None, label_kwargs=None,
                    legend=True, legend_kwargs=None, title=True, title_kwargs=None, tighten=True, axes=None):
         """
@@ -983,9 +983,9 @@ class Loop:
                 override the default options.
             plot_fit: boolean
                 Determines whether the fit is plotted or not. The default is
-                False. When False, fit_label, fit_type, fit_kwargs,
+                False. When False, label, fit_type, fit_kwargs,
                 fit_parameters, and parameter_kwargs are ignored.
-            fit_label: string
+            label: string
                 The label used to store the fit. The default is "best".
             fit_type: string
                 The type of fit to use. Allowed options are "lmfit", "emcee",
@@ -1064,9 +1064,9 @@ class Loop:
         # plot fit
         if plot_fit:
             # get the model
-            fit_name, result_dict = self._get_model(fit_type, fit_label)
+            fit_name, result_dict = self._get_model(fit_type, label)
             if fit_name is None:
-                raise ValueError("No fit of type '{}' with the label '{}' has been done".format(fit_type, fit_label))
+                raise ValueError("No fit of type '{}' with the label '{}' has been done".format(fit_type, label))
             result = result_dict['result']
             model = result_dict['model']
             # calculate the model values
@@ -1077,13 +1077,13 @@ class Loop:
             if fit_kwargs is not None:
                 kwargs.update(fit_kwargs)
             axes.plot(f, np.unwrap(np.arctan2(m.imag, m.real)), **kwargs)
-            label = "power: {:.0f} dBm, field: {:.2f} V, temperature: {:.2f} mK, '{}' fit"
-            title = label.format(self.power, self.field, self.temperature * 1000, fit_name) if title is True else title
+            string = "power: {:.0f} dBm, field: {:.2f} V, temperature: {:.2f} mK, '{}' fit"
+            title = string.format(self.power, self.field, self.temperature * 1000, fit_name) if title is True else title
             if fit_parameters:
                 self._make_parameters_textbox(fit_parameters, result, axes, parameters_kwargs)
         else:
-            label = "power: {:.0f} dBm, field: {:.2f} V, temperature: {:.2f} mK"
-            title = label.format(self.power, self.field, self.temperature * 1000) if title is True else title
+            string = "power: {:.0f} dBm, field: {:.2f} V, temperature: {:.2f} mK"
+            title = string.format(self.power, self.field, self.temperature * 1000) if title is True else title
         if legend:
             kwargs = {}
             if legend_kwargs is not None:
@@ -1098,13 +1098,13 @@ class Loop:
             axes.figure.tight_layout()
         return axes
 
-    def plot_phase_residual(self, fit_label="best", fit_type="lmfit", plot_kwargs=None, fit_parameters=(),
+    def plot_phase_residual(self, label="best", fit_type="lmfit", plot_kwargs=None, fit_parameters=(),
                             parameters_kwargs=None, x_label=None, y_label=None, label_kwargs=None, legend=False,
                             legend_kwargs=None, title=True, title_kwargs=None, tighten=True, axes=None):
         """
         Plot the residual of the phase data (data - model).
         Args:
-            fit_label: string
+            label: string
                 The label used to store the fit. The default is "best".
             fit_type: string
                 The type of fit to use. Allowed options are "lmfit", "emcee",
@@ -1176,9 +1176,9 @@ class Loop:
         if y_label:
             axes.set_ylabel(y_label, **kwargs)
         # get the model
-        fit_name, result_dict = self._get_model(fit_type, fit_label)
+        fit_name, result_dict = self._get_model(fit_type, label)
         if fit_name is None:
-            raise ValueError("No fit of type '{}' with the label '{}' has been done".format(fit_type, fit_label))
+            raise ValueError("No fit of type '{}' with the label '{}' has been done".format(fit_type, label))
         result = result_dict['result']
         model = result_dict['model']
         m = model.model(result.params, self.f)
@@ -1195,8 +1195,8 @@ class Loop:
             axes.legend(**kwargs)
         # make the title
         if title:
-            label = "power: {:.0f} dBm, field: {:.2f} V, temperature: {:.2f} mK, '{}' fit"
-            text = label.format(self.power, self.field, self.temperature * 1000, fit_name) if title is True else title
+            string = "power: {:.0f} dBm, field: {:.2f} V, temperature: {:.2f} mK, '{}' fit"
+            text = string.format(self.power, self.field, self.temperature * 1000, fit_name) if title is True else title
             kwargs = {"fontsize": 11}
             if title_kwargs is not None:
                 kwargs.update(title_kwargs)
@@ -1208,24 +1208,24 @@ class Loop:
             axes.figure.tight_layout()
         return axes
 
-    def _get_model(self, fit_type, fit_label):
+    def _get_model(self, fit_type, label):
         if fit_type not in ['lmfit', 'emcee', 'emcee_mle']:
             raise ValueError("'fit_type' must be either 'lmfit', 'emcee', or 'emcee_mle'")
-        if fit_type == "lmfit" and fit_label in self.lmfit_results.keys():
-            result_dict = self.lmfit_results[fit_label]
-            label = self.lmfit_results[fit_label]["label"] if fit_label == "best" else fit_label
-        elif fit_type == "emcee" and fit_label in self.emcee_results.keys():
-            result_dict = self.emcee_results[fit_label]
-            label = self.lmfit_results[fit_label]["label"] if fit_label == "best" else fit_label
-        elif fit_type == "emcee_mle" and fit_label in self.emcee_results.keys():
-            result_dict = copy.deepcopy(self.emcee_results[fit_label])
+        if fit_type == "lmfit" and label in self.lmfit_results.keys():
+            result_dict = self.lmfit_results[label]
+            original_label = self.lmfit_results[label]["label"] if label == "best" else label
+        elif fit_type == "emcee" and label in self.emcee_results.keys():
+            result_dict = self.emcee_results[label]
+            original_label = self.lmfit_results[label]["label"] if label == "best" else label
+        elif fit_type == "emcee_mle" and label in self.emcee_results.keys():
+            result_dict = copy.deepcopy(self.emcee_results[label])
             for name in result_dict['result'].params.keys():
-                result_dict['result'].params[name].set(value=self.emcee_results[fit_label]["mle"][name])
-            label = self.lmfit_results[fit_label]["label"] if fit_label == "best" else fit_label
+                result_dict['result'].params[name].set(value=self.emcee_results[label]["mle"][name])
+            original_label = self.lmfit_results[label]["label"] if label == "best" else label
         else:
             result_dict = None
-            label = None
-        return label, result_dict
+            original_label = None
+        return original_label, result_dict
 
     def _make_parameters_textbox(self, fit_parameters, result, axes, parameters_kwargs):
         text = self._make_parameters_text(fit_parameters, result)
