@@ -5,6 +5,7 @@ import lmfit as lm
 import numpy as np
 import scipy.stats as stats
 import matplotlib.pyplot as plt
+from operator import itemgetter
 
 from mkidcalculator.io.noise import Noise
 from mkidcalculator.io.pulse import Pulse
@@ -24,7 +25,7 @@ class Loop:
         self.f_bias_noise = []  # for bias frequency of each noise data set
         self.pulses = []
         self.f_bias_pulses = []  # for bias frequency of each pulse data set
-        self.energies_pulses = []  # for known line energies for each pulse data set
+        self.max_energy_pulses = []  # for known line energies for each pulse data set
         # internal variables
         self._power_calibration = 0
         # analysis results
@@ -114,8 +115,9 @@ class Loop:
             pulses: Pulse class or iterable of Pulse classes
                 The pulse data sets that are to be added to the Loop.
             sort: boolean (optional)
-                Sort the pulse data list by its bias frequency. The default is
-                True. If False, the order of the pulse data sets is preserved.
+                Sort the pulse data list by its bias frequency and then its
+                maximum energy. The default is True. If False, the order of the
+                pulse data sets is preserved.
         """
         if isinstance(pulses, Pulse):
             pulses = [pulses]
@@ -124,9 +126,11 @@ class Loop:
             p.loop = self  # set the loop here instead of load because add_pulses() can be used independently
             self.pulses.append(p)
             self.f_bias_pulses.append(p.f_bias)
+            self.max_energy_pulses.append(np.max(p.energies))
         # sort
         if sort and self.pulses:
-            self.f_bias_pulses, self.pulses = (list(t) for t in zip(*sorted(zip(self.f_bias_pulses, self.pulses))))
+            lp = zip(*sorted(zip(self.f_bias_pulses, self.max_energy_pulses, self.pulses), key=itemgetter(0, 1)))
+            self.f_bias_pulses, self.max_energy_pulses, self.pulses = (list(t) for t in lp)
 
     def add_noise(self, noise, sort=True):
         """
@@ -146,7 +150,8 @@ class Loop:
             self.f_bias_noise.append(n.f_bias)
         # sort
         if sort and self.noise:
-            self.f_bias_noise, self.noise = (list(t) for t in zip(*sorted(zip(self.f_bias_noise, self.noise))))
+            self.f_bias_noise, self.noise = (list(t) for t in
+                                             zip(*sorted(zip(self.f_bias_noise, self.noise), key=itemgetter(0))))
 
     @classmethod
     def load(cls, loop_file_name, noise_file_names=(), pulse_file_names=(), data=AnalogReadoutLoop,
