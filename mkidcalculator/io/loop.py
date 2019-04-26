@@ -116,6 +116,7 @@ class Loop:
             pulses = [pulses]
         # append pulse data
         for p in pulses:
+            p.loop = self  # set the loop here instead of load because add_pulses() can be used independently
             self.pulses.append(p)
             self.f_bias_pulses.append(p.f_bias)
         # sort
