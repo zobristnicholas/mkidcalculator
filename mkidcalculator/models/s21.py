@@ -225,7 +225,7 @@ class S21:
     @classmethod
     def guess(cls, z, f, mixer_imbalance=None, mixer_offset=0, use_filter=False, filter_length=None, fit_resonance=True,
               nonlinear_resonance=False, fit_gain=True, quadratic_gain=True, fit_phase=True, quadratic_phase=False,
-              fit_imbalance=False, fit_offset=False):
+              fit_imbalance=False, fit_offset=False, alpha=1, gamma=0):
         """
         Guess the model parameters based on the data. Returns a lmfit.Parameters()
         object.
@@ -239,7 +239,8 @@ class S21:
                 of the M data sets is it's own calibration, potentially taken at
                 different frequencies and frequency offsets. The results of the M
                 data sets are averaged together. The default is None, which means
-                no calibration is assumed.
+                alpha and gamma are taken from the keywords. The alpha and gamma
+                keywords are ignored if a value other than None is given.
             mixer_offset: complex, iterable (optional)
                 A complex number corresponding to the I + iQ mixer offset. The
                 default is 0, corresponding to no offset. If the input is iterable,
@@ -279,6 +280,12 @@ class S21:
                 The offset is highly correlated with the gain parameters and
                 typically should not be allowed to vary unless the gain is properly
                 calibrated.
+            alpha: float (optional)
+                Mixer amplitude imbalance. The default is 1 which corresponds to no
+                imbalance.
+            gamma:float (optional)
+                Mixer phase imbalance. The default is 0 which corresponds to no
+                imbalance.
         Returns:
             params: lmfit.Parameters
                 An object with guesses and bounds for each parameter.
@@ -308,9 +315,6 @@ class S21:
             gamma = np.arcsin(np.sign(ratio) * 2 * np.mean(qp * ip, axis=-1) / (alpha * amp**2)) + np.pi * (ratio < 0)
             alpha = np.mean(alpha)
             gamma = np.mean(gamma)
-        else:
-            alpha = 1
-            gamma = 0
         z = cls.mixer_inverse((alpha, gamma, mixer_offset), z)
         # compute the magnitude and phase of the scattering parameter
         magnitude = np.abs(z)
