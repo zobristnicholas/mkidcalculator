@@ -137,7 +137,7 @@ class Sweep:
             self.powers, self.fields, self.temperatures, self.loops = (list(t) for t in lp)
 
     @classmethod
-    def load(cls, sweep_file_name, sweep_data=analogreadout_sweep, sort=True, **kwargs):
+    def from_config(cls, sweep_file_name, sweep_data=analogreadout_sweep, sort=True, **kwargs):
         """
         Sweep class factory method that returns a Sweep() with the loop, noise
         and pulse data loaded.

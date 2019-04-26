@@ -86,6 +86,10 @@ class Pulse:
         return pulse
 
     @classmethod
+    def from_config(cls, file_name):
+        pass
+
+    @classmethod
     def load(cls, file_name, data=AnalogReadoutPulse, loop=None, **kwargs):
         """
         Pulse class factory method that returns a Pulse() with the data loaded.
