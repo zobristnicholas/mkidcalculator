@@ -14,8 +14,8 @@ class S21:
     @classmethod
     def baseline(cls, params, f):
         """
-        Return S21 at the frequencies f, ignoring the effect of the resonator, for
-        the specified model parameters.
+        Return S21 at the frequencies f, ignoring the effect of the resonator,
+        for the specified model parameters.
         Args:
             params: lmfit.Parameters() object
                 The parameters for the model function.
@@ -89,8 +89,8 @@ class S21:
     @classmethod
     def resonance(cls, params, f):
         """
-        Return S21 at the frequencies f, only considering the resonator, for the
-        specified model parameters.
+        Return S21 at the frequencies f, only considering the resonator, for
+        the specified model parameters.
         Args:
             params: lmfit.Parameters() object
                 The parameters for the model function.
@@ -245,8 +245,8 @@ class S21:
             sigma: numpy.ndarray, dtype=complex, shape=(N,)
                 The standard deviation of the data z at f in the form
                 std(z.real) + i std(z.imag). The default is None. If None is
-                provided, the standard deviation is calculated from the first 10
-                points after being detrended.
+                provided, the standard deviation is calculated from the first
+                10 points after being detrended.
             return_real: bool (optional)
                 Concatenate the real and imaginary parts of the residual into a
                 real 1D array of shape (2N,).
@@ -281,7 +281,7 @@ class S21:
         return res
 
     @classmethod
-    def guess(cls, z, f, mixer_imbalance=None, mixer_offset=0, use_filter=False, filter_length=None, fit_resonance=True,
+    def guess(cls, z, f, imbalance=None, offset=0, use_filter=False, filter_length=None, fit_resonance=True,
               nonlinear_resonance=False, fit_gain=True, quadratic_gain=True, fit_phase=True, quadratic_phase=False,
               fit_imbalance=False, fit_offset=False, alpha=1, gamma=0):
         """
@@ -292,55 +292,59 @@ class S21:
                 Complex resonator scattering parameter.
             f: numpy.ndarray, dtype=real, shape=(N,)
                 Frequency points corresponding to z.
-            mixer_imbalance: numpy.ndarray, dtype=complex, shape=(M, L) (optional)
-                Mixer calibration data (three data sets of I and Q beating). Each
-                of the M data sets is it's own calibration, potentially taken at
-                different frequencies and frequency offsets. The results of the M
-                data sets are averaged together. The default is None, which means
-                alpha and gamma are taken from the keywords. The alpha and gamma
-                keywords are ignored if a value other than None is given.
-            mixer_offset: complex, iterable (optional)
+            imbalance: numpy.ndarray, dtype=complex, shape=(M, L) (optional)
+                Mixer imbalance calibration data (three data sets of I and Q
+                beating). Each of the M data sets is it's own calibration,
+                potentially taken at different frequencies and frequency
+                offsets. The results of the M data sets are averaged together.
+                The default is None, which means alpha and gamma are taken from
+                the keywords. The alpha and gamma keywords are ignored if a
+                value other than None is given.
+            offset: complex, iterable (optional)
                 A complex number corresponding to the I + iQ mixer offset. The
-                default is 0, corresponding to no offset. If the input is iterable,
-                a mean is taken to determine the mixer_offset value.
+                default is 0, corresponding to no offset. If the input is
+                iterable, a mean is taken to determine the mixer_offset value.
             use_filter: bool (optional)
-                Filter the phase and magnitude data of z before trying to guess the
-                parameters. This can be helpful for noisy data, but can also result
-                in poor guesses for clean data. The default is False.
+                Filter the phase and magnitude data of z before trying to guess
+                the parameters. This can be helpful for noisy data, but can
+                also result in poor guesses for clean data. The default is
+                False.
             filter_length: int, odd >= 3 (optional)
-                If use_filter==True, this is used as the filter length. Only odd
-                numbers greater or equal to three are allowed. If None, a
+                If use_filter==True, this is used as the filter length. Only
+                odd numbers greater or equal to three are allowed. If None, a
                 filter length is computed as roughly 1% of the number of points
                 in z. The default is None.
             fit_resonance: bool (optional)
-                Allow the resonance parameters to vary in the fit. The default is
-                True.
+                Allow the resonance parameters to vary in the fit. The default
+                is True.
             nonlinear_resonance: bool (optional)
                 Allow the resonance model to fit for nonlinear behavior. The
                 default is False.
             fit_gain: bool (optional)
-                Allow the gain parameters to vary in the fit. The default is True.
-            quadratic_gain: bool (optional)
-                Allow for a quadratic gain component in the model. The default is
+                Allow the gain parameters to vary in the fit. The default is
                 True.
+            quadratic_gain: bool (optional)
+                Allow for a quadratic gain component in the model. The default
+                is True.
             fit_phase: bool (optional)
-                Allow the phase parameters to vary in the fit. The default is True.
+                Allow the phase parameters to vary in the fit. The default is
+                True.
             quadratic_phase: bool (optional)
-                Allow for a quadratic phase component in the model. The default is
-                False since there isn't an obvious physical reason why there should
-                be a quadratic term.
+                Allow for a quadratic phase component in the model. The default
+                is False since there isn't an obvious physical reason why there
+                should be a quadratic term.
             fit_imbalance: bool (optional)
                 Allow the IQ mixer amplitude and phase imbalance to vary in the
-                fit. The default is False. The imbalance is typically calibrated
-                and not fit.
+                fit. The default is False. The imbalance is typically
+                calibrated and not fit.
             fit_offset: bool (optional)
-                Allow the IQ mixer offset to vary in the fit. The default is False.
-                The offset is highly correlated with the gain parameters and
-                typically should not be allowed to vary unless the gain is properly
-                calibrated.
+                Allow the IQ mixer offset to vary in the fit. The default is
+                False. The offset is highly correlated with the gain parameters
+                and typically should not be allowed to vary unless the gain is
+                properly calibrated.
             alpha: float (optional)
-                Mixer amplitude imbalance. The default is 1 which corresponds to no
-                imbalance.
+                Mixer amplitude imbalance. The default is 1 which corresponds
+                to no imbalance.
             gamma:float (optional)
                 Mixer phase imbalance. The default is 0 which corresponds to no
                 imbalance.
@@ -349,9 +353,9 @@ class S21:
                 An object with guesses and bounds for each parameter.
         """
         # undo the mixer calibration for more accurate guess if known ahead of time
-        mixer_offset = np.mean(mixer_offset)
-        if mixer_imbalance is not None:
-            i, q = mixer_imbalance.real, mixer_imbalance.imag
+        offset = np.mean(offset)
+        if imbalance is not None:
+            i, q = imbalance.real, imbalance.imag
             # bandpass filter the I signal
             fft_i = np.fft.rfft(i)
             fft_i[:, 0] = 0
@@ -373,7 +377,7 @@ class S21:
             gamma = np.arcsin(np.sign(ratio) * 2 * np.mean(qp * ip, axis=-1) / (alpha * amp**2)) + np.pi * (ratio < 0)
             alpha = np.mean(alpha)
             gamma = np.mean(gamma)
-        z = cls.mixer_inverse((alpha, gamma, mixer_offset), z)
+        z = cls.mixer_inverse((alpha, gamma, offset), z)
         # compute the magnitude and phase of the scattering parameter
         magnitude = np.abs(z)
         phase = np.unwrap(np.angle(z))
@@ -448,8 +452,8 @@ class S21:
         params.add('phase1', value=float(phase_poly[1]), vary=fit_phase)
         params.add('phase2', value=float(phase_poly[0]), vary=quadratic_phase and fit_phase)
         # IQ mixer parameters
-        params.add('i_offset', value=float(mixer_offset.real), vary=fit_offset)
-        params.add('q_offset', value=float(mixer_offset.imag), vary=fit_offset)
+        params.add('i_offset', value=float(offset.real), vary=fit_offset)
+        params.add('q_offset', value=float(offset.imag), vary=fit_offset)
         params.add('alpha', value=float(alpha), vary=fit_imbalance)
         params.add('gamma', value=float(gamma), min=gamma - np.pi / 2, max=gamma + np.pi / 2, vary=fit_imbalance)
         # add derived parameters
