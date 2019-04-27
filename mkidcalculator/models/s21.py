@@ -35,10 +35,12 @@ class S21:
         phase1 = params['phase1'].value
         phase2 = params['phase2'].value
 
+        # midpoint frequency
+        fm = params['fm'].value
+
         # the gain should be referenced to the file midpoint so that the baseline
         # coefficients do not drift with changes in f0
         # this breaks down if different sweeps have different frequency ranges
-        fm = np.median(f)
         ffm = (f - fm) / fm
 
         # Calculate magnitude and phase gain
@@ -55,26 +57,31 @@ class S21:
         Args:
             params: lmfit.Parameters() object
                 The parameters for the model function.
-            f: numpy.ndarray, dtype=real
-                Frequency points corresponding to z.
+            f: number or numpy.ndarray, dtype=real
+                Frequency points corresponding to z. If f is just a number, the
+                sweep direction is chosen to be increasing.
         Returns:
             z: numpy.ndarray
                 The S21 scattering parameter.
         """
+        # loop parameters
         df = params['df'].value  # frequency shift due to mismatched impedances
         f0 = params['f0'].value  # resonant frequency
-        qc = params['qc'].value  # coupling Q
         qi = params['qi'].value  # internal Q
+        q0 = params['q0'].value  # total Q
         a = params['a_sqrt'].value**2  # nonlinearity parameter (Swenson et al. 2013)
 
-        # calculate the total Q
-        q0 = 1. / (1. / qi + 1. / qc)
+        # make sure that f is a numpy array
+        f = np.atleast_1d(f)
 
         # Make everything referenced to the shifted, unitless, reduced frequency
         # accounting for nonlinearity
         if a != 0:
             y0 = q0 * (f - f0) / f0
-            increasing = True if f[1] - f[0] >= 0 else False
+            try:
+                increasing = True if f[1] - f[0] >= 0 else False
+            except IndexError:  # single value so assume we are increasing in frequency
+                increasing = True
             y = swenson(y0, a, increasing=increasing)
             ff = y / q0
         else:
@@ -374,7 +381,7 @@ class S21:
         qc_guess = 1. / (1. / q0_guess - 1. / qi_guess)
 
         # make the parameters object (coerce all values to float to avoid ints and numpy types)
-        params = lm.Parameters(usersyms={"fm": f_midpoint})
+        params = lm.Parameters()
         # resonance parameters
         params.add('df', value=float(0), vary=fit_resonance)
         params.add('f0', value=float(f0_guess), min=f_min, max=f_max, vary=fit_resonance)
@@ -397,6 +404,7 @@ class S21:
         # add derived parameters
         params.add("a", expr="a_sqrt**2")
         params.add("q0", expr="1 / (1 / qi + 1 / qc)")
+        params.add("fm", value=f_midpoint, vary=False)
         params.add("tau", expr="-phase1 / (2 * pi * fm)")
         params.add("radius", expr="q0 / (2 * qc)")
         return params
