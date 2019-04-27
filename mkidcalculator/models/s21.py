@@ -76,7 +76,8 @@ class S21:
         if a != 0:
             y0 = q0 * (f - f0) / f0
             try:
-                increasing = True if f[1] - f[0] >= 0 else False
+                f1d = f.ravel()  # ensures f doesn't have a dimension >= 2 when indexing
+                increasing = True if f1d[1] - f1d[0] >= 0 else False
             except IndexError:  # single value so assume we are increasing in frequency
                 increasing = True
             y = swenson(y0, a, increasing=increasing)
@@ -132,7 +133,7 @@ class S21:
         f0 = params['f0'].value
         q0 = params['q0'].value
         x = cls.x(params, f)
-        z -= (2j * df / f0) / (1. / q0 + 2j * x)
+        z = z - (2j * df / f0) / (1. / q0 + 2j * x)
         return z
 
     @classmethod
