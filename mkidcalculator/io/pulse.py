@@ -1,5 +1,6 @@
 import pickle
 import logging
+import numpy as np
 
 from mkidcalculator.io.data import AnalogReadoutPulse
 
@@ -16,6 +17,9 @@ class Pulse:
         self._loop = None
         # noise reference for computing energies
         self._noise = None
+        # phase and amplitude data
+        self._phase_trace = None
+        self._amplitude_trace = None
         log.info("Pulse object created. ID: {}".format(id(self)))
 
     @property
@@ -54,6 +58,38 @@ class Pulse:
         return self._data["energies"]
 
     @property
+    def phase_trace(self):
+        """
+        A settable property that contains the phase trace information. Since it
+        is derived from the i_trace and q_trace, it will raise an
+        AttributeError if it is accessed before
+        pulse.compute_phase_and_amplitude() is run.
+        """
+        if self._phase_trace is None:
+            raise AttributeError("The phase information has not been computed yet.")
+        return self._phase_trace
+
+    @phase_trace.setter
+    def phase_trace(self, phase_trace):
+        self._phase_trace = phase_trace
+
+    @property
+    def amplitude_trace(self):
+        """
+        A settable property that contains the amplitude trace information.
+        Since it is derived from the i_trace and q_trace, it will raise an
+        AttributeError if it is accessed before
+        pulse.compute_phase_and_amplitude() is run.
+        """
+        if self._amplitude_trace is None:
+            raise AttributeError("The amplitude information has not been computed yet.")
+        return self._amplitude_trace
+
+    @amplitude_trace.setter
+    def amplitude_trace(self, amplitude_trace):
+        self._amplitude_trace = amplitude_trace
+
+    @property
     def loop(self):
         """
         A settable property that contains the Loop object required for doing
@@ -89,7 +125,60 @@ class Pulse:
 
     def clear_loop_data(self):
         """Remove all data calculated from the pulse.loop attribute."""
-        pass  # TODO: clear amplitude and phase objects when a new loop is set
+        self.amplitude_trace = None
+        self.phase_trace = None
+
+    def clear_noise_data(self):
+        pass
+
+    def compute_phase_and_amplitude(self, label="best", fit_type="lmfit", radius="q0 / (2 * qc)",
+                                    fr="fr", unwrap=True):
+        """
+        Compute the phase and amplitude traces stored in pulse.phase_trace and
+        pulse.amplitude_trace.
+        Args:
+            label: string
+                Corresponds to the label in the loop.lmfit_results or
+                loop.emcee_results dictionaries where the fit parameters are.
+                The resulting DataFrame is stored in
+                self.loop_parameters[label]. The default is "best", which gets
+                the parameters from the best fits.
+            fit_type: string
+                The type of fit to use. Allowed options are "lmfit", "emcee",
+                and "emcee_mle" where MLE estimates are used instead of the
+                medians. The default is "lmfit".
+            radius: string
+                An evaluable expression of parameters that corresponds to the
+                loop radius. The default is "q0 / (2 * qc)".
+            fr: string
+                An evaluable expression of parameters that corresponds to the
+                loop radius. The default is "fr".
+            unwrap: boolean
+                Determines whether or not to unwrap the phase data. The default
+                is True.
+        """
+        # get the model and parameters
+        _, result_dict = self.loop._get_model(fit_type, label)
+        model = result_dict["model"]
+        params = result_dict["result"].params
+        # get the resonance frequency and normalized loop radius
+        fr = params._asteval.eval(fr)
+        r = params._asteval.eval(radius)
+        # get complex IQ data for the traces and loop at the resonance frequency
+        traces = self.i_trace + 1j * self.q_trace
+        z_fr = model.model(params, fr)
+        f = np.empty(traces.shape)
+        f.fill(self.f_bias)
+        # calibrate the IQ data
+        traces = model.calibrate(params, traces, f)
+        z_fr = model.calibrate(params, z_fr, fr)
+        # center and rotate the IQ data
+        centered_trace = 1 - r - traces
+        centered_z_f0 = 1 - r - z_fr  # should be real if no loop rotation
+        # compute the phase and amplitude traces from the centered traces
+        phase_trace = np.angle(centered_trace) - np.angle(centered_z_f0)
+        self.phase_trace = np.unwrap(phase_trace) if unwrap else phase_trace
+        self.amplitude_trace = np.abs(centered_trace) - r
 
     def to_pickle(self, file_name):
         """Pickle and save the class as the file 'file_name'."""
@@ -103,10 +192,6 @@ class Pulse:
             pulse = pickle.load(f)
         assert isinstance(pulse, cls), "'{}' does not contain a Pulse class.".format(file_name)
         return pulse
-
-    @classmethod
-    def from_config(cls, file_name):
-        pass
 
     @classmethod
     def load(cls, pulse_file_name, data=AnalogReadoutPulse, loop=None, noise=None, **kwargs):
@@ -146,5 +231,8 @@ class Pulse:
             pulse.noise = noise
         return pulse
 
-    def compute_photon_energies(self):
+    def compute_trace_energies(self):
         raise NotImplementedError
+
+    def plot_traces(self, calibrated=False, label="best", fit_type="lmfit"):
+        pass
