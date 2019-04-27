@@ -50,10 +50,11 @@ class S21:
         return z
 
     @classmethod
-    def resonance(cls, params, f):
+    def x(cls, params, f):
         """
-        Return S21 at the frequencies f, only considering the resonator, for the
-        specified model parameters.
+        Return the fractional frequency shift at the frequencies f for the
+        specified model parameters. If the resonator is nonlinear, the
+        treatment by Swenson et al. (doi: 10.1063/1.4794808) is used.
         Args:
             params: lmfit.Parameters() object
                 The parameters for the model function.
@@ -61,19 +62,15 @@ class S21:
                 Frequency points corresponding to z. If f is just a number, the
                 sweep direction is chosen to be increasing.
         Returns:
-            z: numpy.ndarray
-                The S21 scattering parameter.
+            x: numpy.ndarray
+                The fractional frequency shift.
         """
         # loop parameters
-        df = params['df'].value  # frequency shift due to mismatched impedances
         f0 = params['f0'].value  # resonant frequency
-        qi = params['qi'].value  # internal Q
         q0 = params['q0'].value  # total Q
         a = params['a_sqrt'].value**2  # nonlinearity parameter (Swenson et al. 2013)
-
         # make sure that f is a numpy array
         f = np.atleast_1d(f)
-
         # Make everything referenced to the shifted, unitless, reduced frequency
         # accounting for nonlinearity
         if a != 0:
@@ -83,11 +80,59 @@ class S21:
             except IndexError:  # single value so assume we are increasing in frequency
                 increasing = True
             y = swenson(y0, a, increasing=increasing)
-            ff = y / q0
+            x = y / q0
         else:
-            ff = (f - f0) / f0
+            x = (f - f0) / f0
+        return x
 
-        z = (1. / qi + 1j * 2.0 * (ff + df / f0)) / (1. / q0 + 1j * 2.0 * ff)
+    @classmethod
+    def resonance(cls, params, f):
+        """
+        Return S21 at the frequencies f, only considering the resonator, for the
+        specified model parameters.
+        Args:
+            params: lmfit.Parameters() object
+                The parameters for the model function.
+            f: number or numpy.ndarray, dtype=real
+                Frequency points corresponding to z.
+        Returns:
+            z: numpy.ndarray
+                The S21 scattering parameter.
+        """
+        # loop parameters
+        df = params['df'].value  # frequency shift due to mismatched impedances
+        f0 = params['f0'].value  # resonant frequency
+        qi = params['qi'].value  # internal Q
+        q0 = params['q0'].value  # total Q
+        # make sure that f is a numpy array
+        f = np.atleast_1d(f)
+        # find the fractional frequency shift
+        x = cls.x(params, f)
+        # find the scattering parameter
+        z = (1. / qi + 2j * (x + df / f0)) / (1. / q0 + 2j * x)
+        return z
+
+    @classmethod
+    def remove_rotation(cls, params, z, f):
+        """
+        Remove the loop rotation caused by the df parameter from the scattering
+        data.
+        Args:
+            params: lmfit.Parameters() object
+                The parameters for the model function.
+            z: numpy.ndarray, dtype=complex
+                Complex resonator scattering parameter.
+            f: number or numpy.ndarray, dtype=real
+                Frequency points corresponding to z.
+        Returns:
+            z: numpy.ndarray
+                The S21 scattering parameter.
+        """
+        df = params['df'].value
+        f0 = params['f0'].value
+        q0 = params['q0'].value
+        x = cls.x(params, f)
+        z -= (2j * df / f0) / (1. / q0 + 2j * x)
         return z
 
     @classmethod
@@ -135,7 +180,7 @@ class S21:
         return z
 
     @classmethod
-    def calibrate(cls, params, z, f, mixer_correction=True):
+    def calibrate(cls, params, z, f, mixer_correction=True, rotation_correction=True):
         """
         Remove the baseline and mixer effects from the S21 data.
         Args:
@@ -148,6 +193,9 @@ class S21:
             mixer_correction: bool (optional)
                 Remove the mixer correction specified in the params object. The
                 default is True.
+            rotation_correction: bool (optional)
+                Remove the loop rotation caused by the df parameter in the
+                params object.
         Returns:
             z: numpy.ndarray
                 The S21 scattering parameter.
@@ -156,6 +204,8 @@ class S21:
             z = cls.mixer_inverse(params, z) / cls.baseline(params, f)
         else:
             z /= cls.baseline(params, f)
+        if rotation_correction:
+            z = cls.remove_rotation(params, z, f)
         return z
 
     @classmethod
