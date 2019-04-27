@@ -456,5 +456,4 @@ class S21:
         params.add("q0", expr="1 / (1 / qi + 1 / qc)")
         params.add("fm", value=f_midpoint, vary=False)
         params.add("tau", expr="-phase1 / (2 * pi * fm)")
-        params.add("radius", expr="q0 / (2 * qc)")
         return params
