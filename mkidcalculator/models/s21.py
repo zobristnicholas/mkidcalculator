@@ -453,8 +453,9 @@ class S21:
         params.add('alpha', value=float(alpha), vary=fit_imbalance)
         params.add('gamma', value=float(gamma), min=gamma - np.pi / 2, max=gamma + np.pi / 2, vary=fit_imbalance)
         # add derived parameters
-        params.add("a", expr="a_sqrt**2")
-        params.add("q0", expr="1 / (1 / qi + 1 / qc)")
-        params.add("fm", value=f_midpoint, vary=False)
-        params.add("tau", expr="-phase1 / (2 * pi * fm)")
+        params.add("a", expr="a_sqrt**2")  # nonlinearity parameter (Swenson et al. 2013)
+        params.add("q0", expr="1 / (1 / qi + 1 / qc)")  # the total quality factor
+        params.add("fm", value=f_midpoint, vary=False)  # the frequency midpoint used for fitting
+        params.add("tau", expr="-phase1 / (2 * pi * fm)")  # the cable delay
+        params.add("fr", expr="f0 * (1 - a / q0)")  # resonance frequency accounting for nonlinearity
         return params
