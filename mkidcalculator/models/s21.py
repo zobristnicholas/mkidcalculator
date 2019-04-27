@@ -41,11 +41,11 @@ class S21:
         # the gain should be referenced to the file midpoint so that the baseline
         # coefficients do not drift with changes in f0
         # this breaks down if different sweeps have different frequency ranges
-        ffm = (f - fm) / fm
+        xm = (f - fm) / fm
 
         # Calculate magnitude and phase gain
-        gain = gain0 + gain1 * ffm + gain2 * ffm**2
-        phase = np.exp(1j * (phase0 + phase1 * ffm + phase2 * ffm**2))
+        gain = gain0 + gain1 * xm + gain2 * xm**2
+        phase = np.exp(1j * (phase0 + phase1 * xm + phase2 * xm**2))
         z = gain * phase
         return z
 
@@ -343,13 +343,13 @@ class S21:
         # set up a unitless, reduced, midpoint frequency for baselines
         f_midpoint = np.median(f)  # frequency at the center of the data
 
-        def ffm(fx):
+        def xm(fx):
             return (fx - f_midpoint) / f_midpoint
 
         # get the magnitude and phase data to fit
         mag_ends = np.concatenate((magnitude[0:f_index_5pc], magnitude[-f_index_5pc:-1]))
         phase_ends = np.concatenate((phase[0:f_index_5pc], phase[-f_index_5pc:-1]))
-        freq_ends = ffm(np.concatenate((f[0:f_index_5pc], f[-f_index_5pc:-1])))
+        freq_ends = xm(np.concatenate((f[0:f_index_5pc], f[-f_index_5pc:-1])))
         # calculate the gain polynomials
         gain_poly = np.polyfit(freq_ends, mag_ends, 2 if quadratic_gain else 1)
         if not quadratic_gain:
@@ -359,7 +359,7 @@ class S21:
             phase_poly = np.concatenate(([0], phase_poly))
 
         # guess f0
-        f_index_min = np.argmin(magnitude - np.polyval(gain_poly, ffm(f)))
+        f_index_min = np.argmin(magnitude - np.polyval(gain_poly, xm(f)))
         f0_guess = f[f_index_min]
         # set some bounds (resonant frequency should not be within 5% of file end)
         f_min = min(f[f_index_5pc],  f[f_index_end - f_index_5pc])
@@ -368,7 +368,7 @@ class S21:
             f0_guess = f_midpoint
 
         # guess Q values
-        mag_max = np.polyval(gain_poly, ffm(f[f_index_min]))
+        mag_max = np.polyval(gain_poly, xm(f[f_index_min]))
         mag_min = magnitude[f_index_min]
         fwhm = np.sqrt((mag_max**2 + mag_min**2) / 2.)  # fwhm is for power not amplitude
         fwhm_mask = magnitude < fwhm
