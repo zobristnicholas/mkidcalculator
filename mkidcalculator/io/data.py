@@ -25,6 +25,20 @@ def analogreadout_temperature(metadata):
     return temperature
 
 
+def analogreadout_sample_rate(metadata):
+    """
+    Returns the sample rate in Hz from the metadata.
+    Args:
+        metadata: dictionary
+            The metadata dictionary from the analogreadout procedure.
+    Returns:
+        sample_rate: float
+            The sample rate in Hz.
+    """
+    sample_rate = metadata['parameters']['sample_rate'] * 1e6
+    return sample_rate
+
+
 class AnalogReadoutABC:
     """
     Abstract base class for handling data from the analogreadout module.
@@ -159,7 +173,7 @@ class AnalogReadoutNoise(AnalogReadoutABC):
     """
     CONVERT = {"f_bias": "freqs", "i_trace": ("noise", "I", np.real), "q_trace": ("noise", "Q", np.imag),
                "metadata": "metadata", "attenuation": ("metadata", ("parameters", "attenuation")),
-               "sample_rate": ("metadata", ("parameters", "sample_rate"))}
+               "sample_rate": ("metadata", analogreadout_sample_rate)}
     # "i_psd": ("psd", "I"), "q_psd": ("psd", "Q"), "f_psd": "f_psd" not using these from file but they are there
 
 
@@ -180,7 +194,7 @@ class AnalogReadoutPulse(AnalogReadoutABC):
     """
     CONVERT = {"f_bias": "freqs", "i_trace": ("pulses", "I", np.real), "q_trace": ("pulses", "Q", np.imag),
                "offset": "zero", "metadata": "metadata", "attenuation": ("metadata", ("parameters", "attenuation")),
-               "sample_rate": ("metadata", ("parameters", "sample_rate"))}
+               "sample_rate": ("metadata", analogreadout_sample_rate)}
 
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
