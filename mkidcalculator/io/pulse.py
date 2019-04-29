@@ -138,7 +138,7 @@ class Pulse:
         """Remove all data calculated from the pulse.noise attribute."""
         pass
 
-    def compute_phase_and_amplitude(self, label="best", fit_type="lmfit", fr="fr", center="center", unwrap=True):
+    def compute_phase_and_amplitude(self, label="best", fit_type="lmfit", fr=None, center=None, unwrap=True):
         """
         Compute the phase and amplitude traces stored in pulse.p_trace and
         pulse.a_trace.
@@ -155,11 +155,13 @@ class Pulse:
                 medians. The default is "lmfit".
             fr: string
                 The parameter name that corresponds to the resonance frequency.
-                The default is "fr". This parameter determines the zero point
-                for the traces.
+                The default is None which gives the resonance frequency for the
+                mkidcalculator.S21 model. This parameter determines the zero
+                point for the traces.
             center: string
-                The parameter name that corresponds to the calibrated loop
-                center. The default is "center".
+                An expression of parameters corresponding to the calibrated
+                loop center. The default is None which gives the loop center
+                for the mkidcalculator.S21 model.
             unwrap: boolean
                 Determines whether or not to unwrap the phase data. The default
                 is True.

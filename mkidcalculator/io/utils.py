@@ -1,7 +1,7 @@
 import numpy as np
 
 
-def compute_phase_and_amplitude(cls, label="best", fit_type="lmfit", fr="fr", center="center", unwrap=True):
+def compute_phase_and_amplitude(cls, label="best", fit_type="lmfit", fr=None, center=None, unwrap=True):
     """
     Compute the phase and amplitude traces stored in pulse.p_trace and
     pulse.a_trace.
@@ -21,11 +21,13 @@ def compute_phase_and_amplitude(cls, label="best", fit_type="lmfit", fr="fr", ce
             medians. The default is "lmfit".
         fr: string
             The parameter name that corresponds to the resonance frequency.
-            The default is "fr". This parameter determines the zero point
-            for the traces.
+            The default is None which gives the resonance frequency for the
+            mkidcalculator.S21 model. This parameter determines the zero
+            point for the traces.
         center: string
-            The parameter name that corresponds to the calibrated loop
-            center. The default is "center".
+            An expression of parameters corresponding to the calibrated
+            loop center. The default is None which gives the loop center
+            for the mkidcalculator.S21 model.
         unwrap: boolean
             Determines whether or not to unwrap the phase data. The default
             is True.
@@ -35,8 +37,10 @@ def compute_phase_and_amplitude(cls, label="best", fit_type="lmfit", fr="fr", ce
     model = result_dict["model"]
     params = result_dict["result"].params
     # get the resonance frequency and loop center
-    fr = params[fr].value
-    center = params[center].value
+    fr = params["fr"].value if fr is None else params[fr].value
+    if center is None:
+        center = "1 - q0 / (2 * qc) - 1j * q0**2 / qc * df / f0"
+    center = params._asteval.eval(center)
     # get complex IQ data for the traces and loop at the resonance frequency
     traces = cls.i_trace + 1j * cls.q_trace
     z_fr = model.model(params, fr)
