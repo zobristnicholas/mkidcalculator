@@ -131,8 +131,7 @@ class Pulse:
     def clear_noise_data(self):
         pass
 
-    def compute_phase_and_amplitude(self, label="best", fit_type="lmfit", radius="q0 / (2 * qc)",
-                                    fr="fr", unwrap=True):
+    def compute_phase_and_amplitude(self, label="best", fit_type="lmfit", fr="fr", center="center", unwrap=True):
         """
         Compute the phase and amplitude traces stored in pulse.phase_trace and
         pulse.amplitude_trace.
@@ -147,12 +146,13 @@ class Pulse:
                 The type of fit to use. Allowed options are "lmfit", "emcee",
                 and "emcee_mle" where MLE estimates are used instead of the
                 medians. The default is "lmfit".
-            radius: string
-                An evaluable expression of parameters that corresponds to the
-                loop radius. The default is "q0 / (2 * qc)".
             fr: string
-                An evaluable expression of parameters that corresponds to the
-                loop radius. The default is "fr".
+                The parameter name that corresponds to the resonance frequency.
+                The default is "fr". This parameter determines the zero point
+                for the traces.
+            center: string
+                The parameter name that corresponds to the calibrated loop
+                center. The default is "center".
             unwrap: boolean
                 Determines whether or not to unwrap the phase data. The default
                 is True.
@@ -161,9 +161,9 @@ class Pulse:
         _, result_dict = self.loop._get_model(fit_type, label)
         model = result_dict["model"]
         params = result_dict["result"].params
-        # get the resonance frequency and normalized loop radius
-        fr = params._asteval.eval(fr)
-        r = params._asteval.eval(radius)
+        # get the resonance frequency and loop center
+        fr = params[fr].value
+        center = params[center].value
         # get complex IQ data for the traces and loop at the resonance frequency
         traces = self.i_trace + 1j * self.q_trace
         z_fr = model.model(params, fr)
@@ -173,12 +173,11 @@ class Pulse:
         traces = model.calibrate(params, traces, f)
         z_fr = model.calibrate(params, z_fr, fr)
         # center and rotate the IQ data
-        centered_trace = 1 - r - traces
-        centered_z_f0 = 1 - r - z_fr  # should be real if no loop rotation
+        traces = (center - traces)
+        z_fr = (center - z_fr)  # should be real if no loop asymmetry
         # compute the phase and amplitude traces from the centered traces
-        phase_trace = np.angle(centered_trace) - np.angle(centered_z_f0)
-        self.phase_trace = np.unwrap(phase_trace) if unwrap else phase_trace
-        self.amplitude_trace = np.abs(centered_trace) - r
+        self.phase_trace = np.unwrap(np.angle(traces) - np.angle(z_fr)) if unwrap else np.angle(traces) - np.angle(z_fr)
+        self.amplitude_trace = np.abs(traces) - np.abs(z_fr)
 
     def to_pickle(self, file_name):
         """Pickle and save the class as the file 'file_name'."""
