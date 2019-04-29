@@ -242,7 +242,7 @@ class Pulse:
         Args:
             calibrate: boolean
                 Boolean that determines if calibrated data is used or not for
-                the plot.
+                the plot. The default is False.
             label: string
                 The label used to store the fit. The default is "best".
             fit_type: string
