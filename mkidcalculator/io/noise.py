@@ -1,5 +1,7 @@
 import pickle
 import logging
+import numpy as np
+from scipy.signal import welch, csd
 
 from mkidcalculator.io.data import AnalogReadoutNoise
 from mkidcalculator.io.utils import compute_phase_and_amplitude
@@ -17,6 +19,14 @@ class Noise:
         # phase and amplitude data
         self._p_trace = None
         self._a_trace = None
+        # noise data
+        self._f_psd = None
+        self._ii_psd = None
+        self._qq_psd = None
+        self._iq_psd = None
+        self._pp_psd = None
+        self._aa_psd = None
+        self._pa_psd = None
         log.info("Noise object created. ID: {}".format(id(self)))
 
     @property
@@ -98,10 +108,121 @@ class Noise:
     def a_trace(self, amplitude_trace):
         self._a_trace = amplitude_trace
 
+    @property
+    def f_psd(self):
+        """
+        A settable property that contains the noise frequency information.
+        Since it is derived from the i_trace and q_trace, it will raise an
+        AttributeError if it is accessed before noise.compute_psd() is run.
+        """
+        if self._f_psd is None:
+            raise AttributeError("The IQ noise has not been computed yet.")
+        return self._f_psd
+
+    @f_psd.setter
+    def f_psd(self, f_psd):
+        self._f_psd = f_psd
+
+    @property
+    def ii_psd(self):
+        """
+        A settable property that contains the II noise information.
+        Since it is derived from the i_trace and q_trace, it will raise an
+        AttributeError if it is accessed before noise.compute_psd() is run.
+        """
+        if self._ii_psd is None:
+            raise AttributeError("The IQ noise has not been computed yet.")
+        return self._ii_psd
+
+    @ii_psd.setter
+    def ii_psd(self, ii_psd):
+        self._ii_psd = ii_psd
+
+    @property
+    def qq_psd(self):
+        """
+        A settable property that contains the QQ noise information.
+        Since it is derived from the i_trace and q_trace, it will raise an
+        AttributeError if it is accessed before noise.compute_psd() is run.
+        """
+        if self._qq_psd is None:
+            raise AttributeError("The IQ noise has not been computed yet.")
+        return self._qq_psd
+
+    @qq_psd.setter
+    def qq_psd(self, qq_psd):
+        self._qq_psd = qq_psd
+
+    @property
+    def iq_psd(self):
+        """
+        A settable property that contains the IQ noise information.
+        Since it is derived from the i_trace and q_trace, it will raise an
+        AttributeError if it is accessed before noise.compute_psd() is run.
+        """
+        if self._iq_psd is None:
+            raise AttributeError("The IQ noise has not been computed yet.")
+        return self._iq_psd
+
+    @iq_psd.setter
+    def iq_psd(self, iq_psd):
+        self._iq_psd = iq_psd
+
+    @property
+    def pp_psd(self):
+        """
+        A settable property that contains the PP noise information.
+        Since it is derived from the i_trace and q_trace and the loop, it will
+        raise an AttributeError if it is accessed before
+        noise.compute_phase_and_amplitude() and noise.compute_psd() are run.
+        """
+        if self._pp_psd is None:
+            raise AttributeError("The phase and amplitude noise has not been computed yet.")
+        return self._pp_psd
+
+    @pp_psd.setter
+    def pp_psd(self, pp_psd):
+        self._pp_psd = pp_psd
+
+    @property
+    def aa_psd(self):
+        """
+        A settable property that contains the AA noise information.
+        Since it is derived from the i_trace and q_trace and the loop, it will
+        raise an AttributeError if it is accessed before
+        noise.compute_phase_and_amplitude() and noise.compute_psd() are run.
+        """
+        if self._aa_psd is None:
+            raise AttributeError("The phase and amplitude noise has not been computed yet.")
+        return self._aa_psd
+
+    @aa_psd.setter
+    def aa_psd(self, aa_psd):
+        self._aa_psd = aa_psd
+
+    @property
+    def pa_psd(self):
+        """
+        A settable property that contains the PA noise information.
+        Since it is derived from the i_trace and q_trace and the loop, it will
+        raise an AttributeError if it is accessed before
+        noise.compute_phase_and_amplitude() and noise.compute_psd() are run.
+        """
+        if self._pa_psd is None:
+            raise AttributeError("The phase and amplitude noise has not been computed yet.")
+        return self._pa_psd
+
+    @pa_psd.setter
+    def pa_psd(self, pa_psd):
+        self._pa_psd = pa_psd
+
     def clear_loop_data(self):
         """Remove all data calculated from the noise.loop attribute."""
         self.a_trace = None
         self.p_trace = None
+        self.aa_psd = None
+        self.pp_psd = None
+        self.pa_psd = None
 
     def to_pickle(self, file_name):
         """Pickle and save the class as the file 'file_name'."""
@@ -170,5 +291,35 @@ class Noise:
         """
         compute_phase_and_amplitude(self, label=label, fit_type=fit_type, fr=fr, center=center, unwrap=unwrap)
 
-    def make_psd(self, psd_type='iq'):
-        raise NotImplementedError
+    def compute_psd(self, **kwargs):
+        """
+        Compute the noise power spectral density of the noise data in this object.
+        Args:
+            kwargs: optional keyword arguments
+                keywords for the scipy.signal.welch and scipy.signal.csd methods
+        """
+        # update keyword arguments
+        noise_kwargs = {'nperseg': self.i_trace.shape[1], 'fs': self.sample_rate, 'return_onesided': True,
+                        'detrend': 'constant', 'scaling': 'density'}
+        noise_kwargs.update(kwargs)
+        # compute I/Q noise in V^2 / Hz
+        self.f_psd, ii_psd = welch(self.i_trace, **noise_kwargs)
+        _, qq_psd = welch(self.q_trace, **noise_kwargs)
+        # scipy has different order convention we use equation 5.2 from J. Gao's 2008 thesis.
+        # noise_iq = F(I) conj(F(Q))
+        _, iq_psd = csd(self.q_trace, self.i_trace, **noise_kwargs)
+        # average multiple PSDs together
+        self.ii_psd = np.mean(ii_psd, axis=0)
+        self.qq_psd = np.mean(qq_psd, axis=0)
+        self.iq_psd = np.mean(iq_psd, axis=0)
+        try:
+            # compute phase and amplitude noise in rad^2 / Hz
+            _, pp_psd = welch(self.p_trace, **noise_kwargs)
+            _, aa_psd = welch(self.a_trace, **noise_kwargs)
+            _, pa_psd = csd(self.a_trace, self.p_trace, **noise_kwargs)
+            # average multiple PSDs together
+            self.pp_psd = np.mean(pp_psd, axis=0)
+            self.aa_psd = np.mean(aa_psd, axis=0)
+            self.pa_psd = np.mean(pa_psd, axis=0)
+        except AttributeError:
+            pass
