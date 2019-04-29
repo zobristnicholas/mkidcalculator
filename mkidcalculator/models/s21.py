@@ -434,4 +434,5 @@ class S21:
         params.add("fm", value=f_midpoint, vary=False)  # the frequency midpoint used for fitting
         params.add("tau", expr="-phase1 / (2 * pi * fm)")  # the cable delay
         params.add("fr", expr="f0 * (1 - a / q0)")  # resonance frequency accounting for nonlinearity
+        params.add("center", expr="1 - q0 / (2 * qc) - 1j * q0**2 / qc * df / f0")  # calibrated loop center
         return params
