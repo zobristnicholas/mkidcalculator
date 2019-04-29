@@ -111,6 +111,10 @@ class Pulse:
     def loop(self, loop):
         self._loop = loop
         self.clear_loop_data()
+        try:
+            self.noise.loop = self.loop
+        except AttributeError:
+            pass
 
     @property
     def noise(self):
@@ -128,6 +132,10 @@ class Pulse:
     def noise(self, noise):
         self._noise = noise
         self.clear_noise_data()
+        try:
+            self.noise.loop = self.loop
+        except AttributeError:
+            pass
 
     def clear_loop_data(self):
         """Remove all data calculated from the pulse.loop attribute."""
