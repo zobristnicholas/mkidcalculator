@@ -307,7 +307,7 @@ class Pulse:
                 p_trace = self.p_trace * 180 / np.pi
                 a_trace = self.a_trace
                 axes_list[1].set_ylabel("phase [degrees]")
-                axes_list[2].set_ylabel("amplitude [loop radius]")
+                axes_list[2].set_ylabel("amplitude [radians]")
             except AttributeError:
                 p_trace = self.i_trace
                 a_trace = self.q_trace
