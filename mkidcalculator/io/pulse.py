@@ -19,8 +19,8 @@ class Pulse:
         # noise reference for computing energies
         self._noise = None
         # phase and amplitude data
-        self._phase_trace = None
-        self._amplitude_trace = None
+        self._p_trace = None
+        self._a_trace = None
         log.info("Pulse object created. ID: {}".format(id(self)))
 
     @property
@@ -64,36 +64,36 @@ class Pulse:
         return self._data['sample_rate']
 
     @property
-    def phase_trace(self):
+    def p_trace(self):
         """
         A settable property that contains the phase trace information. Since it
         is derived from the i_trace and q_trace, it will raise an
         AttributeError if it is accessed before
         pulse.compute_phase_and_amplitude() is run.
         """
-        if self._phase_trace is None:
+        if self._p_trace is None:
             raise AttributeError("The phase information has not been computed yet.")
-        return self._phase_trace
+        return self._p_trace
 
-    @phase_trace.setter
-    def phase_trace(self, phase_trace):
-        self._phase_trace = phase_trace
+    @p_trace.setter
+    def p_trace(self, phase_trace):
+        self._p_trace = phase_trace
 
     @property
-    def amplitude_trace(self):
+    def a_trace(self):
         """
         A settable property that contains the amplitude trace information.
         Since it is derived from the i_trace and q_trace, it will raise an
         AttributeError if it is accessed before
         pulse.compute_phase_and_amplitude() is run.
         """
-        if self._amplitude_trace is None:
+        if self._a_trace is None:
             raise AttributeError("The amplitude information has not been computed yet.")
-        return self._amplitude_trace
+        return self._a_trace
 
-    @amplitude_trace.setter
-    def amplitude_trace(self, amplitude_trace):
-        self._amplitude_trace = amplitude_trace
+    @a_trace.setter
+    def a_trace(self, amplitude_trace):
+        self._a_trace = amplitude_trace
 
     @property
     def loop(self):
@@ -131,8 +131,8 @@ class Pulse:
 
     def clear_loop_data(self):
         """Remove all data calculated from the pulse.loop attribute."""
-        self.amplitude_trace = None
-        self.phase_trace = None
+        self.a_trace = None
+        self.p_trace = None
 
     def clear_noise_data(self):
         """Remove all data calculated from the pulse.noise attribute."""
@@ -140,8 +140,8 @@ class Pulse:
 
     def compute_phase_and_amplitude(self, label="best", fit_type="lmfit", fr="fr", center="center", unwrap=True):
         """
-        Compute the phase and amplitude traces stored in pulse.phase_trace and
-        pulse.amplitude_trace.
+        Compute the phase and amplitude traces stored in pulse.p_trace and
+        pulse.a_trace.
         Args:
             label: string
                 Corresponds to the label in the loop.lmfit_results or

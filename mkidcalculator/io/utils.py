@@ -3,8 +3,8 @@ import numpy as np
 
 def compute_phase_and_amplitude(cls, label="best", fit_type="lmfit", fr="fr", center="center", unwrap=True):
     """
-    Compute the phase and amplitude traces stored in pulse.phase_trace and
-    pulse.amplitude_trace.
+    Compute the phase and amplitude traces stored in pulse.p_trace and
+    pulse.a_trace.
     Args:
         cls: Pulse or Noise class
             The Pulse or Noise class used to create the phase and amplitude
@@ -49,5 +49,5 @@ def compute_phase_and_amplitude(cls, label="best", fit_type="lmfit", fr="fr", ce
     traces = (center - traces)
     z_fr = (center - z_fr)  # should be real if no loop asymmetry
     # compute the phase and amplitude traces from the centered traces
-    cls.phase_trace = np.unwrap(np.angle(traces) - np.angle(z_fr)) if unwrap else np.angle(traces) - np.angle(z_fr)
-    cls.amplitude_trace = np.abs(traces) - np.abs(z_fr)
+    cls.p_trace = np.unwrap(np.angle(traces) - np.angle(z_fr)) if unwrap else np.angle(traces) - np.angle(z_fr)
+    cls.a_trace = np.abs(traces) - np.abs(z_fr)
