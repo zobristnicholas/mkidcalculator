@@ -45,6 +45,11 @@ class Noise:
         return self._data['attenuation']
 
     @property
+    def sample_rate(self):
+        """The sample rate of the IQ data."""
+        return self._data['sample_rate']
+
+    @property
     def loop(self):
         """
         A settable property that contains the Loop object required for doing
