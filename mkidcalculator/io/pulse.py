@@ -1,6 +1,8 @@
 import pickle
 import logging
 import numpy as np
+from matplotlib import pyplot as plt
+from matplotlib.widgets import Button, Slider
 
 from mkidcalculator.io.data import AnalogReadoutPulse
 from mkidcalculator.io.utils import compute_phase_and_amplitude
@@ -234,5 +236,134 @@ class Pulse:
     def compute_trace_energies(self):
         raise NotImplementedError
 
-    def plot_traces(self, calibrated=False, label="best", fit_type="lmfit"):
-        pass
+    def plot_traces(self, calibrate=False, label="best", fit_type="lmfit", axes_list=None):
+        """
+        Plot the trace data.
+        Args:
+            calibrate: boolean
+                Boolean that determines if calibrated data is used or not for
+                the plot.
+            label: string
+                The label used to store the fit. The default is "best".
+            fit_type: string
+                The type of fit to use. Allowed options are "lmfit", "emcee",
+                and "emcee_mle" where MLE estimates are used instead of the
+                medians. The default is "lmfit".
+            axes_list: an iterable of matplotlib.axes.Axes classes
+                A list of Axes classes on which to put the plots. The default
+                is None and a new figure is made.
+        Returns:
+            axes_list: an iterable of matplotlib.axes.Axes classes
+                A list of Axes classes with the plotted data.
+            indexer: custom class
+                A class that controls the interactive features of the plot.
+                Note: this variable must stay in the current namespace for the
+                plot to remain interactive.
+        """
+        # get the time, loop, and traces in complex form for potential calibration
+        time = np.linspace(0, self.i_trace.shape[1] / self.sample_rate, self.i_trace.shape[1]) * 1e6  # in µs
+        z = self.loop.z
+        f = self.loop.f
+        traces = self.i_trace + 1j * self.q_trace
+        # grab the model
+        _, result_dict = self.loop._get_model(fit_type, label)
+        if result_dict is not None:
+            params = result_dict['result'].params
+            model = result_dict['model']
+            f_fit = np.linspace(np.min(f), np.max(f), np.size(f) * 10)
+            z_fit = model.model(params, f_fit)
+            if calibrate:
+                f_traces = np.empty(traces.shape)
+                f_traces.fill(self.f_bias)
+                traces = model.calibrate(params, traces, f_traces)
+                z_fit = model.calibrate(params, z_fit, f_fit)
+                z = model.calibrate(params, z, f)
+        else:
+            z_fit = np.array([])
+        # set up figure
+        if axes_list is None:
+            if result_dict is not None:
+                figure = plt.figure(figsize=(6, 8))
+                axes_list = [plt.subplot2grid((4, 1), (2, 0), rowspan=2),
+                             plt.subplot2grid((4, 1), (0, 0)), plt.subplot2grid((4, 1), (1, 0))]
+            else:
+                figure, axes = plt.subplots()
+                axes_list = [axes]
+
+        else:
+            assert len(axes_list) == 3, "axes_list must have length 3"
+            figure = axes_list[0].figure
+
+        axes_list[0].plot(z.real, z.imag, 'o', markersize=2)
+        loop, = axes_list[0].plot(traces[0, :].real, traces[0, :].imag, 'o', markersize=2)
+        axes_list[0].plot(z_fit.real, z_fit.imag)
+        axes_list[0].axis('equal')
+        axes_list[0].set_xlabel('I [Volts]')
+        axes_list[0].set_ylabel('Q [Volts]')
+
+        if result_dict is not None:
+            try:
+                p_trace = self.p_trace * 180 / np.pi
+                a_trace = self.a_trace
+                axes_list[1].set_ylabel("phase [degrees]")
+                axes_list[2].set_ylabel("amplitude [loop radius]")
+            except AttributeError:
+                p_trace = self.i_trace
+                a_trace = self.q_trace
+                axes_list[1].set_ylabel("I [V]")
+                axes_list[2].set_ylabel("Q [V]")
+            phase, = axes_list[1].plot(time, p_trace[0, :])
+            amp, = axes_list[2].plot(time, a_trace[0, :])
+            axes_list[2].set_xlabel(r"time [$\mu s$]")
+
+        figure.tight_layout()
+        figure.subplots_adjust(bottom=0.15)
+
+        class Index(object):
+            def __init__(self, ax_slider, ax_prev, ax_next):
+                self.ind = 0
+                self.num = len(traces[:, 0])
+                self.bnext = Button(ax_next, 'Next')
+                self.bnext.on_clicked(self.next)
+                self.bprev = Button(ax_prev, 'Previous')
+                self.bprev.on_clicked(self.prev)
+                self.slider = Slider(ax_slider, 'Trace Index: ', 0, self.num, valinit=0, valfmt='%d')
+                self.slider.on_changed(self.update)
+
+                self.slider.label.set_position((0.5, -0.5))
+                self.slider.valtext.set_position((0.5, -0.5))
+
+            def next(self, event):
+                log.debug(event)
+                self.ind += 1
+                i = self.ind % self.num
+                self.slider.set_val(i)
+
+            def prev(self, event):
+                log.debug(event)
+                self.ind -= 1
+                i = self.ind % self.num
+                self.slider.set_val(i)
+
+            def update(self, value):
+                self.ind = int(value)
+                i = self.ind % self.num
+                loop.set_xdata(traces[i, :].real)
+                loop.set_ydata(traces[i, :].imag)
+                phase.set_ydata(p_trace[i, :])
+                amp.set_ydata(a_trace[i, :])
+
+                axes_list[1].relim()
+                axes_list[1].autoscale()
+                axes_list[2].relim()
+                axes_list[2].autoscale()
+                plt.draw()
+
+        position = axes_list[2].get_position()
+        slider = plt.axes([position.x0, 0.05, position.width / 2, 0.03])
+        middle = position.x0 + 3 * position.width / 4
+        prev = plt.axes([middle - 0.18, 0.05, 0.15, 0.03])
+        next_ = plt.axes([middle + 0.02, 0.05, 0.15, 0.03])
+        indexer = Index(slider, prev, next_)
+
+        return axes_list, indexer
