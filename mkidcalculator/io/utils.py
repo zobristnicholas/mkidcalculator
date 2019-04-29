@@ -54,4 +54,4 @@ def compute_phase_and_amplitude(cls, label="best", fit_type="lmfit", fr=None, ce
     z_fr = (center - z_fr)  # should be real if no loop asymmetry
     # compute the phase and amplitude traces from the centered traces
     cls.p_trace = np.unwrap(np.angle(traces) - np.angle(z_fr)) if unwrap else np.angle(traces) - np.angle(z_fr)
-    cls.a_trace = np.abs(traces) - np.abs(z_fr)
+    cls.a_trace = np.abs(traces) / np.abs(z_fr) - 1
