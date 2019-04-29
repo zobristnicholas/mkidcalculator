@@ -146,6 +146,7 @@ class Loop:
             noise = [noise]
         # append noise data
         for n in noise:
+            n.loop = self  # set the noise here instead of load because add_noise() can be used independently
             self.noise.append(n)
             self.f_bias_noise.append(n.f_bias)
         # sort

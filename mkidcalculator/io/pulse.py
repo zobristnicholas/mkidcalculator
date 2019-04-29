@@ -3,6 +3,7 @@ import logging
 import numpy as np
 
 from mkidcalculator.io.data import AnalogReadoutPulse
+from mkidcalculator.io.utils import compute_phase_and_amplitude
 
 log = logging.getLogger(__name__)
 log.addHandler(logging.NullHandler())
@@ -129,6 +130,7 @@ class Pulse:
         self.phase_trace = None
 
     def clear_noise_data(self):
+        """Remove all data calculated from the pulse.noise attribute."""
         pass
 
     def compute_phase_and_amplitude(self, label="best", fit_type="lmfit", fr="fr", center="center", unwrap=True):
@@ -157,27 +159,11 @@ class Pulse:
                 Determines whether or not to unwrap the phase data. The default
                 is True.
         """
-        # get the model and parameters
-        _, result_dict = self.loop._get_model(fit_type, label)
-        model = result_dict["model"]
-        params = result_dict["result"].params
-        # get the resonance frequency and loop center
-        fr = params[fr].value
-        center = params[center].value
-        # get complex IQ data for the traces and loop at the resonance frequency
-        traces = self.i_trace + 1j * self.q_trace
-        z_fr = model.model(params, fr)
-        f = np.empty(traces.shape)
-        f.fill(self.f_bias)
-        # calibrate the IQ data
-        traces = model.calibrate(params, traces, f)
-        z_fr = model.calibrate(params, z_fr, fr)
-        # center and rotate the IQ data
-        traces = (center - traces)
-        z_fr = (center - z_fr)  # should be real if no loop asymmetry
-        # compute the phase and amplitude traces from the centered traces
-        self.phase_trace = np.unwrap(np.angle(traces) - np.angle(z_fr)) if unwrap else np.angle(traces) - np.angle(z_fr)
-        self.amplitude_trace = np.abs(traces) - np.abs(z_fr)
+        compute_phase_and_amplitude(self, label=label, fit_type=fit_type, fr=fr, center=center, unwrap=unwrap)
+        try:
+            compute_phase_and_amplitude(self.noise, label=label, fit_type=fit_type, fr=fr, center=center, unwrap=unwrap)
+        except AttributeError:
+            pass
 
     def to_pickle(self, file_name):
         """Pickle and save the class as the file 'file_name'."""
