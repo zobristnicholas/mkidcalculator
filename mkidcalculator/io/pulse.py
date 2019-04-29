@@ -251,7 +251,8 @@ class Pulse:
                 medians. The default is "lmfit".
             axes_list: an iterable of matplotlib.axes.Axes classes
                 A list of Axes classes on which to put the plots. The default
-                is None and a new figure is made.
+                is None and a new figure is made. The list must be of length 3
+                or of length 1 if only the complex plane is to be plotted.
         Returns:
             axes_list: an iterable of matplotlib.axes.Axes classes
                 A list of Axes classes with the plotted data.
@@ -301,7 +302,7 @@ class Pulse:
         axes_list[0].set_xlabel('I [Volts]')
         axes_list[0].set_ylabel('Q [Volts]')
 
-        if result_dict is not None:
+        if result_dict is not None and len(axes_list) > 1:
             try:
                 p_trace = self.p_trace * 180 / np.pi
                 a_trace = self.a_trace
