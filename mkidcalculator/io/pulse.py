@@ -29,6 +29,13 @@ class Pulse:
         # template attributes
         self._traces = None
         self._template = None
+        # filter attributes
+        self._p_trace_filtered = None
+        self._optimal_filter = None
+        self._p_filter = None
+        self._a_filter = None
+        # data products
+        self._amplitudes = None
         log.info("Pulse object created. ID: {}".format(id(self)))
 
     @property
@@ -149,7 +156,7 @@ class Pulse:
     def amplitudes(self):
         """
         A settable property that contains the detector amplitudes made with
-        pulse.calculate_amplitudes().
+        pulse.compute_amplitudes().
         """
         if self._amplitudes is None:
             raise AttributeError("The amplitudes for this pulse have not been calculated yet.")
@@ -173,15 +180,59 @@ class Pulse:
     def template(self, template):
         self._template = template
 
+    @property
+    def optimal_filter(self):
+        """
+        A settable property that contains the optimal filter made with
+        pulse.make_filters().
+        """
+        if self._optimal_filter is None:
+            raise AttributeError("The optimal filter for this pulse has not been calculated yet.")
+        return self._optimal_filter
+
+    @optimal_filter.setter
+    def optimal_filter(self, optimal_filter):
+        self._optimal_filter = optimal_filter
+
+    @property
+    def p_filter(self):
+        """
+        A settable property that contains the phase filter made with
+        pulse.make_filters().
+        """
+        if self._p_filter is None:
+            raise AttributeError("The phase filter for this pulse has not been calculated yet.")
+        return self._p_filter
+
+    @p_filter.setter
+    def p_filter(self, p_filter):
+        self._p_filter = p_filter
+
+    @property
+    def a_filter(self):
+        """
+        A settable property that contains the amplitude filter made with
+        pulse.make_filters().
+        """
+        if self._a_filter is None:
+            raise AttributeError("The amplitude filter for this pulse has not been calculated yet.")
+        return self._a_filter
+
+    @a_filter.setter
+    def a_filter(self, a_filter):
+        self._a_filter = a_filter
+
     def clear_loop_data(self):
         """Remove all data calculated from the pulse.loop attribute."""
         self.a_trace = None
         self.p_trace = None
         self.clear_template()
+        self.clear_filters()
 
     def clear_noise_data(self):
         """Remove all data calculated from the pulse.noise attribute."""
         self.clear_template()
+        self.clear_filters()
 
     def clear_template(self):
         """
@@ -193,6 +244,13 @@ class Pulse:
         except AttributeError:
             pass
         self.template = None
+
+    def clear_filters(self):
+        """Clear the filters made with pulse.make_filters()."""
+        self._p_trace_filtered = None
+        self.optimal_filter = None
+        self.p_filter = None
+        self.a_filter = None
 
     def compute_phase_and_amplitude(self, label="best", fit_type="lmfit", fr=None, center=None, unwrap=True):
         """
@@ -297,6 +355,102 @@ class Pulse:
         self._offset_correction()
         self._average_pulses()
         self.clear_filters()  # this filter is not using the updated template so get rid of it
+
+    def make_filters(self):
+        """
+        Make an optimal filter assuming a linear response and stationary noise.
+        A full 2D filter is made as well as two 1D filters for the phase and
+        amplitude responses.
+        """
+        # pull out shape parameters
+        n_samples = len(self.template[0])
+        shape = (2, n_samples // 2 + 1)
+        if self.noise.pp_psd.size != shape[1]:
+            raise ValueError("The noise data PSDs must have a shape compatible with the pulse data")
+        # compute template fft
+        template_fft = fft.rfft(self.template)
+
+        # assemble noise matrix
+        s = np.array([[self.noise.pp_psd, self.noise.pa_psd],
+                      [np.conj(self.noise.pa_psd), self.noise.aa_psd]], dtype=np.complex)
+
+        # compute the optimal filter: conj(template_fft) @ s_inv
+        filter_fft = np.zeros(shape, dtype=np.complex)
+        for index in range(shape[1]):
+            filter_fft[:, index] = la.lstsq(s[:, :, index].T, np.conj(template_fft[:, index]), rcond=None)[0]
+        # return to time domain
+        self.optimal_filter = fft.irfft(filter_fft, n_samples)
+        # normalize the optimal filter
+        norm = (sg.convolve(self.optimal_filter[0], self.template[0], mode='same') +
+                sg.convolve(self.optimal_filter[1], self.template[1], mode='same')).max()
+        norm /= np.abs(self.template[0].min() + self.template[1].min())  # the templates don't add to one
+        self.optimal_filter /= norm
+
+        # compute the phase only optimal filter: conj(phase_fft) / J
+        phase_filter_fft = (np.conj(template_fft[0, :]) / self.noise.pp_psd)
+        self.p_filter = fft.irfft(phase_filter_fft, n_samples)
+        # normalize
+        norm = sg.convolve(self.p_filter, self.template[0], mode='same').max()
+        norm /= np.abs(self.template[0].min())
+        self.p_filter /= norm
+
+        # compute the amplitude only optimal filter: conj(amplitude_fft) / J
+        amplitude_filter_fft = (np.conj(template_fft[1, :]) / self.noise.aa_psd)
+        self.a_filter = fft.irfft(amplitude_filter_fft, n_samples)
+        norm = sg.convolve(self.a_filter, self.template[1], mode='same').max()
+        norm /= np.abs(self.template[1].min())
+        self.a_filter /= norm
+
+    def variance(self, calculation_type="optimal_filter"):
+        """
+        Compute the expected variance for a particular response calculation
+        type.
+        """
+        # check for template and grab some constants
+        n_samples = self.template.shape[1]
+        sample_rate = pulse.sample_rate
+        # calculate the variance for requested calculation type
+        if calculation_type == "optimal_filter":
+            filter_fft = fft.rfft(self.optimal_filter).transpose()  # (N, 2)
+            template_fft = fft.rfft(self.template)  # (2, N)
+            variance = (sample_rate * n_samples / (4 * np.sum(filter_fft @ template_fft).real)).squeeze()
+        elif calculation_type == "phase_filter":
+            filter_fft = fft.rfft(self.p_filter)  # (N,)
+            template_fft = fft.rfft(self.template[0])  # (N,)
+            variance = (sample_rate * n_samples / (4 * np.sum(filter_fft @ template_fft).real)).squeeze()
+        elif calculation_type == "amplitude_filter":
+            filter_fft = fft.rfft(self.a_filter)  # (N,)
+            template_fft = fft.rfft(self.template[1])  # (N,)
+            variance = (sample_rate * n_samples / (4 * np.sum(filter_fft @ template_fft).real)).squeeze()
+        else:
+            raise ValueError("'{}' is not a valid calculation_type".format(calculation_type))
+
+        return variance
+
+    def compute_amplitudes(self, calculation_type="optimal_filter"):
+        """
+        Compute the detector response amplitudes for a given filter type. The
+        results are stored in self.amplitudes.
+        """
+        if calculation_type == "optimal_filter":
+            data = self._remove_baseline(np.array([self.p_trace, self.a_trace]))
+            amplitudes = np.empty(data.shape[1])
+            for index in range(data.shape[1]):
+                amplitudes[index] = (sg.convolve(self.optimal_filter[0], data[0, index, :], mode='same') +
+                                     sg.convolve(self.optimal_filter[1], data[1, index, :], mode='same')).max()
+        elif calculation_type == "phase_filter":
+            data = self._remove_baseline(self.p_trace)
+            amplitudes = np.empty(data.shape[0])
+            for index in range(data.shape[0]):
+                amplitudes[index] = sg.convolve(self.p_filter, data[index, :], mode='same').max()
+        elif calculation_type == "amplitude_filter":
+            data = self._remove_baseline(self.a_trace)
+            amplitudes = np.empty(data.shape[0])
+            for index in range(data.shape[0]):
+                amplitudes[index] = sg.convolve(self.a_filter[0], data[index, :], mode='same').max()
+        else:
+            raise ValueError("'{}' is not a valid calculation_type".format(calculation_type))
+        self.amplitudes = amplitudes
 
     def apply_filter(self, data, filter_type="optimal_filter"):
         """
