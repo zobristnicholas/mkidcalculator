@@ -1,6 +1,9 @@
 import pickle
 import logging
 import numpy as np
+import numpy.fft as fft
+import numpy.linalg as la
+from scipy import signal as sg
 from matplotlib import pyplot as plt
 from matplotlib.widgets import Button, Slider
 
@@ -23,6 +26,9 @@ class Pulse:
         # phase and amplitude data
         self._p_trace = None
         self._a_trace = None
+        # template attributes
+        self._traces = None
+        self._template = None
         log.info("Pulse object created. ID: {}".format(id(self)))
 
     @property
@@ -139,14 +145,54 @@ class Pulse:
         except AttributeError:
             pass
 
+    @property
+    def amplitudes(self):
+        """
+        A settable property that contains the detector amplitudes made with
+        pulse.calculate_amplitudes().
+        """
+        if self._amplitudes is None:
+            raise AttributeError("The amplitudes for this pulse have not been calculated yet.")
+        return self._amplitudes
+
+    @amplitudes.setter
+    def amplitudes(self, amplitudes):
+        self._amplitudes = amplitudes
+
+    @property
+    def template(self):
+        """
+        A settable property that contains the phase and amplitude templates
+        made with pulse.make_template().
+        """
+        if self._template is None:
+            raise AttributeError("The template for this pulse has not been calculated yet.")
+        return self._template
+
+    @template.setter
+    def template(self, template):
+        self._template = template
+
     def clear_loop_data(self):
         """Remove all data calculated from the pulse.loop attribute."""
         self.a_trace = None
         self.p_trace = None
+        self.clear_template()
 
     def clear_noise_data(self):
         """Remove all data calculated from the pulse.noise attribute."""
-        pass
+        self.clear_template()
+
+    def clear_template(self):
+        """
+        Clear the template made with pulse.make_template() and reset the
+        traces used to make the template.
+        """
+        try:
+            self._traces = self._remove_baseline(np.array([self.p_trace, self.a_trace]))
+        except AttributeError:
+            pass
+        self.template = None
 
     def compute_phase_and_amplitude(self, label="best", fit_type="lmfit", fr=None, center=None, unwrap=True):
         """
@@ -233,8 +279,167 @@ class Pulse:
             pulse.noise = noise
         return pulse
 
-    def compute_trace_energies(self):
-        raise NotImplementedError
+    def make_template(self):
+        """
+        Make a template from phase and amplitude data. The template is needed
+        for computing a filter.
+        """
+        # create a rough template by cutting the noise traces and averaging
+        self.clear_template()
+        self._threshold_cut()
+        self._average_pulses()
+        # make a filter with the template
+        self.make_filters()
+        # do a better job using a filter
+        self.clear_template()
+        self._p_trace_filtered = self.apply_filter(self._traces[0], filter_type="phase_filter")
+        self._threshold_cut(use_filter=True)
+        self._offset_correction()
+        self._average_pulses()
+        self.clear_filters()  # this filter is not using the updated template so get rid of it
+
+    def apply_filter(self, data, filter_type="optimal_filter"):
+        """
+        Method for convolving the two dimensional filter with the data. The data can
+        either be a 2xN matrix or a 2xMxN matrix where N is the trace length and M is the
+        number of traces.
+        """
+        if filter_type == "optimal_filter":
+            if data.shape == self.optimal_filter.shape:
+                result = (sg.convolve(self.optimal_filter[0], data[0], mode='same') +
+                          sg.convolve(self.optimal_filter[1], data[1], mode='same'))
+            elif len(data.shape) == 3 and data.shape[0] == 2 and data.shape[2] == len(self.optimal_filter[0]):
+                result = np.empty(data.shape[1:])
+                for index in range(data.shape[1]):
+                    result[index, :] = (sg.convolve(self.optimal_filter[0], data[0, index, :], mode='same') +
+                                        sg.convolve(self.optimal_filter[1], data[1, index, :], mode='same'))
+            else:
+                raise ValueError("data needs to be a 2 x N x M array (last dimension optional)")
+        elif filter_type == "phase_filter":
+            if data.shape == self.p_filter.shape:
+                result = sg.convolve(self.p_filter, data, mode='same')
+            elif len(data.shape) == 2 and data.shape[1] == len(self.p_filter):
+                result = np.empty(data.shape)
+                for index in range(data.shape[0]):
+                    result[index, :] = sg.convolve(self.p_filter, data[index, :], mode='same')
+            else:
+                raise ValueError("data needs to be a 1 or 2D array with the last dimension "
+                                 "equal in length to the filter length")
+        elif filter_type == "amplitude_filter":
+            if data.shape == self.a_filter.shape:
+                result = sg.convolve(self.a_filter, data, mode='same')
+            elif len(data.shape) == 2 and data.shape[1] == len(self.a_filter):
+                result = np.empty(data.shape)
+                for index in range(data.shape[0]):
+                    result[index, :] = sg.convolve(self.a_filter, data[index, :], mode='same')
+            else:
+                raise ValueError("data needs to be a 1 or 2D array with the last dimension "
+                                 "equal in length to the filter length")
+        else:
+            raise ValueError("'{}' is not a valid calculation_type".format(filter_type))
+        return result
+
+    def _threshold_cut(self, use_filter=False, threshold=5):
+        """
+        Remove traces from the data object that don't meet the threshold condition on the
+        phase trace.
+
+        threshold is the number of standard deviations to put the threshold cut.
+        """
+        if use_filter:
+            data = np.array([-self._p_trace_filtered, self._traces[1]])
+        else:
+            data = self._traces
+        # Compute the median average deviation use that to calculate the standard
+        # deviation. This should be robust against the outliers from pulses.
+        median_phase = np.median(data[0], axis=1, keepdims=True)
+        mad = np.median(np.abs(data[0] - median_phase))
+        sigma = 1.4826 * mad
+
+        # look for a phase < sigma * threshold around the middle of the trace
+        n_points = len(data[0, 0, :])
+        middle = (n_points + 1) / 2
+        start = int(middle - 25)
+        stop = int(middle + 25)
+        phase_middle = data[0, :, start:stop]
+        indices = np.where((phase_middle - median_phase < -sigma * threshold).any(axis=1))
+        self._traces = self._traces[:, indices[0], :]
+        if self._traces.size == 0:
+            raise RuntimeError('All data was removed by cuts')
+        if use_filter:
+            self._p_trace_filtered = self._p_trace_filtered[indices[0], :]
+
+    def _offset_correction(self, fractional_offset=True):
+        """
+        Correct for trigger offsets.
+        """
+        # pull out filtered data
+        data = np.array([-self._p_trace_filtered, self._traces[1]])
+
+        # define frequency vector
+        f = fft.rfftfreq(len(data[0, 0, :]))
+
+        # find the middle index based on the minimum phase
+        middle_ind = np.median(np.argmin(data[0, :, :], axis=1))
+
+        # loop through triggers and shift the peaks
+        for index in range(len(data[0, :, 0])):
+            # pull out phase and amplitude
+            phase_trace = self._traces[0, index, :]
+            amp_trace = self._traces[1, index, :]
+            # find the peak index of filtered phase data
+            peak_ind = np.argmin(data[0, index, 2:-2]) + 2
+            # determine the shift
+            if fractional_offset:
+                peak = data[0, index, peak_ind - 2: peak_ind + 3]
+                poly = np.polyfit([-2, -1, 0, 1, 2], peak, 2)
+                frac = -poly[1] / (2 * poly[0])
+                shift = middle_ind - peak_ind - frac
+            else:
+                shift = middle_ind - peak_ind
+            # remove the shift by applying a phase
+            # same as np.roll(data, shift) for integer offsets
+            self._traces[0, index, :] = fft.irfft(fft.rfft(phase_trace) * np.exp(-1j * 2 * np.pi * shift * f),
+                                                  len(phase_trace))
+            self._traces[1, index, :] = fft.irfft(fft.rfft(amp_trace) * np.exp(-1j * 2 * np.pi * shift * f),
+                                                  len(amp_trace))
+
+    def _average_pulses(self):
+        """
+        Average the data together by summing and normalizing the phase pulse height to 1.
+        """
+        # add all the data together
+        self.template = np.sum(self._traces, axis=1)
+        # remove any small baseline error from front of pulses
+        self.template = self._remove_baseline(self.template)
+        # normalize phase pulse height to 1
+        self.template /= np.abs(np.min(self.template[0, :]))
+
+    @staticmethod
+    def _remove_baseline(traces):
+        """
+        Remove the baseline from traces using the first 20% of the data.
+        """
+        ind = int(np.floor(traces.shape[-1] / 5))
+        traces -= np.median(traces[..., :ind], axis=-1, keepdims=True)
+        return traces
+
+    def plot_template(self):
+        """
+        Plot the template
+        """
+        time = np.linspace(0, self.i_trace.shape[1] / self.sample_rate, self.i_trace.shape[1]) * 1e6
+        figure = plt.figure(figsize=(12, 4))
+        ax0 = plt.subplot2grid((2, 2), (0, 0), rowspan=2)
+        ax0.plot(time, self.template[0], 'b-', linewidth=2, label='template data')
+        ax0.set_ylabel('phase')
+        ax0.set_xlabel(r'time [$\mu$s]')
+
+        ax2 = plt.subplot2grid((2, 2), (0, 1), rowspan=2)
+        ax2.plot(time, self.template[1], 'b-', linewidth=2, label='template data')
+        ax2.set_ylabel('amplitude')
+        ax2.set_xlabel(r'time [$\mu$s]')
+        figure.tight_layout()
 
     def plot_traces(self, calibrate=False, label="best", fit_type="lmfit", axes_list=None):
         """
