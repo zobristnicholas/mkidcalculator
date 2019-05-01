@@ -1,3 +1,4 @@
+import corner
 import pickle
 import logging
 import numpy as np
@@ -34,8 +35,15 @@ class Pulse:
         self._optimal_filter = None
         self._p_filter = None
         self._a_filter = None
-        # data products
+        # detector response
         self._amplitudes = None
+        self._peak_indices = None
+        # trace mask
+        self._mask = None
+        self._prepulse_rms = None
+        self._prepulse_rms = None
+        self._postpulse_min_slope = None
+
         log.info("Pulse object created. ID: {}".format(id(self)))
 
     @property
@@ -235,6 +243,21 @@ class Pulse:
     @a_filter.setter
     def a_filter(self, a_filter):
         self._a_filter = a_filter
+
+    @property
+    def mask(self):
+        """
+        A settable property that contains a boolean array that can select trace
+        indices from pulse.amplitudes, pulse.i_trace, pulse.q_trace,
+        pulse.p_trace, or pulse.a_trace.
+        """
+        if self._mask is None:
+            self._mask = np.ones(self.i_trace.shape[0], dtype=bool)
+        return self._mask
+
+    @mask.setter
+    def mask(self, mask):
+        self._mask = mask
 
     def clear_loop_data(self):
         """Remove all data calculated from the pulse.loop attribute."""
@@ -508,6 +531,92 @@ class Pulse:
             raise ValueError("'{}' is not a valid calculation_type".format(filter_type))
         return result
 
+    def characterize_traces(self):
+        """Create metrics that can be used to mask the trace data."""
+        n_samples = self.p_trace.shape[1]
+        peak_offset = 10
+        data = self._remove_baseline(np.array([self.p_trace, self.a_trace]))
+
+        # determine the mean of the trace prior to the pulse
+        self._prepulse_mean = np.zeros(self.peak_indices.shape)
+        for index, peak in enumerate(self.peak_indices):
+            if peak < 2 * peak_offset:
+                self._prepulse_mean[index] = np.inf
+            else:
+                prepulse = data[:, index, :peak - peak_offset].sum(axis=0)
+                self._prepulse_mean[index] = np.mean(prepulse)
+
+        # determine the rms value of the trace prior to the pulse
+        self._prepulse_rms = np.zeros(self.peak_indices.shape)
+        for index, peak in enumerate(self.peak_indices):
+            if peak < 2 * peak_offset:
+                self._prepulse_rms[index] = np.inf
+            else:
+                prepulse = data[:, index, :peak - peak_offset].sum(axis=0)
+                self._prepulse_rms[index] = np.sqrt(np.mean(prepulse ** 2))
+
+        # determine the minimum slope after the pulse peak
+        self._postpulse_min_slope = np.zeros(self.peak_indices.shape)
+        for index, peak in enumerate(self.peak_indices):
+            if peak + 2 * peak_offset > len(n_samples) - 1:
+                self._postpulse_min_slope[index] = -np.inf
+            else:
+                postpulse = data[:, index, peak + peak_offset:].sum(axis=0)
+                self._postpulse_min_slope[index] = np.min(np.diff(postpulse))
+
+    def mask_peak_indices(self, minimum, maximum):
+        """
+        Add traces with peak indices outside of the minimum and maximum to the
+        pulse.mask.
+        Args:
+            minimum: float
+                The minimum acceptable peak index
+            maximum: float
+                The maximum acceptable peak index
+        """
+        logic = np.logical_or(self.peak_indices <= minimum, self.peak_indices >= maximum)
+        self.mask[logic] = False
+
+    def mask_prepulse_mean(self, minimum, maximum):
+        """
+        Add traces with pre-pulse means outside of the minimum and maximum to the
+        pulse.mask.
+        Args:
+            minimum: float
+                The minimum acceptable pre-pulse mean
+            maximum: float
+                The maximum acceptable pre-pulse mean
+        """
+        if self._prepulse_mean is None:
+            raise AttributeError("The pulse traces have not been characterized yet.")
+        logic = np.logical_or(self._prepulse_mean <= minimum, self._prepulse_mean >= maximum)
+        self.mask[logic] = False
+
+    def mask_prepulse_rms(self, maximum):
+        """
+        Add traces with pre-pulse RMSs larger than the maximum to the pulse.mask.
+        Args:
+            maximum: float
+                The maximum acceptable pre-pulse rms
+        """
+        if self._prepulse_rms is None:
+            raise AttributeError("The pulse traces have not been characterized yet.")
+        logic = self._prepulse_rms >= maximum
+        self.mask[logic] = False
+
+    def mask_postpulse_min_slope(self, minimum):
+        """
+        Add traces with post-pulse minimum slopes smaller than the minimum to the
+        pulse.mask.
+        Args:
+            minimum: float
+                The minimum acceptable post-pulse minimum slope
+        """
+        if self._postpulse_min_slope is None:
+            raise AttributeError("The pulse traces have not been characterized yet.")
+        logic = self._postpulse_min_slope <= minimum
+        self.mask[logic] = False
+
     def _threshold_cut(self, use_filter=False, threshold=5):
         """
         Remove traces from the data object that don't meet the threshold condition on the
@@ -742,3 +851,20 @@ class Pulse:
         indexer = Index(slider, prev, next_)
 
         return axes_list, indexer
+
+    def plot_metrics(self, use_mask=True):
+        """
+        Plot the metrics created by pulse.characterize_traces() in a corner plot.
+        Args:
+            use_mask: boolean (optional)
+                Use the pulse.mask to determine which traces to plot metrics for.
+                The default is True.
+        """
+        if use_mask:
+            metrics = np.vstack([self.peak_indices[self.mask], self._prepulse_mean[self.mask],
+                                 self._prepulse_rms[self.mask], self._postpulse_min_slope[self.mask]]).T
+        else:
+            metrics = np.vstack(
+                [self.peak_indices, self._prepulse_mean, self._prepulse_rms, self._postpulse_min_slope]).T
+        corner.corner(metrics, labels=['peak times', 'prepulse mean', 'prepulse rms', 'postpulse min slope'],
+                      plot_contours=False, plot_density=False, range=[.97, .97, .97, .97], bins=[100, 20, 20, 20])
