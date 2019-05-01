@@ -156,7 +156,7 @@ class Pulse:
     def amplitudes(self):
         """
         A settable property that contains the detector amplitudes made with
-        pulse.compute_amplitudes().
+        pulse.compute_responses().
         """
         if self._amplitudes is None:
             raise AttributeError("The amplitudes for this pulse have not been calculated yet.")
@@ -165,6 +165,20 @@ class Pulse:
     @amplitudes.setter
     def amplitudes(self, amplitudes):
         self._amplitudes = amplitudes
+
+    @property
+    def peak_indices(self):
+        """
+        A settable property that contains the indices of the trace pulse
+        arrivals made with pulse.compute_responses().
+        """
+        if self._peak_indices is None:
+            raise AttributeError("The peak indices for this pulse have not been calculated yet.")
+        return self._peak_indices
+
+    @peak_indices.setter
+    def peak_indices(self, peak_indices):
+        self._peak_indices = peak_indices
 
     @property
     def template(self):
@@ -427,30 +441,31 @@ class Pulse:
 
         return variance
 
-    def compute_amplitudes(self, calculation_type="optimal_filter"):
+    def compute_responses(self, calculation_type="optimal_filter"):
         """
-        Compute the detector response amplitudes for a given filter type. The
-        results are stored in self.amplitudes.
+        Compute the detector response amplitudes and peak indices using a
+        particular calculation method. The results are stored in
+        pulse.amplitudes and pulse.peak_indices.
         """
         if calculation_type == "optimal_filter":
             data = self._remove_baseline(np.array([self.p_trace, self.a_trace]))
-            amplitudes = np.empty(data.shape[1])
-            for index in range(data.shape[1]):
-                amplitudes[index] = (sg.convolve(self.optimal_filter[0], data[0, index, :], mode='same') +
-                                     sg.convolve(self.optimal_filter[1], data[1, index, :], mode='same')).max()
+            filtered_data = self.apply_filter(data, filter_type=calculation_type)
+            amplitudes = -filtered_data.min(axis=1)
+            peak_indices = np.argmin(filtered_data, axis=1)
         elif calculation_type == "phase_filter":
             data = self._remove_baseline(self.p_trace)
-            amplitudes = np.empty(data.shape[0])
-            for index in range(data.shape[0]):
-                amplitudes[index] = sg.convolve(self.p_filter, data[index, :], mode='same').max()
+            filtered_data = self.apply_filter(data, filter_type=calculation_type)
+            amplitudes = -filtered_data.min(axis=1)
+            peak_indices = np.argmin(filtered_data, axis=1)
         elif calculation_type == "amplitude_filter":
             data = self._remove_baseline(self.a_trace)
-            amplitudes = np.empty(data.shape[0])
-            for index in range(data.shape[0]):
-                amplitudes[index] = sg.convolve(self.a_filter[0], data[index, :], mode='same').max()
+            filtered_data = self.apply_filter(data, filter_type=calculation_type)
+            amplitudes = -filtered_data.min(axis=1)
+            peak_indices = np.argmin(filtered_data, axis=1)
         else:
             raise ValueError("'{}' is not a valid calculation_type".format(calculation_type))
         self.amplitudes = amplitudes
+        self.peak_indices = peak_indices
 
     def apply_filter(self, data, filter_type="optimal_filter"):
         """
@@ -460,32 +475,32 @@ class Pulse:
         """
         if filter_type == "optimal_filter":
             if data.shape == self.optimal_filter.shape:
-                result = (sg.convolve(self.optimal_filter[0], data[0], mode='same') +
-                          sg.convolve(self.optimal_filter[1], data[1], mode='same'))
+                result = -(sg.convolve(self.optimal_filter[0], data[0], mode='same') +
+                           sg.convolve(self.optimal_filter[1], data[1], mode='same'))
             elif len(data.shape) == 3 and data.shape[0] == 2 and data.shape[2] == len(self.optimal_filter[0]):
                 result = np.empty(data.shape[1:])
                 for index in range(data.shape[1]):
-                    result[index, :] = (sg.convolve(self.optimal_filter[0], data[0, index, :], mode='same') +
-                                        sg.convolve(self.optimal_filter[1], data[1, index, :], mode='same'))
+                    result[index, :] = -(sg.convolve(self.optimal_filter[0], data[0, index, :], mode='same') +
+                                         sg.convolve(self.optimal_filter[1], data[1, index, :], mode='same'))
             else:
                 raise ValueError("data needs to be a 2 x N x M array (last dimension optional)")
         elif filter_type == "phase_filter":
             if data.shape == self.p_filter.shape:
-                result = sg.convolve(self.p_filter, data, mode='same')
+                result = -sg.convolve(self.p_filter, data, mode='same')
             elif len(data.shape) == 2 and data.shape[1] == len(self.p_filter):
                 result = np.empty(data.shape)
                 for index in range(data.shape[0]):
-                    result[index, :] = sg.convolve(self.p_filter, data[index, :], mode='same')
+                    result[index, :] = -sg.convolve(self.p_filter, data[index, :], mode='same')
             else:
                 raise ValueError("data needs to be a 1 or 2D array with the last dimension "
                                  "equal in length to the filter length")
         elif filter_type == "amplitude_filter":
             if data.shape == self.a_filter.shape:
-                result = sg.convolve(self.a_filter, data, mode='same')
+                result = -sg.convolve(self.a_filter, data, mode='same')
             elif len(data.shape) == 2 and data.shape[1] == len(self.a_filter):
                 result = np.empty(data.shape)
                 for index in range(data.shape[0]):
-                    result[index, :] = sg.convolve(self.a_filter, data[index, :], mode='same')
+                    result[index, :] = -sg.convolve(self.a_filter, data[index, :], mode='same')
             else:
                 raise ValueError("data needs to be a 1 or 2D array with the last dimension "
                                  "equal in length to the filter length")
@@ -501,7 +516,7 @@ class Pulse:
         threshold is the number of standard deviations to put the threshold cut.
         """
         if use_filter:
-            data = np.array([-self._p_trace_filtered, self._traces[1]])
+            data = np.array([self._p_trace_filtered, self._traces[1]])
         else:
             data = self._traces
         # Compute the median average deviation use that to calculate the standard
@@ -528,7 +543,7 @@ class Pulse:
         Correct for trigger offsets.
         """
         # pull out filtered data
-        data = np.array([-self._p_trace_filtered, self._traces[1]])
+        data = np.array([self._p_trace_filtered, self._traces[1]])
 
         # define frequency vector
         f = fft.rfftfreq(len(data[0, 0, :]))
