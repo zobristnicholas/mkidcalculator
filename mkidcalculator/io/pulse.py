@@ -1,6 +1,7 @@
 import corner
 import pickle
 import logging
+import warnings
 import numpy as np
 import numpy.fft as fft
 import numpy.linalg as la
@@ -286,9 +287,16 @@ class Pulse:
         self.optimal_filter = None
         self.p_filter = None
         self.a_filter = None
-        self._prepulse_mean = None
-        self._prepulse_rms = None
+        self.clear_responses()
+
+    def clear_responses(self):
+        """
+        Clear the response data and any mask information associated with it.
+        """
+        self.mask = None
         self._postpulse_min_slope = None
+        self._prepulse_rms = None
+        self._prepulse_mean = None
         self.peak_indices = None
         self.amplitudes = None
 
@@ -484,8 +492,10 @@ class Pulse:
         """
         Compute the detector response amplitudes and peak indices using a
         particular calculation method. The results are stored in
-        pulse.amplitudes and pulse.peak_indices.
+        pulse.amplitudes and pulse.peak_indices. The mask information is
+        cleared when running this function.
         """
+        self.clear_responses()
         if calculation_type == "optimal_filter":
             data = self._remove_baseline(np.array([self.p_trace, self.a_trace]))
             filtered_data = self.apply_filter(data, filter_type=calculation_type)
@@ -574,7 +584,7 @@ class Pulse:
         # determine the minimum slope after the pulse peak
         self._postpulse_min_slope = np.zeros(self.peak_indices.shape)
         for index, peak in enumerate(self.peak_indices):
-            if peak + 2 * peak_offset > len(n_samples) - 1:
+            if peak + 2 * peak_offset > n_samples - 1:
                 self._postpulse_min_slope[index] = -np.inf
             else:
                 postpulse = data[:, index, peak + peak_offset:].sum(axis=0)
@@ -590,7 +600,7 @@ class Pulse:
             maximum: float
                 The maximum acceptable peak index
         """
-        logic = np.logical_or(self.peak_indices <= minimum, self.peak_indices >= maximum)
+        logic = np.logical_or(self.peak_indices < minimum, self.peak_indices > maximum)
         self.mask[logic] = False
 
     def mask_prepulse_mean(self, minimum, maximum):
@@ -605,7 +615,7 @@ class Pulse:
         """
         if self._prepulse_mean is None:
             raise AttributeError("The pulse traces have not been characterized yet.")
-        logic = np.logical_or(self._prepulse_mean <= minimum, self._prepulse_mean >= maximum)
+        logic = np.logical_or(self._prepulse_mean < minimum, self._prepulse_mean > maximum)
         self.mask[logic] = False
 
     def mask_prepulse_rms(self, maximum):
@@ -617,7 +627,7 @@ class Pulse:
         """
         if self._prepulse_rms is None:
             raise AttributeError("The pulse traces have not been characterized yet.")
-        logic = self._prepulse_rms >= maximum
+        logic = self._prepulse_rms > maximum
         self.mask[logic] = False
 
     def mask_postpulse_min_slope(self, minimum):
@@ -630,7 +640,7 @@ class Pulse:
         """
         if self._postpulse_min_slope is None:
             raise AttributeError("The pulse traces have not been characterized yet.")
-        logic = self._postpulse_min_slope <= minimum
+        logic = self._postpulse_min_slope < minimum
         self.mask[logic] = False
 
     def _threshold_cut(self, use_filter=False, threshold=5):
@@ -880,7 +890,9 @@ class Pulse:
             metrics = np.vstack([self.peak_indices[self.mask], self._prepulse_mean[self.mask],
                                  self._prepulse_rms[self.mask], self._postpulse_min_slope[self.mask]]).T
         else:
-            metrics = np.vstack(
-                [self.peak_indices, self._prepulse_mean, self._prepulse_rms, self._postpulse_min_slope]).T
-        corner.corner(metrics, labels=['peak times', 'prepulse mean', 'prepulse rms', 'postpulse min slope'],
-                      plot_contours=False, plot_density=False, range=[.97, .97, .97, .97], bins=[100, 20, 20, 20])
+            metrics = np.vstack([self.peak_indices, self._prepulse_mean,
+                                 self._prepulse_rms, self._postpulse_min_slope]).T
+        with warnings.catch_warnings():
+            warnings.simplefilter(action='ignore', category=UserWarning)  # for singular axis limits
+            corner.corner(metrics, labels=['peak times', 'prepulse mean', 'prepulse rms', 'postpulse min slope'],
+                          plot_contours=False, plot_density=False, range=[.97, .97, .97, .97], bins=[100, 20, 20, 20])
