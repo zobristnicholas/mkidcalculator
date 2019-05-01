@@ -276,18 +276,21 @@ class Pulse:
         Clear the template made with pulse.make_template() and reset the
         traces used to make the template.
         """
-        try:
-            self._traces = self._remove_baseline(np.array([self.p_trace, self.a_trace]))
-        except AttributeError:
-            pass
         self.template = None
 
     def clear_filters(self):
-        """Clear the filters made with pulse.make_filters()."""
+        """
+        Clear the filters made with pulse.make_filters() and data made with them.
+        """
         self._p_trace_filtered = None
         self.optimal_filter = None
         self.p_filter = None
         self.a_filter = None
+        self._prepulse_mean = None
+        self._prepulse_rms = None
+        self._postpulse_min_slope = None
+        self.peak_indices = None
+        self.amplitudes = None
 
     def compute_phase_and_amplitude(self, label="best", fit_type="lmfit", fr=None, center=None, unwrap=True):
         """
@@ -374,24 +377,37 @@ class Pulse:
             pulse.noise = noise
         return pulse
 
-    def make_template(self):
+    def make_template(self, use_mask=False):
         """
         Make a template from phase and amplitude data. The template is needed
         for computing a filter.
+        Args:
+            use_mask: bool
+                A boolean that determines if the pulse.mask is used as an
+                initial filter on the data before creating the template.
         """
         # create a rough template by cutting the noise traces and averaging
         self.clear_template()
+        if use_mask:
+            self._traces = self._remove_baseline(np.array([self.p_trace[self.mask, :], self.a_trace[self.mask, :]]))
+        else:
+            self._traces = self._remove_baseline(np.array([self.p_trace, self.a_trace]))
         self._threshold_cut()
         self._average_pulses()
         # make a filter with the template
         self.make_filters()
         # do a better job using a filter
         self.clear_template()
+        if use_mask:
+            self._traces = self._remove_baseline(np.array([self.p_trace[self.mask, :], self.a_trace[self.mask, :]]))
+        else:
+            self._traces = self._remove_baseline(np.array([self.p_trace, self.a_trace]))
         self._p_trace_filtered = self.apply_filter(self._traces[0], filter_type="phase_filter")
         self._threshold_cut(use_filter=True)
         self._offset_correction()
         self._average_pulses()
         self.clear_filters()  # this filter is not using the updated template so get rid of it
+        self._traces = None  # release the memory since we no longer need this
 
     def make_filters(self):
         """
