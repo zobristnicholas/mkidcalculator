@@ -40,7 +40,7 @@ class Pulse:
         self._peak_indices = None
         # trace mask
         self._mask = None
-        self._prepulse_rms = None
+        self._prepulse_mean = None
         self._prepulse_rms = None
         self._postpulse_min_slope = None
 
