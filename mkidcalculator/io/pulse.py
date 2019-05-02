@@ -7,6 +7,7 @@ import numpy as np
 import numpy.fft as fft
 import numpy.linalg as la
 from scipy import signal as sg
+from scipy.interpolate import UnivariateSpline
 from matplotlib import pyplot as plt
 from matplotlib.widgets import Button, Slider
 
@@ -610,8 +611,16 @@ class Pulse:
             raise ValueError("'{}' is not a valid calculation_type".format(filter_type))
         return result
 
-    def characterize_traces(self):
-        """Create metrics that can be used to mask the trace data."""
+    def characterize_traces(self, smoothing=False):
+        """
+        Create metrics that can be used to mask the trace data.
+        Args:
+            smoothing: boolean
+                Use smoothing splines to calculate the minimum of the
+                derivative after the peak. The pulse.noise must exist
+                and the phase and amplitude traces must have been
+                computed.
+        """
         n_samples = self.p_trace.shape[1]
         peak_offset = 10
         data = self._remove_baseline(np.array([self.p_trace, self.a_trace]))
@@ -636,12 +645,27 @@ class Pulse:
 
         # determine the minimum slope after the pulse peak
         self._postpulse_min_slope = np.zeros(self.peak_indices.shape)
-        for index, peak in enumerate(self.peak_indices):
-            if peak + 2 * peak_offset > n_samples - 1:
-                self._postpulse_min_slope[index] = -np.inf
-            else:
-                postpulse = data[:, index, peak + peak_offset:].sum(axis=0)
-                self._postpulse_min_slope[index] = np.min(np.diff(postpulse))
+        if smoothing:
+            p_trace = self.noise.p_trace
+            a_trace = self.noise.a_trace
+            sigma = np.std(self._remove_baseline(np.array([p_trace, a_trace])).sum(axis=0), ddof=1)
+            for index, peak in enumerate(self.peak_indices):
+                if peak + 2 * peak_offset > n_samples - 1:
+                    self._postpulse_min_slope[index] = -np.inf
+                else:
+                    postpulse = data[:, index, peak + peak_offset:].sum(axis=0)
+                    weights = np.empty(postpulse.size)
+                    weights.fill(1 / sigma)
+                    x = np.arange(postpulse.size)
+                    s = UnivariateSpline(x, postpulse, w=weights)
+                    self._postpulse_min_slope[index] = np.min(s.derivative()(x))
+        else:
+            for index, peak in enumerate(self.peak_indices):
+                if peak + 2 * peak_offset > n_samples - 1:
+                    self._postpulse_min_slope[index] = -np.inf
+                else:
+                    postpulse = data[:, index, peak + peak_offset:].sum(axis=0)
+                    self._postpulse_min_slope[index] = np.min(np.diff(postpulse))
 
     def mask_peak_indices(self, minimum, maximum):
         """
