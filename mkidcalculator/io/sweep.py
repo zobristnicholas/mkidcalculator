@@ -168,8 +168,11 @@ class Sweep:
         if directory is not None:
             self._set_directory(directory)
         for loop in self.loops:
-            loop.free_memory()
-        _loaded_npz_files.free_memory(self._data._npz)
+            loop.free_memory(directory=directory)
+        try:
+            self._data.free_memory()
+        except AttributeError:
+            pass
 
     @classmethod
     def from_config(cls, sweep_file_name, data=analogreadout_sweep, sort=True, **kwargs):

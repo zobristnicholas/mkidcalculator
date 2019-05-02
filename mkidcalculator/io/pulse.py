@@ -341,7 +341,10 @@ class Pulse:
         offload_data(self, excluded_keys=("_a_trace", "_p_trace"), prefix="pulse_data_")
         if isinstance(self._npz, str):  # there might not be an npz file yet
             _loaded_npz_files.free_memory(self._npz)
-        _loaded_npz_files.free_memory(self._data._npz)
+        try:
+            self._data.free_memory()
+        except AttributeError:
+            pass
         if noise:
             try:
                 self.noise.free_memory()

@@ -171,9 +171,14 @@ class Loop:
         if directory is not None:
             self._set_directory(directory)
         for pulse in self.pulses:
-            pulse.free_memory()
+            pulse.free_memory(directory=directory)
         for noise in self.noise:
-            noise.free_memory()
+            noise.free_memory(directory=directory)
+        try:
+            self._data.free_memory()
+        except AttributeError:
+            pass
+
         _loaded_npz_files.free_memory(self._data._npz)
 
     @classmethod

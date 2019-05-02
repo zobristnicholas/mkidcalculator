@@ -100,6 +100,10 @@ class AnalogReadoutABC:
         except TypeError:
             raise KeyError("no data has been loaded.")
 
+    def free_memory(self):
+        """Frees memory from the wrapped npz file."""
+        _loaded_npz_files.free_memory(self._npz)
+
 
 class AnalogReadoutLoop(AnalogReadoutABC):
     """
