@@ -1,3 +1,4 @@
+import os
 import copy
 import pickle
 import logging
@@ -31,6 +32,8 @@ class Loop:
         # analysis results
         self.lmfit_results = {}
         self.emcee_results = {}
+        # directory of the saved data
+        self._directory = None
         log.info("Loop object created. ID: {}".format(id(self)))
 
     @property
@@ -97,6 +100,8 @@ class Loop:
 
     def to_pickle(self, file_name):
         """Pickle and save the class as the file 'file_name'."""
+        # set the _directory attributes so all the data gets saved in the right folder
+        self._set_directory(os.path.dirname(os.path.abspath(file_name)))
         with open(file_name, "wb") as f:
             pickle.dump(self, f)
 
@@ -1218,6 +1223,13 @@ class Loop:
         if tighten:
             axes.figure.tight_layout()
         return axes
+
+    def _set_directory(self, directory):
+        self._directory = directory
+        for noise in self.noise:
+            noise._set_directory(self._directory)
+        for pulse in self.pulses:
+            pulse._set_directory(self._directory)
 
     def _get_model(self, fit_type, label):
         if fit_type not in ['lmfit', 'emcee', 'emcee_mle']:

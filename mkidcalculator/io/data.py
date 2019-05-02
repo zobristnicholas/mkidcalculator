@@ -2,10 +2,10 @@ import os
 import logging
 import numpy as np
 
+from mkidcalculator.io.utils import _loaded_npz_files, offload_data
+
 log = logging.getLogger(__name__)
 log.addHandler(logging.NullHandler())
-
-_loaded_npz_files = {}  # cache of already loaded files
 
 
 def analogreadout_temperature(metadata):
@@ -57,46 +57,11 @@ class AnalogReadoutABC:
     def __init__(self, npz_handle=None, channel=None, index=None):
         self.channel = channel
         self.index = index
-        global _loaded_npz_files
-        # if string load with numpy and save if it hasn't been loaded before
-        if isinstance(npz_handle, str):
-            npz_handle = os.path.abspath(npz_handle)
-            # check if already loaded
-            if npz_handle in _loaded_npz_files.keys():
-                self._npz = _loaded_npz_files[npz_handle]
-                log.info("loaded from cache: {}".format(npz_handle))
-            else:
-                npz = np.load(npz_handle)
-                self._npz = npz
-                log.info("loaded: {}".format(npz_handle))
-                _loaded_npz_files[npz_handle] = npz
-                log.info("saved to cache: {}".format(npz_handle))
-        # if NpzFile skip loading but save if it hasn't been loaded before
-        elif isinstance(npz_handle, np.lib.npyio.NpzFile):
-            self._npz = npz_handle
-            file_name = os.path.abspath(npz_handle.fid.name)
-            if file_name not in _loaded_npz_files.keys():
-                _loaded_npz_files[file_name] = npz_handle
-                log.info("saved to cache: {}".format(file_name))
-        # allow for dummy object creation
-        elif npz_handle is None:
-            self._npz = npz_handle
-        else:
-            raise ValueError("'npz_handle' must be a valid file name or a numpy npz file object.")
+        npz = _loaded_npz_files[npz_handle]  # caches file
+        self._npz = None if npz is None else os.path.abspath(npz.fid.name)
 
     def __getstate__(self):
-        file_name = os.path.abspath(self._npz.fid.name)
-        __dict__ = self.__dict__.copy()
-        __dict__['_npz'] = file_name
-        return __dict__
-
-    def __setstate__(self, state):
-        self.__dict__ = state
-        global _loaded_npz_files
-        npz = np.load(self._npz)
-        if self._npz not in _loaded_npz_files.keys():
-            _loaded_npz_files[self._npz] = npz
-        self._npz = npz
+        return offload_data(self)
 
     def __getitem__(self, item):
         # get conversion values
@@ -106,7 +71,7 @@ class AnalogReadoutABC:
             raise KeyError("allowed keys for this data structure are in {}".format(list(self.CONVERT.keys())))
         try:
             # get the result from the npz file
-            result = self._npz[convert[0] if isinstance(convert, tuple) else convert]
+            result = _loaded_npz_files[self._npz][convert[0] if isinstance(convert, tuple) else convert]
             if result.dtype == np.dtype('O'):
                 # if it's an object unpack it
                 result = result.item()

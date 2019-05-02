@@ -1,3 +1,4 @@
+import os
 import pickle
 import matplotlib
 import numpy as np
@@ -18,9 +19,13 @@ class Sweep:
         self.temperature_groups = []
         # analysis results
         self.loop_parameters = {}
+        # directory of the data
+        self._directory = None
 
     def to_pickle(self, file_name):
         """Pickle and save the class as the file 'file_name'."""
+        # set the _directory attributes so all the data gets saved in the right folder
+        self._set_directory(os.path.dirname(os.path.abspath(file_name)))
         with open(file_name, "wb") as f:
             pickle.dump(self, f)
 
@@ -189,6 +194,11 @@ class Sweep:
 
     def emcee(self):
         raise NotImplementedError
+
+    def _set_directory(self, directory):
+        self._directory = directory
+        for loop in self.loops:
+            loop._set_directory(self._directory)
 
     def plot_loops(self, power=None, field=None, temperature=None, color_data='temperature', colormap=None,
                    colorbar=True, colorbar_kwargs=None, colorbar_label=True, colorbar_label_kwargs=None, **loop_kwargs):

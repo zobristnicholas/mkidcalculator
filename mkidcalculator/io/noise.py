@@ -1,10 +1,11 @@
+import os
 import pickle
 import logging
 import numpy as np
 from scipy.signal import welch, csd
 
 from mkidcalculator.io.data import AnalogReadoutNoise
-from mkidcalculator.io.utils import compute_phase_and_amplitude
+from mkidcalculator.io.utils import compute_phase_and_amplitude, offload_data, _loaded_npz_files
 
 log = logging.getLogger(__name__)
 log.addHandler(logging.NullHandler())
@@ -27,7 +28,13 @@ class Noise:
         self._pp_psd = None
         self._aa_psd = None
         self._pa_psd = None
+        # for holding large data
+        self._npz = None
+        self._directory = None
         log.info("Noise object created. ID: {}".format(id(self)))
+
+    def __getstate__(self):
+        return offload_data(self, excluded_keys=("_a_trace", "_p_trace"), prefix="noise_data_")
 
     @property
     def f_bias(self):
@@ -86,7 +93,10 @@ class Noise:
         """
         if self._p_trace is None:
             raise AttributeError("The phase information has not been computed yet.")
-        return self._p_trace
+        if isinstance(self._p_trace, str):
+            return _loaded_npz_files[self._npz][self._p_trace]
+        else:
+            return self._p_trace
 
     @p_trace.setter
     def p_trace(self, phase_trace):
@@ -102,7 +112,10 @@ class Noise:
         """
         if self._a_trace is None:
             raise AttributeError("The amplitude information has not been computed yet.")
-        return self._a_trace
+        if isinstance(self._a_trace, str):
+            return _loaded_npz_files[self._npz][self._a_trace]
+        else:
+            return self._a_trace
 
     @a_trace.setter
     def a_trace(self, amplitude_trace):
@@ -218,14 +231,41 @@ class Noise:
 
     def clear_loop_data(self):
         """Remove all data calculated from the noise.loop attribute."""
-        self.a_trace = None
-        self.p_trace = None
+        self.clear_traces()
         self.aa_psd = None
         self.pp_psd = None
         self.pa_psd = None
 
+    def clear_traces(self):
+        """
+        Remove all trace data calculated from noise.i_trace and noise.q_trace.
+        """
+        self.a_trace = None
+        self.p_trace = None
+        self.free_memory()
+        self._npz = None
+
+    def free_memory(self, directory=None):
+        """
+        Offloads a_traces and p_traces to an npz file if they haven't been
+        offloaded already and removes any npz file objects from memory, keeping
+        just the file name. It doesn't do anything if they don't exist.
+        Args:
+            directory: string
+                A directory string for where the data should be offloaded. The
+                default is None, and the directory where the noise was saved is
+                used. If it hasn't been saved, the working directory is used.
+        """
+        if directory is not None:
+            self._set_directory(directory)
+        offload_data(self, excluded_keys=("_a_trace", "_p_trace"), prefix="noise_data_")
+        if isinstance(self._npz, str):
+            _loaded_npz_files.free_memory(self._npz)
+
     def to_pickle(self, file_name):
         """Pickle and save the class as the file 'file_name'."""
+        # set the _directory attributes so all the data gets saved in the right folder
+        self._set_directory(os.path.dirname(os.path.abspath(file_name)))
         with open(file_name, "wb") as f:
             pickle.dump(self, f)
 
@@ -322,5 +362,12 @@ class Noise:
             self.pp_psd = np.mean(pp_psd, axis=0)
             self.aa_psd = np.mean(aa_psd, axis=0)
             self.pa_psd = np.mean(pa_psd, axis=0)
+        except AttributeError:
+            pass
+
+    def _set_directory(self, directory):
+        self._directory = directory
+        try:
+            self.loop._directory = self._directory
         except AttributeError:
             pass
