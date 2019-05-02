@@ -656,16 +656,16 @@ class Pulse:
                     postpulse = data[:, index, peak + peak_offset:].sum(axis=0)
                     weights = np.empty(postpulse.size)
                     weights.fill(1 / sigma)
-                    x = np.arange(postpulse.size)
-                    s = UnivariateSpline(x, postpulse, w=weights)
-                    self._postpulse_min_slope[index] = np.min(s.derivative()(x))
+                    time = np.linspace(0, postpulse.size / self.sample_rate, postpulse.size) * 1e6
+                    s = UnivariateSpline(time, postpulse, w=weights)
+                    self._postpulse_min_slope[index] = np.min(s.derivative()(time))
         else:
             for index, peak in enumerate(self.peak_indices):
                 if peak + 2 * peak_offset > n_samples - 1:
                     self._postpulse_min_slope[index] = -np.inf
                 else:
                     postpulse = data[:, index, peak + peak_offset:].sum(axis=0)
-                    self._postpulse_min_slope[index] = np.min(np.diff(postpulse))
+                    self._postpulse_min_slope[index] = np.min(np.diff(postpulse)) * self.sample_rate
 
     def mask_peak_indices(self, minimum, maximum):
         """
