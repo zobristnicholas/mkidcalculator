@@ -341,6 +341,7 @@ class Pulse:
         offload_data(self, excluded_keys=("_a_trace", "_p_trace"), prefix="pulse_data_")
         if isinstance(self._npz, str):
             _loaded_npz_files.free_memory(self._npz)
+            _loaded_npz_files.free_memory(self._data._npz)
         if noise:
             try:
                 self.noise.free_memory()
