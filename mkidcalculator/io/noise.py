@@ -259,9 +259,9 @@ class Noise:
         if directory is not None:
             self._set_directory(directory)
         offload_data(self, excluded_keys=("_a_trace", "_p_trace"), prefix="noise_data_")
-        if isinstance(self._npz, str):
+        if isinstance(self._npz, str):  # there might not be an npz file yet
             _loaded_npz_files.free_memory(self._npz)
-            _loaded_npz_files.free_memory(self._data._npz)
+        _loaded_npz_files.free_memory(self._data._npz)
 
     def to_pickle(self, file_name):
         """Pickle and save the class as the file 'file_name'."""

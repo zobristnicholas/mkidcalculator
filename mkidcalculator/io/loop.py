@@ -159,6 +159,23 @@ class Loop:
             self.f_bias_noise, self.noise = (list(t) for t in
                                              zip(*sorted(zip(self.f_bias_noise, self.noise), key=itemgetter(0))))
 
+    def free_memory(self, directory=None):
+        """
+        Frees memory from all of the contained Pulse and Noise objects.
+        Args:
+            directory: string
+                A directory string for where the data should be offloaded. The
+                default is None, and the directory where the pulse was saved is
+                used. If it hasn't been saved, the working directory is used.
+        """
+        if directory is not None:
+            self._set_directory(directory)
+        for pulse in self.pulses:
+            pulse.free_memory()
+        for noise in self.noise:
+            noise.free_memory()
+        _loaded_npz_files.free_memory(self._data._npz)
+
     @classmethod
     def load(cls, loop_file_name, noise_file_names=(), pulse_file_names=(), data=AnalogReadoutLoop,
              noise_data=AnalogReadoutNoise, pulse_data=AnalogReadoutPulse, sort=True, channel=None, noise_kwargs=None,

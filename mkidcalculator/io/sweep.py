@@ -156,6 +156,21 @@ class Sweep:
             self.fields.pop(ii)
             self.temperatures.pop(ii)
 
+    def free_memory(self, directory=None):
+        """
+        Frees memory from all of the contained Loop objects.
+        Args:
+            directory: string
+                A directory string for where the data should be offloaded. The
+                default is None, and the directory where the pulse was saved is
+                used. If it hasn't been saved, the working directory is used.
+        """
+        if directory is not None:
+            self._set_directory(directory)
+        for loop in self.loops:
+            loop.free_memory()
+        _loaded_npz_files.free_memory(self._data._npz)
+
     @classmethod
     def from_config(cls, sweep_file_name, data=analogreadout_sweep, sort=True, **kwargs):
         """
