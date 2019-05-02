@@ -806,13 +806,16 @@ class Pulse:
         ax2.set_xlabel(r'time [$\mu$s]')
         figure.tight_layout()
 
-    def plot_traces(self, calibrate=False, label="best", fit_type="lmfit", axes_list=None):
+    def plot_traces(self, calibrate=False, use_mask=True, label="best", fit_type="lmfit", axes_list=None):
         """
         Plot the trace data.
         Args:
             calibrate: boolean
                 Boolean that determines if calibrated data is used or not for
                 the plot. The default is False.
+            use_mask: boolean (optional)
+                Use the pulse.mask to determine which traces to plot. The
+                default is True.
             label: string
                 The label used to store the fit. The default is "best".
             fit_type: string
@@ -835,7 +838,10 @@ class Pulse:
         time = np.linspace(0, self.i_trace.shape[1] / self.sample_rate, self.i_trace.shape[1]) * 1e6  # in µs
         z = self.loop.z
         f = self.loop.f
-        traces = self.i_trace + 1j * self.q_trace
+        if use_mask:
+            traces = self.i_trace[self.mask, :] + 1j * self.q_trace[self.mask, :]
+        else:
+            traces = self.i_trace + 1j * self.q_trace
         # grab the model
         _, result_dict = self.loop._get_model(fit_type, label)
         if result_dict is not None:
