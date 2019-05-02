@@ -963,4 +963,5 @@ class Pulse:
         with warnings.catch_warnings():
             warnings.simplefilter(action='ignore', category=UserWarning)  # for singular axis limits
             corner.corner(metrics, labels=['peak times', 'prepulse mean', 'prepulse rms', 'postpulse min slope'],
-                          plot_contours=False, plot_density=False, range=[.97, .97, .97, .97], bins=[100, 20, 20, 20])
+                          plot_contours=False, plot_density=False, range=[.97, .97, .97, .97], bins=[100, 20, 20, 20],
+                          quiet=True)
