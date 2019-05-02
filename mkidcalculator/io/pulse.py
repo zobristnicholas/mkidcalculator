@@ -665,7 +665,7 @@ class Pulse:
                     self._postpulse_min_slope[index] = -np.inf
                 else:
                     postpulse = data[:, index, peak + peak_offset:].sum(axis=0)
-                    self._postpulse_min_slope[index] = np.min(np.diff(postpulse)) * self.sample_rate
+                    self._postpulse_min_slope[index] = np.min(np.diff(postpulse)) * self.sample_rate * 1e6
 
     def mask_peak_indices(self, minimum, maximum):
         """
