@@ -838,10 +838,8 @@ class Pulse:
         time = np.linspace(0, self.i_trace.shape[1] / self.sample_rate, self.i_trace.shape[1]) * 1e6  # in µs
         z = self.loop.z
         f = self.loop.f
-        if use_mask:
-            traces = self.i_trace[self.mask, :] + 1j * self.q_trace[self.mask, :]
-        else:
-            traces = self.i_trace + 1j * self.q_trace
+        mask = self.mask if use_mask else np.ones(self.mask.size, dtype=bool)
+        traces = self.i_trace[mask, :] + 1j * self.q_trace[mask, :]
         # grab the model
         _, result_dict = self.loop._get_model(fit_type, label)
         if result_dict is not None:
@@ -880,13 +878,13 @@ class Pulse:
 
         if result_dict is not None and len(axes_list) > 1:
             try:
-                p_trace = self.p_trace * 180 / np.pi
-                a_trace = self.a_trace
+                p_trace = self.p_trace[mask, :] * 180 / np.pi
+                a_trace = self.a_trace[mask, :]
                 axes_list[1].set_ylabel("phase [degrees]")
                 axes_list[2].set_ylabel("amplitude [radians]")
             except AttributeError:
-                p_trace = self.i_trace
-                a_trace = self.q_trace
+                p_trace = self.i_trace[mask, :]
+                a_trace = self.q_trace[mask, :]
                 axes_list[1].set_ylabel("I [V]")
                 axes_list[2].set_ylabel("Q [V]")
             phase, = axes_list[1].plot(time, p_trace[0, :])
