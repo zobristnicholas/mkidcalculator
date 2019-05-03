@@ -2,7 +2,7 @@ import os
 import logging
 import numpy as np
 
-from mkidcalculator.io.utils import _loaded_npz_files, offload_data
+from mkidcalculator.io.utils import _loaded_npz_files, offload_data, ev_nm_convert
 
 log = logging.getLogger(__name__)
 log.addHandler(logging.NullHandler())
@@ -179,7 +179,7 @@ class AnalogReadoutPulse(AnalogReadoutABC):
                     laser_state = np.array(metadata['parameters']['laser'])
                     laser_state *= np.array([808, 920, 980, 1120, 1310])
                     laser_state = laser_state[laser_state != 0]
-                    self._energies = tuple(1239.842 / laser_state)  # 1239.842 nm eV = h c
+                    self._energies = tuple(ev_nm_convert(laser_state))  # 1239.842 nm eV = h c
                 except KeyError:
                     pass
                 result = self._energies

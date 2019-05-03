@@ -2,6 +2,7 @@ import os
 import logging
 import tempfile
 import numpy as np
+import scipy.constants as c
 
 log = logging.getLogger(__name__)
 log.addHandler(logging.NullHandler())
@@ -167,3 +168,11 @@ def offload_data(cls, excluded_keys=(), npz_key="_npz", prefix="", directory_key
         for key in excluded_keys:
             cls.__dict__[key] = key
     return cls.__dict__
+
+
+def ev_nm_convert(x):
+    """
+    If x is a wavelength in nm, the corresponding energy in eV is returned.
+    If x is an energy in eV, the corresponding wavelength in nm is returned.
+    """
+    return c.speed_of_light * c.h / c.eV * 1e9 / x
