@@ -170,6 +170,18 @@ def offload_data(cls, excluded_keys=(), npz_key="_npz", prefix="", directory_key
     return cls.__dict__
 
 
+def quadratic_spline_roots(spline):
+    """Returns the roots of a scipy spline."""
+    roots = []
+    knots = spline.get_knots()
+    for a, b in zip(knots[:-1], knots[1:]):
+        u, v, w = spline(a), spline((a + b) / 2), spline(b)
+        t = np.roots([u + w - 2 * v, w - u, 2 * v])
+        t = t[np.isreal(t) & (np.abs(t) <= 1)]
+        roots.extend(t * (b - a) / 2 + (b + a) / 2)
+    return np.array(roots)
+
+
 def ev_nm_convert(x):
     """
     If x is a wavelength in nm, the corresponding energy in eV is returned.
