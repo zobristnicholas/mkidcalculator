@@ -4,9 +4,11 @@ import pickle
 import logging
 import lmfit as lm
 import numpy as np
-import scipy.stats as stats
 import matplotlib.pyplot as plt
 from operator import itemgetter
+import scipy.stats as stats
+from scipy.interpolate import InterpolatedUnivariateSpline
+
 
 from mkidcalculator.io.noise import Noise
 from mkidcalculator.io.pulse import Pulse
@@ -34,6 +36,8 @@ class Loop:
         self.emcee_results = {}
         # directory of the saved data
         self._directory = None
+        # response calibrations
+        self._response_calibration = None
         log.info("Loop object created. ID: {}".format(id(self)))
 
     @property
@@ -403,6 +407,71 @@ class Loop:
             self.emcee_results['best']['objective'] = residual
             self.emcee_results['best']['label'] = label
         return result
+
+    def compute_response_calibration(self, use_mask=True, fix_zero=True, k=2):
+        """
+        Compute the response to energy calibration from data in the pulse
+        objects. There must be at least two distinct single energy pulses.
+        Args:
+            use_mask: boolean
+                Determines if the pulse mask is used to filter the pulse
+                responses used for the calibration. The default is True.
+            fix_zero: boolean
+                Determines if the zero point is added as a fixed point in the
+                calibration. The default is True.
+            k: integer
+                The interpolating spline degree. The default is 2.
+        """
+        # get energies and responses for the calibration
+        responses = []
+        energies = []
+        for pulse in self.pulses:
+            energy = pulse.energies
+            if energy is None:
+                continue
+            try:
+                n_energy = len(energy)
+            except TypeError:
+                n_energy = 1
+                energy = [energy]
+            if n_energy == 1:
+                energies.append(energy[0])
+                response = np.median(pulse.amplitudes[pulse.mask]) if use_mask else np.median(pulse.amplitudes)
+                responses.append(response)
+        assert len(energies) >= 2, "There must be at least 2 pulse data sets with unique, known, single energy lines."
+        # sort them by increasing response
+        responses, energies = np.array(responses), np.array(energies)
+        responses, indices = np.unique(responses, return_index=True)
+        energies = energies[indices]
+        if fix_zero:
+            responses, energies = np.append(0, responses), np.append(0, energies)
+        spline = InterpolatedUnivariateSpline(responses, energies, k=k)
+        self.set_response_calibration(spline)
+
+    def response_calibration(self, *args, **kwargs):
+        """
+        A calibration from detector response to energy. The calibration is set
+        via loop.set_response_calibration().
+        Args:
+            args: optional arguments
+                Arguments to the calibration function
+            kwargs: optional keyword arguments
+                Keyword arguments to the calibration function
+        """
+        if self._response_calibration is None:
+            raise AttributeError("The response calibration has not been computed yet.")
+        return self._response_calibration(*args, **kwargs)
+
+    def set_response_calibration(self, calibration):
+        """
+        Set the response calibration function.
+        Args:
+            calibration: function
+                A function that converts detector response to energy.
+        """
+        if not callable(calibration):
+            raise AttributeError("The calibration must be a function")
+        self._response_calibration = calibration
 
     def plot(self, plot_types=("iq", "magnitude", "phase"), plot_fit=False, label="best", fit_type="lmfit",
              n_rows=2, title=True, title_kwargs=None, legend=True, legend_kwargs=None, fit_parameters=(),
