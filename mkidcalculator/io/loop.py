@@ -137,6 +137,20 @@ class Loop:
             lp = zip(*sorted(zip(self.f_bias_pulses, self.max_energy_pulses, self.pulses), key=itemgetter(0, 1)))
             self.f_bias_pulses, self.max_energy_pulses, self.pulses = (list(t) for t in lp)
 
+    def remove_pulses(self, indices):
+        """
+        Remove pulses from the loop.
+        Args:
+            indices: integer or iterable of integers
+                The indices in sweep.pulses that should be deleted.
+        """
+        if not isinstance(indices, (tuple, list)):
+            indices = [indices]
+        for ii in sorted(indices, reverse=True):
+            self.pulses.pop(ii)
+            self.f_bias_pulses.pop(ii)
+            self.max_energy_pulses.pop(ii)
+
     def add_noise(self, noise, sort=True):
         """
         Add noise data sets to the loop.
@@ -158,6 +172,19 @@ class Loop:
         if sort and self.noise:
             self.f_bias_noise, self.noise = (list(t) for t in
                                              zip(*sorted(zip(self.f_bias_noise, self.noise), key=itemgetter(0))))
+
+    def remove_noise(self, indices):
+        """
+        Remove noise from the loop.
+        Args:
+            indices: integer or iterable of integers
+                The indices in sweep.noise that should be deleted.
+        """
+        if not isinstance(indices, (tuple, list)):
+            indices = [indices]
+        for ii in sorted(indices, reverse=True):
+            self.noise.pop(ii)
+            self.f_bias_noise.pop(ii)
 
     def free_memory(self, directory=None):
         """
