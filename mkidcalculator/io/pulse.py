@@ -7,12 +7,14 @@ import numpy as np
 import numpy.fft as fft
 import numpy.linalg as la
 from scipy import signal as sg
-from scipy.interpolate import UnivariateSpline
+from scipy.stats import gaussian_kde
+from scipy.interpolate import UnivariateSpline, InterpolatedUnivariateSpline
 from matplotlib import pyplot as plt
 from matplotlib.widgets import Button, Slider
 
 from mkidcalculator.io.data import AnalogReadoutPulse
-from mkidcalculator.io.utils import compute_phase_and_amplitude, offload_data, _loaded_npz_files
+from mkidcalculator.io.utils import (compute_phase_and_amplitude, offload_data, _loaded_npz_files,
+                                     quadratic_spline_roots, ev_nm_convert)
 
 log = logging.getLogger(__name__)
 log.addHandler(logging.NullHandler())
@@ -49,6 +51,8 @@ class Pulse:
         # for holding large data
         self._npz = None
         self._directory = None
+        # response information
+        self._spectrum = None
 
         log.info("Pulse object created. ID: {}".format(id(self)))
 
@@ -274,6 +278,36 @@ class Pulse:
     def mask(self, mask):
         self._mask = mask
 
+    @property
+    def spectrum(self):
+        """
+        A dictionary that returns information about the spectrum.
+        Keys:
+            pdf: scipy.stats.gaussian_kde
+                A function that evaluates the pdf of the spectrum.
+            interpolation: scipy.interpolate.InterpolatedUnivariateSpline
+                An interpolation function that approximates pdf which can
+                be easily manipulated to compute derivatives and roots.
+            energies: numpy.ndarray
+                The energies (or responses--see calibrated) used to calculate
+                the spectrum.
+            calibrated: boolean
+                A boolean describing if the spectrum is calibrated. If it is
+                False, the energies correspond to detector responses.
+            bandwidth: float
+                The kernel bandwidth used for the kernel density estimation.
+            peak: tuple
+                A tuple of the peak energy and value of the pdf at that energy.
+                If there is no peak (highly unlikely) than each element in the
+                tuple is set to numpy.nan.
+            fwhm: float or numpy.nan
+                The full width half max of the distribution if it can be
+                calculated. If it can't, it is set to numpy.nan
+        """
+        if self._spectrum is None:
+            raise AttributeError("The spectrum for this pulse has not been computed yet.")
+        return self._spectrum
+
     def clear_loop_data(self):
         """Remove all data calculated from the pulse.loop attribute."""
         self.clear_traces()
@@ -321,6 +355,7 @@ class Pulse:
         self._prepulse_mean = None
         self.peak_indices = None
         self.amplitudes = None
+        self._spectrum = None
 
     def free_memory(self, directory=None, noise=True):
         """
@@ -720,6 +755,55 @@ class Pulse:
         logic = self._postpulse_min_slope < minimum
         self.mask[logic] = False
 
+    def compute_spectrum(self, use_mask=True, use_calibration=True):
+        """
+        Compute the spectrum of the pulse data. The result is stored in
+        pulse.spectrum.
+        Args:
+            use_mask: boolean (optional)
+                Use the pulse.mask to determine which detector responses to
+                use. The default is True.
+            use_calibration: boolean (optional)
+                Use the response calibration in pulse.loop to calculate the
+                energies. If False, the responses are used directly. The
+                default is True.
+        """
+        # compute an estimate of the distribution function for the amplitude data
+        calibration = self.loop.response_calibration
+        if use_calibration:
+            energies = calibration(self.amplitudes[self.mask]) if use_mask else calibration(self.amplitudes)
+        else:
+            energies = self.amplitudes[self.mask] if use_mask else self.amplitudes
+        pdf = gaussian_kde(energies) if use_mask else gaussian_kde(energies)
+        maximum, minimum = energies.max(), energies.min()
+        x = np.linspace(minimum, maximum, int(10 * (maximum - minimum) / pdf.factor))  # sample at 10x the bandwidth
+        # convert to a spline so that we can robustly compute the FWHM and maximum later
+        pdf_interp = InterpolatedUnivariateSpline(x, pdf(x), k=3)
+        self._spectrum = {"pdf": pdf, "interpolation": pdf_interp, "energies": energies, "calibrated": use_calibration,
+                          "bandwidth": pdf.factor}
+        # compute the maximum of the distribution
+        pdf_max = 0
+        peak_location = 0
+        for root in quadratic_spline_roots(pdf_interp.derivative()):
+            if pdf_interp(root) > pdf_max:
+                pdf_max = pdf_interp(root)
+                peak_location = root.item()
+        if pdf_max != 0 and peak_location != 0:
+            self._spectrum["peak"] = (peak_location, pdf_max)
+        else:
+            self._spectrum["peak"] = (np.nan, np.nan)
+        # assert pdf_max != 0 and peak_location != 0, "There was no distribution maximum!"
+        # compute the FWHM
+        pdf_approx_shifted = InterpolatedUnivariateSpline(x, pdf(x) - pdf_max / 2, k=3)
+        roots = pdf_approx_shifted.roots()
+        if roots.size >= 2 and pdf_max != 0 and peak_location != 0:
+            # assert roots.size >= 2, "The distribution doesn't have a FWHM."
+            indices = np.argsort(np.abs(roots - peak_location))
+            roots = roots[indices[:2]]
+            self._spectrum["fwhm"] = roots.max() - roots.min()
+        else:
+            self._spectrum["fwhm"] = np.nan
+
     def _set_directory(self, directory):
         self._directory = directory
         try:
@@ -989,3 +1073,77 @@ class Pulse:
             corner.corner(metrics, labels=['peak times', 'prepulse mean', 'prepulse rms', 'postpulse min slope'],
                           plot_contours=False, plot_density=False, range=[.97, .97, .97, .97], bins=[100, 20, 20, 100],
                           quiet=True)
+
+    def plot_spectrum(self, x_limits=None, second_x_axis=False, axes=None):
+        """
+        Plot the spectrum of the pulse responses.
+        Args:
+            x_limits: length 2 iterable of floats
+                Bounds on the x-axis
+            second_x_axis: boolean
+                If True, a second x-axis is plotted below the first with the
+                wavelength values. The default is False.
+            axes: matplotlib.axes.Axes class
+                An axes class for plotting the data.
+        Returns:
+            axes: matplotlib.axes.Axes class
+                An axes class with the plotted data.
+        """
+        # get the needed data from the spectrum dictionary
+        pdf = self.spectrum["pdf"]
+        energies = self.spectrum["energies"]
+        bandwidth = self.spectrum["bandwidth"]
+        _, peak = self.spectrum["peak"]
+        fwhm = self.spectrum["fwhm"]
+        min_energy = energies.min()
+        max_energy = energies.max()
+
+        # get the figure axes
+        if not axes:
+            figure, axes = plt.subplots()
+        else:
+            figure = axes.figure
+
+        # plot the data
+        n_bins = int((max_energy - min_energy) / bandwidth)
+        axes.hist(energies, 10 * n_bins, density=True)
+        xx = np.linspace(min_energy, max_energy, 10 * n_bins)
+        label = "R = {:.2f}".format(peak / fwhm) if not np.isnan(peak) and not np.isnan(fwhm) else ""
+        axes.plot(xx, pdf(xx), 'k-', label=label)
+
+        # set x axis limits
+        if x_limits is not None:
+            axes.set_xlim(x_limits)
+        else:
+            axes.set_xlim([min_energy, max_energy])
+
+        # format figure
+        axes.set_xlabel('energy [eV]')
+        axes.set_ylabel('counts per bin')
+        if label:
+            axes.legend()
+
+        # put twin axis on the bottom
+        if second_x_axis:
+            wvl_axes = axes.twiny()
+            wvl_axes.set_frame_on(True)
+            wvl_axes.patch.set_visible(False)
+            wvl_axes.xaxis.set_ticks_position('bottom')
+            wvl_axes.xaxis.set_label_position('bottom')
+            wvl_axes.spines['bottom'].set_position(('outward', 40))
+            wvl_axes.set_xlabel('wavelength [nm]')
+            if x_limits is not None:
+                wvl_axes.set_xlim(x_limits)
+            else:
+                wvl_axes.set_xlim([min_energy, max_energy])
+
+            # redo ticks on bottom axis
+            def tick_labels(x):
+                v = ev_nm_convert(x)
+                return ["%.0f" % z for z in v]
+            x_locs = axes.xaxis.get_majorticklocs()
+            wvl_axes.set_xticks(x_locs)
+            wvl_axes.set_xticklabels(tick_labels(x_locs))
+
+        figure.tight_layout()
+        return axes
