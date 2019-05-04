@@ -1093,7 +1093,7 @@ class Pulse:
         energies = self.spectrum["energies"]
         bandwidth = self.spectrum["bandwidth"]
         # use the known energy if possible
-        peak = self.energies[0] if len(self.energies) == 1 else self.spectrum["peak"]
+        peak = self.energies[0] if len(self.energies) == 1 and self.spectrum["calibrated"] else self.spectrum["peak"]
         fwhm = self.spectrum["fwhm"]
         min_energy = energies.min()
         max_energy = energies.max()

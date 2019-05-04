@@ -1387,7 +1387,7 @@ class Loop:
             pdf = pulse.spectrum["pdf"]
             bandwidth = pulse.spectrum["bandwidth"]
             # use the known energy if possible
-            peak = pulse.energies[0] if len(pulse.energies) == 1 else self.spectrum["peak"]
+            peak = pulse.energies[0] if len(pulse.energies) == 1 and self.spectrum["calibrated"] else self.spectrum["peak"]
             fwhm = pulse.spectrum["fwhm"]
             # plot the data
             n_bins = 5 * int((max_energy - min_energy) / bandwidth)
