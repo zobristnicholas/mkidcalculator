@@ -408,11 +408,14 @@ class Loop:
             self.emcee_results['best']['label'] = label
         return result
 
-    def compute_response_calibration(self, use_mask=True, fix_zero=True, k=2):
+    def compute_response_calibration(self, pulse_indices=None, use_mask=True, fix_zero=True, k=2):
         """
         Compute the response to energy calibration from data in the pulse
         objects. There must be at least two distinct single energy pulses.
         Args:
+            pulse_indices: iterable of integers
+                Indices of pulse objects in loop.pulses to use for the
+                calibration. The default is None and all are used.
             use_mask: boolean
                 Determines if the pulse mask is used to filter the pulse
                 responses used for the calibration. The default is True.
@@ -423,9 +426,10 @@ class Loop:
                 The interpolating spline degree. The default is 2.
         """
         # get energies and responses for the calibration
+        pulses = self.pulses if pulse_indices is None else itemgetter(*pulse_indices)(self.pulses)
         responses = []
         energies = []
-        for pulse in self.pulses:
+        for pulse in pulses:
             energy = pulse.energies
             if energy is None:
                 continue
