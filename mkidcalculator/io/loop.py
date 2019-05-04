@@ -12,6 +12,7 @@ from scipy.interpolate import InterpolatedUnivariateSpline
 
 from mkidcalculator.io.noise import Noise
 from mkidcalculator.io.pulse import Pulse
+from mkidcalculator.io.utils import ev_nm_convert
 from mkidcalculator.io.data import AnalogReadoutLoop, AnalogReadoutNoise, AnalogReadoutPulse
 
 log = logging.getLogger(__name__)
@@ -1344,6 +1345,92 @@ class Loop:
             self._make_parameters_textbox(fit_parameters, result, axes, parameters_kwargs)
         if tighten:
             axes.figure.tight_layout()
+        return axes
+
+    def plot_spectra(self, pulse_indices=None, x_limits=None, second_x_axis=False, axes=None):
+        # get the figure axes
+        if not axes:
+            figure, axes = plt.subplots()
+        else:
+            figure = axes.figure
+
+        # mask the pulses
+        if pulse_indices is None:
+            pulses = self.pulses
+        else:
+            try:
+                pulses = itemgetter(*pulse_indices)(self.pulses)
+            except TypeError:
+                pulses = itemgetter(pulse_indices)(self.pulses)
+            if not isinstance(pulses, tuple):
+                pulses = [pulses]
+        # plot all of the energies
+        energies = []
+        norms = []
+        min_bandwidth = np.inf
+        for pulse in pulses:
+            try:
+                norms.append(pulse.spectrum["energies"].size)
+                energies.append(pulse.spectrum["energies"])
+                min_bandwidth = pulse.spectrum["bandwidth"] if pulse.spectrum["bandwidth"] < min_bandwidth else min_bandwidth
+            except AttributeError:
+                pass
+        energies = np.concatenate(energies)
+        max_energy, min_energy = energies.max(), energies.min()
+        n_bins = 5 * int((max_energy - min_energy) / min_bandwidth)
+        axes.hist(energies, n_bins, density=True)
+
+        # plot the PDFs
+        label = ""
+        for index, pulse in enumerate(pulses):
+            # get the needed data from the spectrum dictionary
+            pdf = pulse.spectrum["pdf"]
+            bandwidth = pulse.spectrum["bandwidth"]
+            # use the known energy if possible
+            peak = pulse.energies[0] if len(pulse.energies) == 1 else self.spectrum["peak"]
+            fwhm = pulse.spectrum["fwhm"]
+            # plot the data
+            n_bins = 5 * int((max_energy - min_energy) / bandwidth)
+            xx = np.linspace(min_energy, max_energy,  n_bins)
+            label = "{:.0f} nm: R = {:.2f}".format(ev_nm_convert(pulse.energies[0]), peak / fwhm) if not np.isnan(peak) and not np.isnan(fwhm) else ""
+            axes.plot(xx, norms[index] * pdf(xx) / np.sum(norms), label=label)
+
+        # set x axis limits
+        if x_limits is not None:
+            axes.set_xlim(x_limits)
+        else:
+            axes.set_xlim([min_energy, max_energy])
+
+        # format figure
+        axes.set_xlabel('energy [eV]')
+        axes.set_ylabel('probability density')
+        if label:
+            axes.legend()
+
+        # put twin axis on the bottom
+        if second_x_axis:
+            wvl_axes = axes.twiny()
+            wvl_axes.set_frame_on(True)
+            wvl_axes.patch.set_visible(False)
+            wvl_axes.xaxis.set_ticks_position('bottom')
+            wvl_axes.xaxis.set_label_position('bottom')
+            wvl_axes.spines['bottom'].set_position(('outward', 40))
+            wvl_axes.set_xlabel('wavelength [nm]')
+            if x_limits is not None:
+                wvl_axes.set_xlim(x_limits)
+            else:
+                wvl_axes.set_xlim([min_energy, max_energy])
+
+            # redo ticks on bottom axis
+            def tick_labels(x):
+                v = ev_nm_convert(x)
+                return ["%.0f" % z for z in v]
+
+            x_locs = axes.xaxis.get_majorticklocs()
+            wvl_axes.set_xticks(x_locs)
+            wvl_axes.set_xticklabels(tick_labels(x_locs))
+
+        figure.tight_layout()
         return axes
 
     def _set_directory(self, directory):
