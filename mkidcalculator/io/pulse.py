@@ -41,7 +41,7 @@ class Pulse:
         self._p_filter = None
         self._a_filter = None
         # detector response
-        self._amplitudes = None
+        self._responses = None
         self._peak_indices = None
         # trace mask
         self._mask = None
@@ -180,18 +180,18 @@ class Pulse:
             pass
 
     @property
-    def amplitudes(self):
+    def responses(self):
         """
-        A settable property that contains the detector amplitudes made with
-        pulse.compute_responses().
+        A settable property that contains the detector response amplitudes made
+        with pulse.compute_responses().
         """
-        if self._amplitudes is None:
-            raise AttributeError("The amplitudes for this pulse have not been calculated yet.")
-        return self._amplitudes
+        if self._responses is None:
+            raise AttributeError("The responses for this pulse have not been calculated yet.")
+        return self._responses
 
-    @amplitudes.setter
-    def amplitudes(self, amplitudes):
-        self._amplitudes = amplitudes
+    @responses.setter
+    def responses(self, responses):
+        self._responses = responses
 
     @property
     def peak_indices(self):
@@ -267,7 +267,7 @@ class Pulse:
     def mask(self):
         """
         A settable property that contains a boolean array that can select trace
-        indices from pulse.amplitudes, pulse.i_trace, pulse.q_trace,
+        indices from pulse.responses, pulse.i_trace, pulse.q_trace,
         pulse.p_trace, or pulse.a_trace.
         """
         if self._mask is None:
@@ -353,7 +353,7 @@ class Pulse:
         self._prepulse_rms = None
         self._prepulse_mean = None
         self.peak_indices = None
-        self.amplitudes = None
+        self.responses = None
         self._spectrum = None
 
     def free_memory(self, directory=None, noise=True):
@@ -580,7 +580,7 @@ class Pulse:
         """
         Compute the detector response amplitudes and peak indices using a
         particular calculation method. The results are stored in
-        pulse.amplitudes and pulse.peak_indices. The mask information is
+        pulse.responses and pulse.peak_indices. The mask information is
         cleared when running this function.
         """
         self.clear_responses()
@@ -601,7 +601,7 @@ class Pulse:
             peak_indices = np.argmin(filtered_data, axis=1)
         else:
             raise ValueError("'{}' is not a valid calculation_type".format(calculation_type))
-        self.amplitudes = amplitudes
+        self.responses = amplitudes
         self.peak_indices = peak_indices
 
     def apply_filter(self, data, filter_type="optimal_filter"):
@@ -770,9 +770,9 @@ class Pulse:
         # compute an estimate of the distribution function for the amplitude data
         calibration = self.loop.response_calibration
         if use_calibration:
-            energies = calibration(self.amplitudes[self.mask]) if use_mask else calibration(self.amplitudes)
+            energies = calibration(self.responses[self.mask]) if use_mask else calibration(self.responses)
         else:
-            energies = self.amplitudes[self.mask] if use_mask else self.amplitudes
+            energies = self.responses[self.mask] if use_mask else self.responses
         pdf = gaussian_kde(energies) if use_mask else gaussian_kde(energies)
         maximum, minimum = energies.max(), energies.min()
         x = np.linspace(minimum, maximum, int(10 * (maximum - minimum) / pdf.factor))  # sample at 10x the bandwidth

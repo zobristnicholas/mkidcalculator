@@ -441,7 +441,7 @@ class Loop:
                 energy = [energy]
             if n_energy == 1:
                 energies.append(energy[0])
-                response = np.median(pulse.amplitudes[pulse.mask]) if use_mask else np.median(pulse.amplitudes)
+                response = np.median(pulse.responses[pulse.mask]) if use_mask else np.median(pulse.responses)
                 responses.append(response)
         assert len(energies) >= 2, "There must be at least 2 pulse data sets with unique, known, single energy lines."
         # sort them by increasing response
