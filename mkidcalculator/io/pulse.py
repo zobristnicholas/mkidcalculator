@@ -296,10 +296,9 @@ class Pulse:
                 False, the energies correspond to detector responses.
             bandwidth: float
                 The kernel bandwidth used for the kernel density estimation.
-            peak: tuple
-                A tuple of the peak energy and value of the pdf at that energy.
-                If there is no peak (highly unlikely) than each element in the
-                tuple is set to numpy.nan.
+            peak: float or numpy .nan
+                The peak energy of the maximum of the distribution. If there
+                is no peak (highly unlikely) than it is set to numpy.nan
             fwhm: float or numpy.nan
                 The full width half max of the distribution if it can be
                 calculated. If it can't, it is set to numpy.nan
@@ -789,9 +788,9 @@ class Pulse:
                 pdf_max = pdf_interp(root)
                 peak_location = root.item()
         if pdf_max != 0 and peak_location != 0:
-            self._spectrum["peak"] = (peak_location, pdf_max)
+            self._spectrum["peak"] = peak_location
         else:
-            self._spectrum["peak"] = (np.nan, np.nan)
+            self._spectrum["peak"] = np.nan
         # assert pdf_max != 0 and peak_location != 0, "There was no distribution maximum!"
         # compute the FWHM
         pdf_approx_shifted = InterpolatedUnivariateSpline(x, pdf(x) - pdf_max / 2, k=3)
@@ -1093,7 +1092,8 @@ class Pulse:
         pdf = self.spectrum["pdf"]
         energies = self.spectrum["energies"]
         bandwidth = self.spectrum["bandwidth"]
-        _, peak = self.spectrum["peak"]
+        # use the known energy if possible
+        peak = self.energies[0] if len(self.energies) == 1 else self.spectrum["peak"]
         fwhm = self.spectrum["fwhm"]
         min_energy = energies.min()
         max_energy = energies.max()
@@ -1105,9 +1105,9 @@ class Pulse:
             figure = axes.figure
 
         # plot the data
-        n_bins = int((max_energy - min_energy) / bandwidth)
-        axes.hist(energies, 10 * n_bins, density=True)
-        xx = np.linspace(min_energy, max_energy, 10 * n_bins)
+        n_bins = 10 * int((max_energy - min_energy) / bandwidth)
+        axes.hist(energies, n_bins, density=True)
+        xx = np.linspace(min_energy, max_energy, n_bins)
         label = "R = {:.2f}".format(peak / fwhm) if not np.isnan(peak) and not np.isnan(fwhm) else ""
         axes.plot(xx, pdf(xx), 'k-', label=label)
 
@@ -1119,7 +1119,7 @@ class Pulse:
 
         # format figure
         axes.set_xlabel('energy [eV]')
-        axes.set_ylabel('counts per bin')
+        axes.set_ylabel('probability density')
         if label:
             axes.legend()
 
