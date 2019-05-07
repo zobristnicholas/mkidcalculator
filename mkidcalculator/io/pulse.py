@@ -38,8 +38,11 @@ class Pulse:
         # filter attributes
         self._p_trace_filtered = None
         self._optimal_filter = None
+        self._optimal_filter_var = None
         self._p_filter = None
+        self._p_filter_var = None
         self._a_filter = None
+        self._a_filter_var = None
         # detector response
         self._responses = None
         self._peak_indices = None
@@ -227,44 +230,62 @@ class Pulse:
     @property
     def optimal_filter(self):
         """
-        A settable property that contains the optimal filter made with
+        A property that contains the optimal filter made with
         pulse.make_filters().
         """
         if self._optimal_filter is None:
             raise AttributeError("The optimal filter for this pulse has not been calculated yet.")
         return self._optimal_filter
 
-    @optimal_filter.setter
-    def optimal_filter(self, optimal_filter):
-        self._optimal_filter = optimal_filter
+    @property
+    def optimal_filter_var(self):
+        """
+        A property that contains the optimal filter expected variance made with
+        pulse.make_filters().
+        """
+        if self._optimal_filter_var is None:
+            raise AttributeError("The optimal filter for this pulse has not been calculated yet.")
+        return self._optimal_filter_var
 
     @property
     def p_filter(self):
         """
-        A settable property that contains the phase filter made with
+        A property that contains the phase filter made with
         pulse.make_filters().
         """
         if self._p_filter is None:
             raise AttributeError("The phase filter for this pulse has not been calculated yet.")
         return self._p_filter
 
-    @p_filter.setter
-    def p_filter(self, p_filter):
-        self._p_filter = p_filter
+    @property
+    def p_filter_var(self):
+        """
+        A property that contains the phase filter expected variance made with
+        pulse.make_filters().
+        """
+        if self._p_filter_var is None:
+            raise AttributeError("The phase filter for this pulse has not been calculated yet.")
+        return self._p_filter_var
 
     @property
     def a_filter(self):
         """
-        A settable property that contains the amplitude filter made with
+        A property that contains the amplitude filter made with
         pulse.make_filters().
         """
         if self._a_filter is None:
             raise AttributeError("The amplitude filter for this pulse has not been calculated yet.")
         return self._a_filter
 
-    @a_filter.setter
-    def a_filter(self, a_filter):
-        self._a_filter = a_filter
+    @property
+    def a_filter_var(self):
+        """
+        A property that contains the phase filter expected variance made with
+        pulse.make_filters().
+        """
+        if self._a_filter_var is None:
+            raise AttributeError("The amplitude filter for this pulse has not been calculated yet.")
+        return self._a_filter_var
 
     @property
     def mask(self):
@@ -343,8 +364,11 @@ class Pulse:
         """
         self._p_trace_filtered = None
         self._optimal_filter = None
+        self._optimal_filter_var = None
         self._p_filter = None
+        self._p_filter_var = None
         self._a_filter = None
+        self._a_filter_var = None
 
     def clear_responses(self):
         """
@@ -526,70 +550,73 @@ class Pulse:
         A full 2D filter is made as well as two 1D filters for the phase and
         amplitude responses.
         """
-        # pull out shape parameters
         self.clear_filters()
+        # pull out some parameters
         n_samples = len(self.template[0])
+        sample_rate = self.sample_rate
         shape = (2, n_samples // 2 + 1)
         if self.noise.pp_psd.size != shape[1]:
             raise ValueError("The noise data PSDs must have a shape compatible with the pulse data")
-        # compute template fft
-        template_fft = fft.rfft(self.template)
-
         # assemble noise matrix
         s = np.array([[self.noise.pp_psd, self.noise.pa_psd],
                       [np.conj(self.noise.pa_psd), self.noise.aa_psd]], dtype=np.complex)
 
-        # compute the optimal filter: conj(template_fft) @ s_inv
+        # normalize the template for response = phase + amplitude
+        template = self.template / np.abs((self.template[0] + self.template[1]).min())
+        template_fft = fft.rfft(template)
+        # compute the optimal filter: conj(template_fft) @ s_inv (single sided)
         filter_fft = np.zeros(shape, dtype=np.complex)
         for index in range(shape[1]):
             filter_fft[:, index] = la.lstsq(s[:, :, index].T, np.conj(template_fft[:, index]), rcond=None)[0]
         # return to time domain
-        self.optimal_filter = fft.irfft(filter_fft, n_samples)
-        # normalize the optimal filter
-        norm = (sg.convolve(self.optimal_filter[0], self.template[0], mode='same') +
-                sg.convolve(self.optimal_filter[1], self.template[1], mode='same')).max()
-        norm /= np.abs(self.template[0].min() + self.template[1].min())  # the templates don't add to one
-        self.optimal_filter /= norm
+        self._optimal_filter = fft.irfft(filter_fft, n_samples)
+        # compute the variance with the un-normalized filter
+        f_fft = filter_fft[..., np.newaxis].transpose(1, 2, 0)
+        t_fft = template_fft[..., np.newaxis].transpose(1, 0, 2)
+        self._optimal_filter_var = (sample_rate * n_samples / (4 * np.sum(f_fft @ t_fft).real))
+        # normalize the optimal filter to unit response on the template
+        norm = (sg.convolve(self.optimal_filter[0], template[0], mode='same') +
+                sg.convolve(self.optimal_filter[1], template[1], mode='same')).max()
+        self._optimal_filter /= norm
 
-        # compute the phase only optimal filter: conj(phase_fft) / J
-        phase_filter_fft = (np.conj(template_fft[0, :]) / self.noise.pp_psd)
-        self.p_filter = fft.irfft(phase_filter_fft, n_samples)
+        # normalize the template for response = phase
+        template = self.template[0, :] / np.abs(self.template[0].min())
+        template_fft = fft.rfft(template)
+        # compute the phase only optimal filter: conj(phase_fft) / s (single sided)
+        phase_filter_fft = np.conj(template_fft) / self.noise.pp_psd
+        self._p_filter = fft.irfft(phase_filter_fft, n_samples)
+        # compute the variance with the un-normalized filter
+        self._p_filter_var = (sample_rate * n_samples / (4 * (phase_filter_fft @ template_fft).real))
         # normalize
         norm = sg.convolve(self.p_filter, self.template[0], mode='same').max()
-        norm /= np.abs(self.template[0].min())
-        self.p_filter /= norm
+        self._p_filter /= norm
 
-        # compute the amplitude only optimal filter: conj(amplitude_fft) / J
-        amplitude_filter_fft = (np.conj(template_fft[1, :]) / self.noise.aa_psd)
-        self.a_filter = fft.irfft(amplitude_filter_fft, n_samples)
-        norm = sg.convolve(self.a_filter, self.template[1], mode='same').max()
-        norm /= np.abs(self.template[1].min())
-        self.a_filter /= norm
+        # normalize the template for response = amplitude
+        template = self.template[1, :] / np.abs(self.template[1].min())
+        template_fft = fft.rfft(template)
+        # compute the amplitude only optimal filter: conj(amplitude_fft) / s (single sided)
+        amplitude_filter_fft = np.conj(template_fft) / self.noise.aa_psd
+        self._a_filter = fft.irfft(amplitude_filter_fft, n_samples)
+        # compute the variance with the un-normalized filter
+        self._a_filter_var = (sample_rate * n_samples / (4 * (amplitude_filter_fft @ template_fft).real))
+        # normalize
+        norm = sg.convolve(self.a_filter, template, mode='same').max()
+        self._a_filter /= norm
 
     def variance(self, calculation_type="optimal_filter"):
         """
-        Compute the expected variance for a particular response calculation
+        Return the expected variance for a particular response calculation
         type.
         """
-        # check for template and grab some constants
-        n_samples = self.template.shape[1]
-        sample_rate = pulse.sample_rate
         # calculate the variance for requested calculation type
         if calculation_type == "optimal_filter":
-            filter_fft = fft.rfft(self.optimal_filter).transpose()  # (N, 2)
-            template_fft = fft.rfft(self.template)  # (2, N)
-            variance = (sample_rate * n_samples / (4 * np.sum(filter_fft @ template_fft).real)).squeeze()
+            variance = self.optimal_filter_var
         elif calculation_type == "phase_filter":
-            filter_fft = fft.rfft(self.p_filter)  # (N,)
-            template_fft = fft.rfft(self.template[0])  # (N,)
-            variance = (sample_rate * n_samples / (4 * np.sum(filter_fft @ template_fft).real)).squeeze()
+            variance = self.p_filter_var
         elif calculation_type == "amplitude_filter":
-            filter_fft = fft.rfft(self.a_filter)  # (N,)
-            template_fft = fft.rfft(self.template[1])  # (N,)
-            variance = (sample_rate * n_samples / (4 * np.sum(filter_fft @ template_fft).real)).squeeze()
+            variance = self.a_filter_var
         else:
             raise ValueError("'{}' is not a valid calculation_type".format(calculation_type))
-
         return variance
 
     def compute_responses(self, calculation_type="optimal_filter"):
