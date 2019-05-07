@@ -633,7 +633,7 @@ class Pulse:
             noise = self.noise.generate_noise(noise_type="pa", n_traces=10000)
             # normalize the template for response = phase + amplitude
             template = self.template / np.abs(self.template[0].min() + self.template[1].min())
-            data = noise + 3 * np.std(noise, ddof=1) * template  # 3 sigma deviation
+            data = noise + 3 * np.std(noise, ddof=1) * template[:, np.newaxis, :]  # 3 sigma deviation
             filtered_data = self.apply_filter(data, filter_type="optimal_filter")
             responses = -filtered_data.min(axis=1)
             variance = np.var(responses, ddof=1)
