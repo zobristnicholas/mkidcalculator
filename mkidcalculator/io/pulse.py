@@ -562,7 +562,7 @@ class Pulse:
                       [np.conj(self.noise.pa_psd), self.noise.aa_psd]], dtype=np.complex)
 
         # normalize the template for response = phase + amplitude
-        template = self.template / np.abs((self.template[0] + self.template[1]).min())
+        template = self.template / np.abs(self.template[0].min() + self.template[1].min())
         template_fft = fft.rfft(template)
         # compute the optimal filter: conj(template_fft) @ s_inv (single sided)
         filter_fft = np.zeros(shape, dtype=np.complex)
