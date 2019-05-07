@@ -191,6 +191,7 @@ class Pulse:
 
     @responses.setter
     def responses(self, responses):
+        self.clear_responses()
         self._responses = responses
 
     @property
@@ -205,6 +206,7 @@ class Pulse:
 
     @peak_indices.setter
     def peak_indices(self, peak_indices):
+        self.clear_peak_indices()
         self._peak_indices = peak_indices
 
     @property
@@ -219,6 +221,7 @@ class Pulse:
 
     @template.setter
     def template(self, template):
+        self.clear_template()
         self._template = template
 
     @property
@@ -311,7 +314,6 @@ class Pulse:
         """Remove all data calculated from the pulse.loop attribute."""
         self.clear_traces()
         self.clear_template()
-        self.clear_filters()
 
     def clear_traces(self):
         """
@@ -325,7 +327,6 @@ class Pulse:
     def clear_noise_data(self):
         """Remove all data calculated from the pulse.noise attribute."""
         self.clear_template()
-        self.clear_filters()
 
     def clear_template(self):
         """
@@ -333,16 +334,17 @@ class Pulse:
         traces used to make the template.
         """
         self.template = None
+        self.clear_filters()
+        self.clear_responses()  # all responses come from template so they are cleared if the template changes
 
     def clear_filters(self):
         """
         Clear the filters made with pulse.make_filters() and data made with them.
         """
         self._p_trace_filtered = None
-        self.optimal_filter = None
-        self.p_filter = None
-        self.a_filter = None
-        self.clear_responses()
+        self._optimal_filter = None
+        self._p_filter = None
+        self._a_filter = None
 
     def clear_responses(self):
         """
@@ -352,8 +354,24 @@ class Pulse:
         self._postpulse_min_slope = None
         self._prepulse_rms = None
         self._prepulse_mean = None
-        self.peak_indices = None
         self.responses = None
+        self.clear_spectrum()
+
+    def clear_peak_indices(self):
+        """
+        Clear the peak indices and any mask information associated with it.
+        """
+        self.mask = None
+        self._postpulse_min_slope = None
+        self._prepulse_rms = None
+        self._prepulse_mean = None
+        self.peak_indices = None
+        self.clear_spectrum()
+
+    def clear_spectrum(self):
+        """
+        Clear the spectrum information.
+        """
         self._spectrum = None
 
     def free_memory(self, directory=None, noise=True):
@@ -483,7 +501,6 @@ class Pulse:
                 initial filter on the data before creating the template.
         """
         # create a rough template by cutting the noise traces and averaging
-        self.clear_template()
         if use_mask:
             self._traces = self._remove_baseline(np.array([self.p_trace[self.mask, :], self.a_trace[self.mask, :]]))
         else:
@@ -493,7 +510,6 @@ class Pulse:
         # make a filter with the template
         self.make_filters()
         # do a better job using a filter
-        self.clear_template()
         if use_mask:
             self._traces = self._remove_baseline(np.array([self.p_trace[self.mask, :], self.a_trace[self.mask, :]]))
         else:
@@ -502,7 +518,6 @@ class Pulse:
         self._threshold_cut(use_filter=True)
         self._offset_correction()
         self._average_pulses()
-        self.clear_filters()  # this filter is not using the updated template so get rid of it
         self._traces = None  # release the memory since we no longer need this
 
     def make_filters(self):
@@ -512,6 +527,7 @@ class Pulse:
         amplitude responses.
         """
         # pull out shape parameters
+        self.clear_filters()
         n_samples = len(self.template[0])
         shape = (2, n_samples // 2 + 1)
         if self.noise.pp_psd.size != shape[1]:
@@ -583,7 +599,6 @@ class Pulse:
         pulse.responses and pulse.peak_indices. The mask information is
         cleared when running this function.
         """
-        self.clear_responses()
         if calculation_type == "optimal_filter":
             data = self._remove_baseline(np.array([self.p_trace, self.a_trace]))
             filtered_data = self.apply_filter(data, filter_type=calculation_type)
@@ -767,6 +782,7 @@ class Pulse:
                 energies. If False, the responses are used directly. The
                 default is True.
         """
+        self.clear_spectrum()
         # compute an estimate of the distribution function for the amplitude data
         calibration = self.loop.response_calibration
         if use_calibration:
@@ -791,7 +807,6 @@ class Pulse:
             self._spectrum["peak"] = peak_location
         else:
             self._spectrum["peak"] = np.nan
-        # assert pdf_max != 0 and peak_location != 0, "There was no distribution maximum!"
         # compute the FWHM
         pdf_approx_shifted = InterpolatedUnivariateSpline(x, pdf(x) - pdf_max / 2, k=3)
         roots = pdf_approx_shifted.roots()
