@@ -363,7 +363,7 @@ class Noise:
         self.qq_psd = np.mean(qq_psd, axis=0)
         self.iq_psd = np.mean(iq_psd, axis=0)
         # record n_samples for generate_noise()
-        self._n_samples = self.q_trace.shape[1]
+        self._n_samples = noise_kwargs['nperseg']
         try:
             # compute phase and amplitude noise in rad^2 / Hz
             _, pp_psd = welch(self.p_trace, **noise_kwargs)
@@ -434,7 +434,7 @@ class Noise:
         else:
             # compute square root of covariance
             psd = psd_00 if noise_type in ["p", "i"] else psd_11
-            a = self._n_samples * np.sqrt(psd) / (2 * dt)
+            a = np.sqrt(self._n_samples * psd / (2 * dt))
             # get unit amplitude random phase noise
             noise_phi = 2 * np.pi * np.random.rand(n_traces, f.size)
             noise_fft = np.exp(1j * noise_phi)  # n_traces x f.size
