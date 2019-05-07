@@ -28,6 +28,7 @@ class Noise:
         self._pp_psd = None
         self._aa_psd = None
         self._pa_psd = None
+        self._n_samples = None  # for generate_noise()
         # for holding large data
         self._npz = None
         self._directory = None
@@ -341,12 +342,16 @@ class Noise:
         Compute the noise power spectral density of the noise data in this object.
         Args:
             kwargs: optional keyword arguments
-                keywords for the scipy.signal.welch and scipy.signal.csd methods
+                keywords for the scipy.signal.welch and scipy.signal.csd
+                methods. The spectrum scaling and two-sided spectrum of the PSD
+                can not be changed since they are assumed in other methods.
         """
         # update keyword arguments
         noise_kwargs = {'nperseg': self.i_trace.shape[1], 'fs': self.sample_rate, 'return_onesided': True,
                         'detrend': 'constant', 'scaling': 'density'}
         noise_kwargs.update(kwargs)
+        assert noise_kwargs['scaling'] == 'density', "The PSD scaling is not an allowed keyword."
+        assert noise_kwargs['return_onesided'], "A two-sided PSD is not an allowed keyword."
         # compute I/Q noise in V^2 / Hz
         self.f_psd, ii_psd = welch(self.i_trace, **noise_kwargs)
         _, qq_psd = welch(self.q_trace, **noise_kwargs)
@@ -357,6 +362,8 @@ class Noise:
         self.ii_psd = np.mean(ii_psd, axis=0)
         self.qq_psd = np.mean(qq_psd, axis=0)
         self.iq_psd = np.mean(iq_psd, axis=0)
+        # record n_samples for generate_noise()
+        self._n_samples = self.q_trace.shape[1]
         try:
             # compute phase and amplitude noise in rad^2 / Hz
             _, pp_psd = welch(self.p_trace, **noise_kwargs)
@@ -368,6 +375,73 @@ class Noise:
             self.pa_psd = np.mean(pa_psd, axis=0)
         except AttributeError:
             pass
+
+    def generate_noise(self, noise_type="pa", n_traces=10000):
+        """
+        Generate fake noise traces from the computed PSDs.
+        Args:
+            noise_type: string
+                The type of noise to generate. Valid options are "pa", "p",
+                "a", "iq", "i", "q", which correspond to phase, amplitude, I,
+                and Q.
+            n_traces: integer
+                The number of noise traces to make.
+        Returns:
+            noise: np.ndarray
+                If noise_type == "pa" (or "iq"), a 2 x n_traces x N array of
+                noise is made where the first dimension is phase then
+                amplitude or (I then Q).
+                If noise_type == "p" or "a" or "i" or "q" a n_traces x N array
+                of noise is made.
+        """
+        # check parameters
+        noise_types = ["pa", "p", "a", "iq", "i", "q"]
+        if noise_type not in noise_types:
+            raise ValueError("'noise_type' is not in {}".format(noise_types))
+        # get constants
+        dt = 1 / self.sample_rate
+        f = self.f_psd
+        if noise_type in ["pa", "p", "a"]:
+            psd_00 = self.pp_psd
+            psd_01 = self.pa_psd
+            psd_11 = self.aa_psd
+        else:
+            psd_00 = self.ii_psd
+            psd_01 = self.iq_psd
+            psd_11 = self.qq_psd
+
+        if noise_type in ["pa", "iq"]:
+            # compute square root of covariance
+            c = np.array([[psd_00, psd_01],  # 2 x 2 x f.size
+                          [np.conj(psd_01), psd_11]])
+            c = np.moveaxis(c, 2, 0)  # f.size x 2 x 2
+            u, s, vh = np.linalg.svd(c)
+            s = np.array([[s[:, 0], np.zeros(s[:, 0].shape)],
+                          [np.zeros(s[:, 0].shape), s[:, 1]]])
+            s = np.moveaxis(s, -1, 0)
+            a = u @ np.sqrt(self._n_samples * s / (2 * dt)) @ vh  # divide by 2 for single sided noise
+            # get unit amplitude random phase noise in both quadratures
+            phase_phi = 2 * np.pi * np.random.rand(n_traces, f.size)
+            phase_fft = np.exp(1j * phase_phi)
+            amp_phi = 2 * np.pi * np.random.rand(n_traces, f.size)
+            amp_fft = np.exp(1j * amp_phi)
+            # rescale the noise to the covariance
+            noise_fft = np.array([[phase_fft],  # 2 x 1 x n_traces x f.size
+                                  [amp_fft]])
+            noise_fft = np.moveaxis(noise_fft, [0, 1], [-2, -1])  # n_traces x f.size x 2 x 1
+            noise_fft = (a @ noise_fft).squeeze()  # n_traces x f.size x 2
+            noise_fft = np.moveaxis(noise_fft, -1, 0)  # 2 x n_traces x f.size
+        else:
+            # compute square root of covariance
+            psd = psd_00 if noise_type in ["p", "i"] else psd_11
+            a = self._n_samples * np.sqrt(psd) / (2 * dt)
+            # get unit amplitude random phase noise
+            noise_phi = 2 * np.pi * np.random.rand(n_traces, f.size)
+            noise_fft = np.exp(1j * noise_phi)  # n_traces x f.size
+            # rescale the noise to the covariance
+            noise_fft = a * noise_fft
+        noise = np.fft.irfft(noise_fft, self._n_samples)
+        return noise
 
     def _set_directory(self, directory):
         self._directory = directory
