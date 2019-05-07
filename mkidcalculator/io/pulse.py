@@ -610,6 +610,8 @@ class Pulse:
         Args:
             calculation_type: string
                 Valid options are listed. The default is "optimal_filter".
+                Options that are Monte Carlo simulations are computationally
+                expensive and re-run on each call of pulse.variance().
                 "optimal_filter"
                     theoretical variance of the optimal filter.
                 "optimal_filter_mc"
