@@ -764,7 +764,7 @@ class Pulse:
         n_samples = self.p_trace.shape[1]
         peak_offset = 10
         data = np.array([self.p_trace, self.a_trace])
-        data -= self.mean(data, axis=-1, keepdims=True)
+        data -= np.mean(data, axis=-1, keepdims=True)
         # determine the mean of the trace prior to the pulse
         self._prepulse_mean = np.zeros(self.peak_indices.shape)
         for index, peak in enumerate(self.peak_indices):
