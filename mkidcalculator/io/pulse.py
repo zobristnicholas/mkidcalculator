@@ -632,32 +632,46 @@ class Pulse:
         if calculation_type == "optimal_filter":
             variance = self.optimal_filter_var
         elif calculation_type == "optimal_filter_mc":
+            # get noise traces
             noise = self.noise.generate_noise(noise_type="pa", n_traces=10000)
             # normalize the template for response = phase + amplitude
             template = self.template / np.abs(self.template[0].min() + self.template[1].min())
-            data = noise + 3 * np.std(noise, ddof=1) * template[:, np.newaxis, :]  # 3 sigma deviation
+            # make data traces
+            data = noise + np.pi / 2 * template[:, np.newaxis, :] + 1  # 90 degree pulse, 57 degree offset
+            # find responses by first baseline subtracting and then filtering
+            data -= np.mean(data, axis=-1, keepdims=True)
             filtered_data = self.apply_filter(data, filter_type="optimal_filter")
             responses = -filtered_data.min(axis=1)
+            # compute the variance
             variance = np.var(responses, ddof=1)
         elif calculation_type == "phase_filter":
             variance = self.p_filter_var
         elif calculation_type == "phase_filter_mc":
+            # get noise traces
             noise = self.noise.generate_noise(noise_type="p", n_traces=10000)
             # normalize the template for response = phase
             template = self.template[0, :] / np.abs(self.template[0].min())
-            data = noise + 3 * np.std(noise, ddof=1) * template  # 3 sigma deviation
+            # make data traces
+            data = noise + np.pi / 2 * np.std(noise, ddof=1) * template + 1  # 90 degree pulse, 57 degree offset
+            # find responses by first baseline subtracting and then filtering
+            data -= np.mean(data, axis=-1, keepdims=True)
             filtered_data = self.apply_filter(data, filter_type="phase_filter")
             responses = -filtered_data.min(axis=1)
+            # compute the variance
             variance = np.var(responses, ddof=1)
         elif calculation_type == "amplitude_filter":
             variance = self.a_filter_var
         elif calculation_type == "amplitude_filter_mc":
+            # get noise traces
             noise = self.noise.generate_noise(noise_type="a", n_traces=10000)
-            # normalize the template for response = phase
+            # normalize the template for response = amplitude
             template = self.template[1, :] / np.abs(self.template[1].min())
-            data = noise + 3 * np.std(noise, ddof=1) * template  # 3 sigma deviation
+            data = noise + np.pi / 2 * np.std(noise, ddof=1) * template + 1  # 90 degree pulse 57, degree offset
+            # find responses by first baseline subtracting and then filtering
+            data -= np.mean(data, axis=-1, keepdims=True)
             filtered_data = self.apply_filter(data, filter_type="amplitude_filter")
             responses = -filtered_data.min(axis=1)
+            # compute the variance
             variance = np.var(responses, ddof=1)
         else:
             raise ValueError("'{}' is not a valid calculation_type".format(calculation_type))
@@ -671,17 +685,23 @@ class Pulse:
         cleared when running this function.
         """
         if calculation_type == "optimal_filter":
-            data = self._remove_baseline(np.array([self.p_trace, self.a_trace]))
+            data = np.array([self.p_trace, self.a_trace])
+            # find responses by first baseline subtracting and then filtering
+            data -= np.mean(data, axis=-1, keepdims=True)
             filtered_data = self.apply_filter(data, filter_type=calculation_type)
             responses = -filtered_data.min(axis=1)
             peak_indices = np.argmin(filtered_data, axis=1)
         elif calculation_type == "phase_filter":
-            data = self._remove_baseline(self.p_trace)
+            data = self.p_trace.copy()
+            # find responses by first baseline subtracting and then filtering
+            data -= np.mean(data, axis=-1, keepdims=True)
             filtered_data = self.apply_filter(data, filter_type=calculation_type)
             responses = -filtered_data.min(axis=1)
             peak_indices = np.argmin(filtered_data, axis=1)
         elif calculation_type == "amplitude_filter":
-            data = self._remove_baseline(self.a_trace)
+            data = self.a_trace.copy()
+            # find responses by first baseline subtracting and then filtering
+            data -= np.mean(data, axis=-1, keepdims=True)
             filtered_data = self.apply_filter(data, filter_type=calculation_type)
             responses = -filtered_data.min(axis=1)
             peak_indices = np.argmin(filtered_data, axis=1)
@@ -743,8 +763,8 @@ class Pulse:
         """
         n_samples = self.p_trace.shape[1]
         peak_offset = 10
-        data = self._remove_baseline(np.array([self.p_trace, self.a_trace]))
-
+        data = np.array([self.p_trace, self.a_trace])
+        data -= self.mean(data, axis=-1, keepdims=True)
         # determine the mean of the trace prior to the pulse
         self._prepulse_mean = np.zeros(self.peak_indices.shape)
         for index, peak in enumerate(self.peak_indices):
@@ -766,9 +786,7 @@ class Pulse:
         # determine the minimum slope after the pulse peak
         self._postpulse_min_slope = np.zeros(self.peak_indices.shape)
         if smoothing:
-            p_trace = self.noise.p_trace
-            a_trace = self.noise.a_trace
-            sigma = np.std(self._remove_baseline(np.array([p_trace, a_trace])).sum(axis=0), ddof=1)
+            sigma = np.std(np.array([self.noise.p_trace, self.noise.a_trace]).sum(axis=0), ddof=1)
             for index, peak in enumerate(self.peak_indices):
                 if peak + 2 * peak_offset > n_samples - 1:
                     self._postpulse_min_slope[index] = -np.inf
@@ -980,6 +998,8 @@ class Pulse:
     def _remove_baseline(traces):
         """
         Remove the baseline from traces using the first 20% of the data.
+        Note: only use when averaging data together since this adds a lot of
+        variance to the pulse height.
         """
         ind = int(np.floor(traces.shape[-1] / 5))
         traces -= np.median(traces[..., :ind], axis=-1, keepdims=True)
