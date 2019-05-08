@@ -427,29 +427,13 @@ class Loop:
                 The interpolating spline degree. The default is 2.
         """
         # get energies and responses for the calibration
-        pulses = self.pulses if pulse_indices is None else itemgetter(*pulse_indices)(self.pulses)
-        responses = []
-        energies = []
-        for pulse in pulses:
-            energy = pulse.energies
-            if energy is None:
-                continue
-            try:
-                n_energy = len(energy)
-            except TypeError:
-                n_energy = 1
-                energy = [energy]
-            if n_energy == 1:
-                energies.append(energy[0])
-                response = np.median(pulse.responses[pulse.mask]) if use_mask else np.median(pulse.responses)
-                responses.append(response)
+        responses, energies = self._calibration_points(pulse_indices=pulse_indices, use_mask=use_mask,
+                                                       fix_zero=fix_zero)
         assert len(energies) >= 2, "There must be at least 2 pulse data sets with unique, known, single energy lines."
         # sort them by increasing response
         responses, energies = np.array(responses), np.array(energies)
         responses, indices = np.unique(responses, return_index=True)
         energies = energies[indices]
-        if fix_zero:
-            responses, energies = np.append(0, responses), np.append(0, energies)
         spline = InterpolatedUnivariateSpline(responses, energies, k=k)
         self.set_response_calibration(spline)
 
@@ -1432,6 +1416,27 @@ class Loop:
 
         figure.tight_layout()
         return axes
+
+    def _calibration_points(self, pulse_indices=None, use_mask=True, fix_zero=True):
+        pulses = self.pulses if pulse_indices is None else itemgetter(*pulse_indices)(self.pulses)
+        responses = []
+        energies = []
+        for pulse in pulses:
+            energy = pulse.energies
+            if energy is None:
+                continue
+            try:
+                n_energy = len(energy)
+            except TypeError:
+                n_energy = 1
+                energy = [energy]
+            if n_energy == 1:
+                energies.append(energy[0])
+                response = np.median(pulse.responses[pulse.mask]) if use_mask else np.median(pulse.responses)
+                responses.append(response)
+        if fix_zero:
+            responses, energies = np.append(0, responses), np.append(0, energies)
+        return responses, energies
 
     def _set_directory(self, directory):
         self._directory = directory
