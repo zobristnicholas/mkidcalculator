@@ -690,7 +690,7 @@ class Pulse:
                 result = response / (2 * np.sqrt(2 * np.log(2) * result))
             responses = None
         # Monte Carlo calculations
-        elif calculation_type in ["optimal_filter_mc", "phase_filter_mc", "amplitude_filter_mc", "test_", "test_med"]:
+        elif calculation_type in ["optimal_filter_mc", "phase_filter_mc", "amplitude_filter_mc"]:
             if calculation_type == "optimal_filter_mc":
                 # get noise traces
                 noise = self.noise.generate_noise(noise_type="pa", n_traces=10000)
