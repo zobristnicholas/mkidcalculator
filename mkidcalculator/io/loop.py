@@ -1331,7 +1331,59 @@ class Loop:
             axes.figure.tight_layout()
         return axes
 
+    def plot_response_calibration(self, pulse_indices=None, use_mask=True, fix_zero=True, axes=None):
+        """
+        Plot the response calibration.
+        Args:
+            pulse_indices: iterable of integers
+                Indices of pulse objects in loop.pulses to use for the
+                'true' points. The default is None and all pulses are used.
+            use_mask: boolean
+                Determines if the pulse mask is used to filter the pulse
+                responses used for the 'true' points. The default is True.
+            fix_zero: boolean
+                Determines if the zero point is added as a fixed point in the
+                for the 'true' points. The default is True.
+            axes: matplotlib.axes.Axes class
+                An Axes class on which to put the plot. The default is None and
+                a new figure is made.
+        Returns:
+            axes: matplotlib.axes.Axes class
+                An Axes class with the plotted calibration.
+        """
+        if not axes:
+            figure, axes = plt.subplots()
+        else:
+            figure = axes.figure
+        responses, energies = self._calibration_points(pulse_indices=pulse_indices, use_mask=use_mask,
+                                                       fix_zero=fix_zero)
+        xx = np.linspace(np.min(responses) * 0.8, np.max(responses) * 1.2, 1000)
+        axes.plot(xx, self.response_calibration(xx), label='calibration')
+        axes.plot(responses, energies, 'o', label='true')
+        axes.set_xlabel('response [radians]')
+        axes.set_ylabel('energy [eV]')
+        axes.legend()
+        figure.tight_layout()
+        return axes
+
     def plot_spectra(self, pulse_indices=None, x_limits=None, second_x_axis=False, axes=None):
+        """
+        Plot the spectrum of the pulse responses in the loop.
+        Args:
+            pulse_indices: iterable of integers
+                Indices of pulse objects in loop.pulses to include in the total
+                spectrum. The default is None and all pulses are used.
+            x_limits: length 2 iterable of floats
+                Bounds on the x-axis
+            second_x_axis: boolean
+                If True, a second x-axis is plotted below the first with the
+                wavelength values. The default is False.
+            axes: matplotlib.axes.Axes class
+                An axes class for plotting the data.
+        Returns:
+            axes: matplotlib.axes.Axes class
+                An axes class with the plotted data.
+        """
         # get the figure axes
         if not axes:
             figure, axes = plt.subplots()
@@ -1354,29 +1406,35 @@ class Loop:
         min_bandwidth = np.inf
         for pulse in pulses:
             try:
+                bandwidth = pulse.spectrum["bandwidth"]
                 norms.append(pulse.spectrum["energies"].size)
                 energies.append(pulse.spectrum["energies"])
-                min_bandwidth = pulse.spectrum["bandwidth"] if pulse.spectrum["bandwidth"] < min_bandwidth else min_bandwidth
+                min_bandwidth = bandwidth if bandwidth < min_bandwidth else min_bandwidth
             except AttributeError:
                 pass
         energies = np.concatenate(energies)
         max_energy, min_energy = energies.max(), energies.min()
-        n_bins = 5 * int((max_energy - min_energy) / min_bandwidth)
+        n_bins = 10 * int((max_energy - min_energy) / min_bandwidth)
         axes.hist(energies, n_bins, density=True)
 
         # plot the PDFs
         label = ""
+        calibrated = False
         for index, pulse in enumerate(pulses):
             # get the needed data from the spectrum dictionary
             pdf = pulse.spectrum["pdf"]
             bandwidth = pulse.spectrum["bandwidth"]
+            calibrated = pulse.spectrum["calibrated"]
             # use the known energy if possible
-            peak = pulse.energies[0] if len(pulse.energies) == 1 and self.spectrum["calibrated"] else self.spectrum["peak"]
+            peak = pulse.energies[0] if len(pulse.energies) == 1 and calibrated else pulse.spectrum["peak"]
             fwhm = pulse.spectrum["fwhm"]
             # plot the data
-            n_bins = 5 * int((max_energy - min_energy) / bandwidth)
-            xx = np.linspace(min_energy, max_energy,  n_bins)
-            label = "{:.0f} nm: R = {:.2f}".format(ev_nm_convert(pulse.energies[0]), peak / fwhm) if not np.isnan(peak) and not np.isnan(fwhm) else ""
+            n_bins = 10 * int((max_energy - min_energy) / bandwidth)
+            xx = np.linspace(min_energy, max_energy,  10 * n_bins)
+            if not np.isnan(peak) and not np.isnan(fwhm):
+                label = "{:.0f} nm: R = {:.2f}".format(ev_nm_convert(pulse.energies[0]), peak / fwhm)
+            else:
+                label = ""
             axes.plot(xx, norms[index] * pdf(xx) / np.sum(norms), label=label)
 
         # set x axis limits
@@ -1386,7 +1444,7 @@ class Loop:
             axes.set_xlim([min_energy, max_energy])
 
         # format figure
-        axes.set_xlabel('energy [eV]')
+        axes.set_xlabel('energy [eV]') if calibrated else axes.set_xlabel("response [radians]")
         axes.set_ylabel('probability density')
         if label:
             axes.legend()
