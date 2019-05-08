@@ -1178,6 +1178,7 @@ class Pulse:
         pdf = self.spectrum["pdf"]
         energies = self.spectrum["energies"]
         bandwidth = self.spectrum["bandwidth"]
+        calibrated = self.spectrum["calibrated"]
         # use the known energy if possible
         peak = self.energies[0] if len(self.energies) == 1 and self.spectrum["calibrated"] else self.spectrum["peak"]
         fwhm = self.spectrum["fwhm"]
@@ -1204,7 +1205,7 @@ class Pulse:
             axes.set_xlim([min_energy, max_energy])
 
         # format figure
-        axes.set_xlabel('energy [eV]')
+        axes.set_xlabel('energy [eV]') if calibrated else axes.set_xlabel("response [radians]")
         axes.set_ylabel('probability density')
         if label:
             axes.legend()
