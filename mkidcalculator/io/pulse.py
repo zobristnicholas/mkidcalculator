@@ -603,7 +603,8 @@ class Pulse:
         norm = sg.convolve(self.a_filter, template, mode='same').max()
         self._a_filter /= norm
 
-    def variance(self, calculation_type="optimal_filter"):
+    def performance(self, calculation_type="optimal_filter", mode="variance", response=1.5, baseline=(1, .1),
+                    distribution=False):
         """
         Return the expected variance for a particular response calculation
         type.
@@ -613,69 +614,132 @@ class Pulse:
                 Options that are Monte Carlo simulations are computationally
                 expensive and re-run on each call of pulse.variance().
                 "optimal_filter"
-                    theoretical variance of the optimal filter.
+                    Theoretical two dimensional optimal filter performance.
                 "optimal_filter_mc"
-                    variance computed from a Monte Carlo simulation using the
-                    optimal filter.
+                    Monte Carlo simulation of the two dimensional optimal
+                    filter performance.
                 "phase_filter"
-                    theoretical variance of the phase filter.
+                    Theoretical phase optimal filter performance.
                 "phase_filter_mc"
-                    variance computed from a Monte Carlo simulation using the
-                    phase filter.
+                    Monte Carlo simulation of the phase optimal filter
+                    performance.
                 "amplitude_filter"
-                    theoretical variance of the amplitude filter.
+                    Theoretical amplitude optimal filter performance.
                 "amplitude_filter_mc"
-                    variance computed from a Monte Carlo simulation using the
-                    amplitude filter.
+                    Monte Carlo simulation of the amplitude optimal filter
+                    performance.
+            mode: string
+                Valid options are listed below the default is "variance".
+                "variance"
+                    The variance in the response estimation. The returned value
+                    should be independent of the response and baseline keywords
+                    for the non-Monte Carlo methods.
+                "fwhm"
+                    The full width half max of the response estimation. The
+                    returned value should  be independent of the response and
+                    baseline keywords for the non-Monte Carlo methods. A
+                    gaussian relationship between the variance and fwhm is
+                    assumed for non-Monte Carlo methods.
+                "resolving_power"
+                    The resolving power of the response estimation defined as
+                    the mean response / the resolution. The mean response may
+                    differ from the requested response due to bias in the
+                    calculation type if a Monte Carlo method is being used.
+            response: float
+                The combined phase and amplitude response in radians to use in
+                the calculation. This is only used in Monte Carlo methods and
+                for computing the resolving power. The default is 1.
+            baseline: float or iterable of two floats
+                The baseline of the photon response. This is only used in Monte
+                Carlo methods. If a tuple, it corresponds to (phase baseline,
+                amplitude baseline). Otherwise, both are assumed to be the
+                same. The default is (1, .1).
+            distribution: bool
+                Determines if the detector responses are returned as well. This
+                is only allowed if the calculation was a Monte Carlo method.
+        Returns:
+            result: float
+                Either the variance, resolution, or resolving power of the
+                calculation type.
+            responses: numpy.ndarray
+                The responses used to calculate the result. This is only
+                available for Monte Carlo calculation types and if
+                distribution is True.
         """
-        # calculate the variance for requested calculation type
-        if calculation_type == "optimal_filter":
-            variance = self.optimal_filter_var
-        elif calculation_type == "optimal_filter_mc":
-            # get noise traces
-            noise = self.noise.generate_noise(noise_type="pa", n_traces=10000)
-            # normalize the template for response = phase + amplitude
-            template = self.template / np.abs(self.template[0].min() + self.template[1].min())
-            # make data traces
-            data = noise + np.pi / 2 * template[:, np.newaxis, :] + 1  # 90 degree pulse, 57 degree offset
-            # find responses by first baseline subtracting and then filtering
-            data -= np.mean(data, axis=-1, keepdims=True)
-            filtered_data = self.apply_filter(data, filter_type="optimal_filter")
-            responses = -filtered_data.min(axis=1)
-            # compute the variance
-            variance = np.var(responses, ddof=1)
-        elif calculation_type == "phase_filter":
-            variance = self.p_filter_var
-        elif calculation_type == "phase_filter_mc":
-            # get noise traces
-            noise = self.noise.generate_noise(noise_type="p", n_traces=10000)
-            # normalize the template for response = phase
-            template = self.template[0, :] / np.abs(self.template[0].min())
-            # make data traces
-            data = noise + np.pi / 2 * np.std(noise, ddof=1) * template + 1  # 90 degree pulse, 57 degree offset
-            # find responses by first baseline subtracting and then filtering
-            data -= np.mean(data, axis=-1, keepdims=True)
-            filtered_data = self.apply_filter(data, filter_type="phase_filter")
-            responses = -filtered_data.min(axis=1)
-            # compute the variance
-            variance = np.var(responses, ddof=1)
-        elif calculation_type == "amplitude_filter":
-            variance = self.a_filter_var
-        elif calculation_type == "amplitude_filter_mc":
-            # get noise traces
-            noise = self.noise.generate_noise(noise_type="a", n_traces=10000)
-            # normalize the template for response = amplitude
-            template = self.template[1, :] / np.abs(self.template[1].min())
-            data = noise + np.pi / 2 * np.std(noise, ddof=1) * template + 1  # 90 degree pulse 57, degree offset
-            # find responses by first baseline subtracting and then filtering
-            data -= np.mean(data, axis=-1, keepdims=True)
-            filtered_data = self.apply_filter(data, filter_type="amplitude_filter")
-            responses = -filtered_data.min(axis=1)
-            # compute the variance
-            variance = np.var(responses, ddof=1)
+        # check inputs
+        if mode not in ["variance", "fwhm", "resolving_power"]:
+            raise ValueError("'{}' is not a valid mode argument".format(mode))
+        baseline = np.atleast_1d(baseline)
+        if baseline.size == 1:
+            baseline = np.ones(2) * baseline
+        elif baseline.size != 2:
+            raise ValueError("The baseline keyword must be a number or have length 2.")
+        # theory calculations
+        if calculation_type in ["optimal_filter", "phase_filter", "amplitude_filter"]:
+            if calculation_type == "optimal_filter":
+                result = self.optimal_filter_var
+            elif calculation_type == "phase_filter":
+                result = self.p_filter_var
+                response *= np.abs(self.template[0].min() / (self.template[0].min() + self.template[1].min()))
+            else:
+                result = self.a_filter_var
+                response *= np.abs(self.template[1].min() / (self.template[0].min() + self.template[1].min()))
+            if mode == 'fwhm':
+                result = 2 * np.sqrt(2 * np.log(2) * result)
+            elif mode == 'resolving_power':
+                result = response / (2 * np.sqrt(2 * np.log(2) * result))
+            responses = None
+        # Monte Carlo calculations
+        elif calculation_type in ["optimal_filter_mc", "phase_filter_mc", "amplitude_filter_mc", "test_", "test_med"]:
+            if calculation_type == "optimal_filter_mc":
+                # get noise traces
+                noise = self.noise.generate_noise(noise_type="pa", n_traces=10000)
+                # normalize the template for response = phase + amplitude
+                template = self.template / np.abs(self.template[0].min() + self.template[1].min())
+                # make data traces
+                data = noise + response * template[:, np.newaxis, :] + baseline[:, np.newaxis, np.newaxis]
+                # find responses by first baseline subtracting and then filtering
+                data -= np.mean(data, axis=-1, keepdims=True)
+                filtered_data = self.apply_filter(data, filter_type="optimal_filter")
+                responses = -filtered_data.min(axis=1)
+            elif calculation_type == "phase_filter_mc":
+                # get noise traces
+                noise = self.noise.generate_noise(noise_type="p", n_traces=10000)
+                # normalize the template for response = phase + amplitude
+                template = self.template[0] / np.abs(self.template[0].min() + self.template[1].min())
+                # make data traces
+                data = noise + response * template + baseline[0]
+                # find responses by first baseline subtracting and then filtering
+                data -= np.mean(data, axis=-1, keepdims=True)
+                filtered_data = self.apply_filter(data, filter_type="phase_filter")
+                responses = -filtered_data.min(axis=1)
+            else:
+                # get noise traces
+                noise = self.noise.generate_noise(noise_type="a", n_traces=10000)
+                # normalize the template for response = phase + amplitude
+                template = self.template[1] / np.abs(self.template[0].min() + self.template[1].min())
+                data = noise + response * template + baseline[1]
+                # find responses by first baseline subtracting and then filtering
+                data -= np.mean(data, axis=-1, keepdims=True)
+                filtered_data = self.apply_filter(data, filter_type="amplitude_filter")
+                responses = -filtered_data.min(axis=1)
+            # compute the result
+            if mode == 'variance':
+                result = np.var(responses, ddof=1)
+            elif mode == 'fwhm':
+                result, _, _, _, = self._compute_fwhm(responses)
+            else:
+                fwhm, _, _, _, = self._compute_fwhm(responses)
+                result = np.mean(responses) / fwhm
         else:
             raise ValueError("'{}' is not a valid calculation_type".format(calculation_type))
-        return variance
+        # return results
+        if distribution:
+            if responses is None:
+                raise ValueError("The distribution can not be returned for non-Monte Carlo methods.")
+            return result, responses
+        else:
+            return result
 
     def compute_responses(self, calculation_type="optimal_filter"):
         """
@@ -858,7 +922,7 @@ class Pulse:
         logic = self._postpulse_min_slope < minimum
         self.mask[logic] = False
 
-    def compute_spectrum(self, use_mask=True, use_calibration=True):
+    def compute_spectrum(self, use_mask=True, use_calibration=True, **kwargs):
         """
         Compute the spectrum of the pulse data. The result is stored in
         pulse.spectrum.
@@ -870,21 +934,29 @@ class Pulse:
                 Use the response calibration in pulse.loop to calculate the
                 energies. If False, the responses are used directly. The
                 default is True.
+            kwargs: optional keyword arguments
+                Optional arguments to scipy.stats.gaussian_kde
         """
         self.clear_spectrum()
         # compute an estimate of the distribution function for the amplitude data
-        calibration = self.loop.response_calibration
         if use_calibration:
+            calibration = self.loop.response_calibration
             energies = calibration(self.responses[self.mask]) if use_mask else calibration(self.responses)
         else:
             energies = self.responses[self.mask] if use_mask else self.responses
-        pdf = gaussian_kde(energies) if use_mask else gaussian_kde(energies)
+
+        fwhm, peak, pdf, pdf_interp = self._compute_fwhm(energies, **kwargs)
+        self._spectrum = {"pdf": pdf, "interpolation": pdf_interp, "energies": energies, "calibrated": use_calibration,
+                          "bandwidth": pdf.factor, "fwhm": fwhm, "peak": peak}
+
+    @staticmethod
+    def _compute_fwhm(energies, **kwargs):
+        pdf = gaussian_kde(energies, **kwargs)
         maximum, minimum = energies.max(), energies.min()
         x = np.linspace(minimum, maximum, int(10 * (maximum - minimum) / pdf.factor))  # sample at 10x the bandwidth
         # convert to a spline so that we can robustly compute the FWHM and maximum later
+        # noinspection PyArgumentList
         pdf_interp = InterpolatedUnivariateSpline(x, pdf(x), k=3)
-        self._spectrum = {"pdf": pdf, "interpolation": pdf_interp, "energies": energies, "calibrated": use_calibration,
-                          "bandwidth": pdf.factor}
         # compute the maximum of the distribution
         pdf_max = 0
         peak_location = 0
@@ -892,20 +964,20 @@ class Pulse:
             if pdf_interp(root) > pdf_max:
                 pdf_max = pdf_interp(root)
                 peak_location = root.item()
-        if pdf_max != 0 and peak_location != 0:
-            self._spectrum["peak"] = peak_location
-        else:
-            self._spectrum["peak"] = np.nan
+        peak = peak_location if pdf_max != 0 and peak_location != 0 else np.nan
         # compute the FWHM
+        # noinspection PyArgumentList
         pdf_approx_shifted = InterpolatedUnivariateSpline(x, pdf(x) - pdf_max / 2, k=3)
+
         roots = pdf_approx_shifted.roots()
         if roots.size >= 2 and pdf_max != 0 and peak_location != 0:
             # assert roots.size >= 2, "The distribution doesn't have a FWHM."
             indices = np.argsort(np.abs(roots - peak_location))
             roots = roots[indices[:2]]
-            self._spectrum["fwhm"] = roots.max() - roots.min()
+            fwhm = roots.max() - roots.min()
         else:
-            self._spectrum["fwhm"] = np.nan
+            fwhm = np.nan
+        return fwhm, peak, pdf, pdf_interp
 
     def _set_directory(self, directory):
         self._directory = directory
@@ -1200,7 +1272,7 @@ class Pulse:
         bandwidth = self.spectrum["bandwidth"]
         calibrated = self.spectrum["calibrated"]
         # use the known energy if possible
-        peak = self.energies[0] if len(self.energies) == 1 and self.spectrum["calibrated"] else self.spectrum["peak"]
+        peak = self.energies[0] if len(self.energies) == 1 and calibrated else self.spectrum["peak"]
         fwhm = self.spectrum["fwhm"]
         min_energy = energies.min()
         max_energy = energies.max()
@@ -1214,7 +1286,7 @@ class Pulse:
         # plot the data
         n_bins = 10 * int((max_energy - min_energy) / bandwidth)
         axes.hist(energies, n_bins, density=True)
-        xx = np.linspace(min_energy, max_energy, n_bins)
+        xx = np.linspace(min_energy, max_energy, 10 * n_bins)
         label = "R = {:.2f}".format(peak / fwhm) if not np.isnan(peak) and not np.isnan(fwhm) else ""
         axes.plot(xx, pdf(xx), 'k-', label=label)
 
