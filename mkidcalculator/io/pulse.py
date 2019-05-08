@@ -340,8 +340,8 @@ class Pulse:
         """
         Remove all trace data calculated from pulse.i_trace and pulse.q_trace.
         """
-        self.a_trace = None
-        self.p_trace = None
+        self._a_trace = None
+        self._p_trace = None
         self.free_memory()
         self._npz = None
 
@@ -354,7 +354,7 @@ class Pulse:
         Clear the template made with pulse.make_template() and reset the
         traces used to make the template.
         """
-        self.template = None
+        self._template = None
         self.clear_filters()
         self.clear_responses()  # all responses come from template so they are cleared if the template changes
 
@@ -378,7 +378,7 @@ class Pulse:
         self._postpulse_min_slope = None
         self._prepulse_rms = None
         self._prepulse_mean = None
-        self.responses = None
+        self._responses = None
         self.clear_spectrum()
 
     def clear_peak_indices(self):
@@ -389,7 +389,7 @@ class Pulse:
         self._postpulse_min_slope = None
         self._prepulse_rms = None
         self._prepulse_mean = None
-        self.peak_indices = None
+        self._peak_indices = None
         self.clear_spectrum()
 
     def clear_spectrum(self):
