@@ -6,7 +6,7 @@ import warnings
 import numpy as np
 import numpy.fft as fft
 import numpy.linalg as la
-from scipy import signal as sg
+from scipy.ndimage import convolve1d
 from scipy.stats import gaussian_kde
 from scipy.interpolate import UnivariateSpline, InterpolatedUnivariateSpline
 from matplotlib import pyplot as plt
@@ -566,7 +566,7 @@ class Pulse:
         template_fft = fft.rfft(template)
         # compute the optimal filter: conj(template_fft) @ s_inv (single sided)
         filter_fft = np.zeros(shape, dtype=np.complex)
-        for index in range(shape[1]):
+        for index in range(1, shape[1]):
             filter_fft[:, index] = la.lstsq(s[:, :, index].T, np.conj(template_fft[:, index]), rcond=None)[0]
         # return to time domain
         self._optimal_filter = fft.irfft(filter_fft, n_samples)
@@ -575,8 +575,7 @@ class Pulse:
         t_fft = template_fft[..., np.newaxis].transpose(1, 0, 2)
         self._optimal_filter_var = (sample_rate * n_samples / (4 * np.sum(f_fft @ t_fft).real))
         # normalize the optimal filter to unit response on the template
-        norm = (sg.convolve(self.optimal_filter[0], template[0], mode='same') +
-                sg.convolve(self.optimal_filter[1], template[1], mode='same')).max()
+        norm = self.apply_filter(template, filter_type="optimal_filter").max()
         self._optimal_filter /= norm
 
         # normalize the template for response = phase
@@ -584,11 +583,12 @@ class Pulse:
         template_fft = fft.rfft(template)
         # compute the phase only optimal filter: conj(phase_fft) / s (single sided)
         phase_filter_fft = np.conj(template_fft) / self.noise.pp_psd
+        phase_filter_fft[0] = 0
         self._p_filter = fft.irfft(phase_filter_fft, n_samples)
         # compute the variance with the un-normalized filter
         self._p_filter_var = (sample_rate * n_samples / (4 * (phase_filter_fft @ template_fft).real))
         # normalize
-        norm = sg.convolve(self.p_filter, self.template[0], mode='same').max()
+        norm = self.apply_filter(template, filter_type="phase_filter").max()
         self._p_filter /= norm
 
         # normalize the template for response = amplitude
@@ -596,11 +596,12 @@ class Pulse:
         template_fft = fft.rfft(template)
         # compute the amplitude only optimal filter: conj(amplitude_fft) / s (single sided)
         amplitude_filter_fft = np.conj(template_fft) / self.noise.aa_psd
+        amplitude_filter_fft[0] = 0
         self._a_filter = fft.irfft(amplitude_filter_fft, n_samples)
         # compute the variance with the un-normalized filter
         self._a_filter_var = (sample_rate * n_samples / (4 * (amplitude_filter_fft @ template_fft).real))
         # normalize
-        norm = sg.convolve(self.a_filter, template, mode='same').max()
+        norm = self.apply_filter(template, filter_type="amplitude_filter").max()
         self._a_filter /= norm
 
     def performance(self, calculation_type="optimal_filter", mode="variance", response=1.5, baseline=(1, .1),
@@ -698,10 +699,8 @@ class Pulse:
                 template = self.template / np.abs(self.template[0].min() + self.template[1].min())
                 # make data traces
                 data = noise + response * template[:, np.newaxis, :] + baseline[:, np.newaxis, np.newaxis]
-                # find responses by first baseline subtracting and then filtering
-                data -= np.mean(data, axis=-1, keepdims=True)
-                filtered_data = self.apply_filter(data, filter_type="optimal_filter")
-                responses = -filtered_data.min(axis=1)
+                # compute the responses
+                responses, _ = self.compute_responses(calculation_type="optimal_filter", data=data)
             elif calculation_type == "phase_filter_mc":
                 # get noise traces
                 noise = self.noise.generate_noise(noise_type="p", n_traces=10000)
@@ -709,20 +708,16 @@ class Pulse:
                 template = self.template[0] / np.abs(self.template[0].min() + self.template[1].min())
                 # make data traces
                 data = noise + response * template + baseline[0]
-                # find responses by first baseline subtracting and then filtering
-                data -= np.mean(data, axis=-1, keepdims=True)
-                filtered_data = self.apply_filter(data, filter_type="phase_filter")
-                responses = -filtered_data.min(axis=1)
+                # compute the responses
+                responses, _ = self.compute_responses(calculation_type="phase_filter", data=data)
             else:
                 # get noise traces
                 noise = self.noise.generate_noise(noise_type="a", n_traces=10000)
                 # normalize the template for response = phase + amplitude
                 template = self.template[1] / np.abs(self.template[0].min() + self.template[1].min())
                 data = noise + response * template + baseline[1]
-                # find responses by first baseline subtracting and then filtering
-                data -= np.mean(data, axis=-1, keepdims=True)
-                filtered_data = self.apply_filter(data, filter_type="amplitude_filter")
-                responses = -filtered_data.min(axis=1)
+                # compute the responses
+                responses, _ = self.compute_responses(calculation_type="amplitude_filter", data=data)
             # compute the result
             if mode == 'variance':
                 result = np.var(responses, ddof=1)
@@ -741,76 +736,69 @@ class Pulse:
         else:
             return result
 
-    def compute_responses(self, calculation_type="optimal_filter"):
+    def compute_responses(self, calculation_type="optimal_filter", data=None):
         """
         Compute the detector response responses and peak indices using a
         particular calculation method. The results are stored in
-        pulse.responses and pulse.peak_indices. The mask information is
-        cleared when running this function.
+        pulse.responses and pulse.peak_indices if data is not None.
+        Args:
+            calculation_type: string
+                The calculation type used to compute the responses. Valid
+                options are listed below. The default is "optimal_filter".
+                "optimal_filter"
+                "phase_filter"
+                "amplitude_filter"
+            data: numpy.ndarray
+                A numpy array for which to compute responses. The data must
+                be in the shape specified by pulse.apply_filter for the given
+                calculation type. The responses and peak indices are returned
+                instead of saved to the object if data is not None. None is the
+                default.
+        Returns:
+             responses: numpy.ndarray
+                The response in radians for each trace.
+             peak_indices: numpy.ndarray
+                The response arrival time index for each trace.
         """
+        save_values = data is None
         if calculation_type == "optimal_filter":
-            data = np.array([self.p_trace, self.a_trace])
-            # find responses by first baseline subtracting and then filtering
-            data -= np.mean(data, axis=-1, keepdims=True)
+            if data is None:
+                data = np.array([self.p_trace, self.a_trace])
             filtered_data = self.apply_filter(data, filter_type=calculation_type)
-            responses = -filtered_data.min(axis=1)
+            responses = filtered_data.max(axis=1)
             peak_indices = np.argmin(filtered_data, axis=1)
         elif calculation_type == "phase_filter":
-            data = self.p_trace.copy()
-            # find responses by first baseline subtracting and then filtering
-            data -= np.mean(data, axis=-1, keepdims=True)
+            if data is None:
+                data = self.p_trace
             filtered_data = self.apply_filter(data, filter_type=calculation_type)
-            responses = -filtered_data.min(axis=1)
+            responses = filtered_data.max(axis=1)
             peak_indices = np.argmin(filtered_data, axis=1)
         elif calculation_type == "amplitude_filter":
-            data = self.a_trace.copy()
-            # find responses by first baseline subtracting and then filtering
-            data -= np.mean(data, axis=-1, keepdims=True)
+            if data is None:
+                data = self.a_trace
             filtered_data = self.apply_filter(data, filter_type=calculation_type)
-            responses = -filtered_data.min(axis=1)
+            responses = filtered_data.max(axis=1)
             peak_indices = np.argmin(filtered_data, axis=1)
         else:
             raise ValueError("'{}' is not a valid calculation_type".format(calculation_type))
-        self.responses = responses
-        self.peak_indices = peak_indices
+        if save_values:
+            self.responses = responses
+            self.peak_indices = peak_indices
+        return responses, peak_indices
 
     def apply_filter(self, data, filter_type="optimal_filter"):
         """
-        Method for convolving the two dimensional filter with the data. The data can
-        either be a 2xN matrix or a 2xMxN matrix where N is the trace length and M is the
-        number of traces.
+        Method for convolving the filters with the data. For the 2D filter the
+        first axis must be for the phase and amplitude. The filter is applied
+        to the last axis.
         """
         if filter_type == "optimal_filter":
-            if data.shape == self.optimal_filter.shape:
-                result = -(sg.convolve(self.optimal_filter[0], data[0], mode='same') +
-                           sg.convolve(self.optimal_filter[1], data[1], mode='same'))
-            elif len(data.shape) == 3 and data.shape[0] == 2 and data.shape[2] == len(self.optimal_filter[0]):
-                result = np.empty(data.shape[1:])
-                for index in range(data.shape[1]):
-                    result[index, :] = -(sg.convolve(self.optimal_filter[0], data[0, index, :], mode='same') +
-                                         sg.convolve(self.optimal_filter[1], data[1, index, :], mode='same'))
-            else:
-                raise ValueError("data needs to be a 2 x N x M array (last dimension optional)")
+            result = (convolve1d(data[0], self.optimal_filter[0], mode='wrap') +
+                      convolve1d(data[1], self.optimal_filter[1], mode='wrap'))
         elif filter_type == "phase_filter":
-            if data.shape == self.p_filter.shape:
-                result = -sg.convolve(self.p_filter, data, mode='same')
-            elif len(data.shape) == 2 and data.shape[1] == len(self.p_filter):
-                result = np.empty(data.shape)
-                for index in range(data.shape[0]):
-                    result[index, :] = -sg.convolve(self.p_filter, data[index, :], mode='same')
-            else:
-                raise ValueError("data needs to be a 1 or 2D array with the last dimension "
-                                 "equal in length to the filter length")
+            result = convolve1d(data, self.p_filter, mode='wrap')
         elif filter_type == "amplitude_filter":
-            if data.shape == self.a_filter.shape:
-                result = -sg.convolve(self.a_filter, data, mode='same')
-            elif len(data.shape) == 2 and data.shape[1] == len(self.a_filter):
-                result = np.empty(data.shape)
-                for index in range(data.shape[0]):
-                    result[index, :] = -sg.convolve(self.a_filter, data[index, :], mode='same')
-            else:
-                raise ValueError("data needs to be a 1 or 2D array with the last dimension "
-                                 "equal in length to the filter length")
+            result = convolve1d(data, self.a_filter, mode='wrap')
         else:
             raise ValueError("'{}' is not a valid calculation_type".format(filter_type))
         return result
@@ -998,7 +986,7 @@ class Pulse:
         threshold is the number of standard deviations to put the threshold cut.
         """
         if use_filter:
-            data = np.array([self._p_trace_filtered, self._traces[1]])
+            data = np.array([-self._p_trace_filtered, self._traces[1]])
         else:
             data = self._traces
         # Compute the median average deviation use that to calculate the standard
@@ -1025,7 +1013,7 @@ class Pulse:
         Correct for trigger offsets.
         """
         # pull out filtered data
-        data = np.array([self._p_trace_filtered, self._traces[1]])
+        data = np.array([-self._p_trace_filtered, self._traces[1]])
 
         # define frequency vector
         f = fft.rfftfreq(len(data[0, 0, :]))
