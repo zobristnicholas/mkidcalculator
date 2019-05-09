@@ -764,19 +764,19 @@ class Pulse:
                 data = np.array([self.p_trace, self.a_trace])
             filtered_data = self.apply_filter(data, filter_type=calculation_type)
             responses = filtered_data.max(axis=1)
-            peak_indices = np.argmin(filtered_data, axis=1)
+            peak_indices = np.argmax(filtered_data, axis=1)
         elif calculation_type == "phase_filter":
             if data is None:
                 data = self.p_trace
             filtered_data = self.apply_filter(data, filter_type=calculation_type)
             responses = filtered_data.max(axis=1)
-            peak_indices = np.argmin(filtered_data, axis=1)
+            peak_indices = np.argmax(filtered_data, axis=1)
         elif calculation_type == "amplitude_filter":
             if data is None:
                 data = self.a_trace
             filtered_data = self.apply_filter(data, filter_type=calculation_type)
             responses = filtered_data.max(axis=1)
-            peak_indices = np.argmin(filtered_data, axis=1)
+            peak_indices = np.argmax(filtered_data, axis=1)
         else:
             raise ValueError("'{}' is not a valid calculation_type".format(calculation_type))
         if save_values:
