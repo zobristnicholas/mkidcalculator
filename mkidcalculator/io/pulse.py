@@ -300,6 +300,7 @@ class Pulse:
 
     @mask.setter
     def mask(self, mask):
+        self.clear_mask()
         self._mask = mask
 
     @property
@@ -333,21 +334,19 @@ class Pulse:
 
     def clear_loop_data(self):
         """Remove all data calculated from the pulse.loop attribute."""
-        self.clear_traces()
-        self.clear_template()
-
-    def clear_traces(self):
-        """
-        Remove all trace data calculated from pulse.i_trace and pulse.q_trace.
-        """
         self._a_trace = None
         self._p_trace = None
-        self.free_memory()
         self._npz = None
+        self._postpulse_min_slope = None
+        self._prepulse_rms = None
+        self._prepulse_mean = None
+        self.clear_mask()
+        self.clear_template()
+        self.free_memory()
 
     def clear_noise_data(self):
         """Remove all data calculated from the pulse.noise attribute."""
-        self.clear_template()
+        self.clear_filters()
 
     def clear_template(self):
         """
@@ -356,7 +355,6 @@ class Pulse:
         """
         self._template = None
         self.clear_filters()
-        self.clear_responses()  # all responses come from template so they are cleared if the template changes
 
     def clear_filters(self):
         """
@@ -369,15 +367,19 @@ class Pulse:
         self._p_filter_var = None
         self._a_filter = None
         self._a_filter_var = None
+        self.clear_responses()
+        self.clear_peak_indices()
+
+    def clear_mask(self):
+        """
+        Clear all mask data.
+        """
+        self._mask = None
 
     def clear_responses(self):
         """
         Clear the response data and any mask information associated with it.
         """
-        self.mask = None
-        self._postpulse_min_slope = None
-        self._prepulse_rms = None
-        self._prepulse_mean = None
         self._responses = None
         self.clear_spectrum()
 
@@ -385,10 +387,6 @@ class Pulse:
         """
         Clear the peak indices and any mask information associated with it.
         """
-        self.mask = None
-        self._postpulse_min_slope = None
-        self._prepulse_rms = None
-        self._prepulse_mean = None
         self._peak_indices = None
         self.clear_spectrum()
 
@@ -1227,6 +1225,8 @@ class Pulse:
                 Use the pulse.mask to determine which traces to plot metrics for.
                 The default is True.
         """
+        if self._prepulse_mean is None or self._prepulse_rms is None or self._postpulse_min_slope is None:
+            raise AttributeError("Data metrics have not been computed yet.")
         if use_mask:
             metrics = np.vstack([self.peak_indices[self.mask], self._prepulse_mean[self.mask],
                                  self._prepulse_rms[self.mask], self._postpulse_min_slope[self.mask]]).T
