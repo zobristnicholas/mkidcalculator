@@ -334,13 +334,19 @@ class Pulse:
 
     def clear_loop_data(self):
         """Remove all data calculated from the pulse.loop attribute."""
+        self.clear_traces()
+        self.clear_mask()
+
+    def clear_traces(self):
+        """
+        Remove all trace data calculated from pulse.i_trace and pulse.q_trace.
+        """
         self._a_trace = None
         self._p_trace = None
         self._npz = None
         self._postpulse_min_slope = None
         self._prepulse_rms = None
         self._prepulse_mean = None
-        self.clear_mask()
         self.clear_template()
         self.free_memory()
 
