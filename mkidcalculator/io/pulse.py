@@ -6,7 +6,7 @@ import warnings
 import numpy as np
 import numpy.fft as fft
 import numpy.linalg as la
-from scipy.ndimage import convolve1d
+from scipy.signal import fftconvolve
 from scipy.stats import gaussian_kde
 from scipy.interpolate import UnivariateSpline, InterpolatedUnivariateSpline
 from matplotlib import pyplot as plt
@@ -581,7 +581,7 @@ class Pulse:
         template_fft = fft.rfft(template)
         # compute the phase only optimal filter: conj(phase_fft) / s (single sided)
         phase_filter_fft = np.conj(template_fft) / self.noise.pp_psd
-        phase_filter_fft[0] = 0
+        phase_filter_fft[0] = 0  # discard zero bin for AC coupled filter
         self._p_filter = fft.irfft(phase_filter_fft, n_samples)
         # compute the variance with the un-normalized filter
         self._p_filter_var = (sample_rate * n_samples / (4 * (phase_filter_fft @ template_fft).real))
@@ -594,7 +594,7 @@ class Pulse:
         template_fft = fft.rfft(template)
         # compute the amplitude only optimal filter: conj(amplitude_fft) / s (single sided)
         amplitude_filter_fft = np.conj(template_fft) / self.noise.aa_psd
-        amplitude_filter_fft[0] = 0
+        amplitude_filter_fft[0] = 0  # discard zero bin for AC coupled filter
         self._a_filter = fft.irfft(amplitude_filter_fft, n_samples)
         # compute the variance with the un-normalized filter
         self._a_filter_var = (sample_rate * n_samples / (4 * (amplitude_filter_fft @ template_fft).real))
@@ -790,13 +790,20 @@ class Pulse:
         first axis must be for the phase and amplitude. The filter is applied
         to the last axis.
         """
+        size = data.shape[-1]
+        pad_back = size // 2
+        pad_front = size - pad_back - 1
+        pad = [(0, 0)] * (data.ndim - 1)
+        pad.append((pad_front, pad_back))
+        padded_data = np.pad(data, pad, 'wrap')
+        kwargs = {"mode": "valid", "axes": -1}
         if filter_type == "optimal_filter":
-            result = (convolve1d(data[0], self.optimal_filter[0], mode='wrap') +
-                      convolve1d(data[1], self.optimal_filter[1], mode='wrap'))
+            result = (fftconvolve(np.atleast_2d(padded_data[0]), np.atleast_2d(self.optimal_filter[0]), **kwargs) +
+                      fftconvolve(np.atleast_2d(padded_data[1]), np.atleast_2d(self.optimal_filter[1]), **kwargs))
         elif filter_type == "phase_filter":
-            result = convolve1d(data, self.p_filter, mode='wrap')
+            result = fftconvolve(np.atleast_2d(padded_data), np.atleast_2d(self.p_filter), **kwargs)
         elif filter_type == "amplitude_filter":
-            result = convolve1d(data, self.a_filter, mode='wrap')
+            result = fftconvolve(np.atleast_2d(padded_data), np.atleast_2d(self.a_filter), **kwargs)
         else:
             raise ValueError("'{}' is not a valid calculation_type".format(filter_type))
         return result
