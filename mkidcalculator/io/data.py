@@ -1,6 +1,7 @@
 import os
 import logging
 import numpy as np
+from scipy.io import loadmat
 
 from mkidcalculator.io.utils import _loaded_npz_files, offload_data, ev_nm_convert
 
@@ -209,3 +210,136 @@ def analogreadout_sweep(file_name):
         else:
             log.warning("Could not find '{}'".format(loop_file_name))
     return loop_kwargs
+
+
+class LegacyABC:
+    def __init__(self, config_file, channel=0, index=(0, 0)):
+        self.channel = channel
+        self.index = index
+        self._empty_fields = []
+        self._do_not_clear = ['metadata']
+        # load in data to the configuration file
+        self._data = {'metadata': {}}
+        config = loadmat(config_file, squeeze_me=True)
+        for key in config.keys():
+            if not key.startswith("_"):
+                for name in config[key].dtype.names:
+                    try:
+                        self._data['metadata'][name] = float(config[name].item())
+                    except ValueError:
+                        self._data['metadata'][name] = config[name].item()
+                    except TypeError:
+                        self._data['metadata'][name] = config[name].item().astype(float)
+
+    def __getitem__(self, item):
+        value = self._data[item]
+        if value is None and key not in self._empty_fields:
+            self._load_data()
+            value = self._data[item]
+        return value
+
+    def free_memory(self):
+        """Frees memory from the wrapped data."""
+        for key in self._data.keys():
+            if key not in self._do_not_clear:
+                self._data[key] = None
+
+    def _load_data(self):
+        raise NotImplementedError
+
+
+class LegacyLoop(LegacyABC):
+    def __init__(self, config_file, channel=None, index=(0, 0)):
+        super().__init__(config_file, channel=channel, index=index)
+        # load in the loop data
+        time = os.path.basename(config_file).split('_')[2:]
+        mat_file = "sweep_data.mat" if not time else "sweep_data_" + "_".join(time)
+        self._mat = mat_file
+        self._empty_fields += ["imbalance"]
+        self._load_data()
+
+    def _load_data(self):
+        data = loadmat(self._mat, struct_as_record=False)['IQ_data']
+        res = data.temps[0, self.index[0]].attens[0, self.index[1]].res[0, self.channel]
+        self._data.update({"f": res.freqs, "z": res.z, "imbalance": None, "offset": res.zeropt, "field": 0,
+                           "temperature": data.temprange[0, self.index[0]],
+                           "attenuation": data.attenrange[0, self.index[1]]})
+
+
+class LegacyNoise(LegacyABC):
+    def __init__(self, config_file, channel=None, index=None):
+        super().__init__(config_file, channel=channel, index=index)
+        # figure out the file specifics
+        directory = os.path.dirname(os.path.abspath(config_file))
+        self._sweep_gui = os.path.basename(config_file).split("_")[0] == "sweep"
+        if self._sweep_gui:
+            if self.index is None:
+                raise ValueError("The index (temperature, attenuation) must be specified for Sweep GUI data.")
+            temps = np.arange(self.metadata['starttemp'], self.metadata['stoptemp'], self.metadata['steptemp'])
+            attens = np.arange(self.metadata['startatten'], self.metadata['stopatten'], self.metadata['stepatten'])
+            file_name = str(temps[index[0]]) + "-" + str(channel // 2 + 1) + "a-" + str(attens[index[1]]) + ".ns"
+            n_points = self.metadata['adtime'] * self.metadata['noiserate'] / self.metadata['decfac']
+            self._data['f_bias'] = self._data['metadata']['f0list'][self.channel]
+            self._data['attenuation'] = attens[index[1]]
+            self._data['sample_rate'] = self.metadata['noiserate']
+        else:
+            time = os.path.basename(config_file).split('.')[0].split('_')[2:]
+            file_name = "pulse_data.ns" if not time else "pulse_data" + "_".join(time) + ".ns"
+            n_points = self.metadata['noise_adtime'] * self.metadata['samprate']
+            self._data['f_bias'] = self._data['metadata']['f0' + str(self.channel)]
+            self._data['attenuation'] = self._data['metadata']['atten1'] + self._data['metadata']['atten2']
+            self._data['sample_rate'] = self.metadata["samprate"]
+        self._do_not_clear += ['f_bias', 'attenuation', 'sample_rate']
+        # load the data
+        assert n_points.is_integer(), "The noise adtime and sample rate do not give an integer number of data points"
+        self._n_points = int(n_points)
+        self._bin = os.path.join(directory, file_name)
+        self._load_data()
+
+    def _load_data(self):
+        # get the binary data from the file
+        data = np.fromfile(self._bin, dtype=np.int16)
+        # remove the header from the file
+        data = data[4 * 12:]
+        # convert the data to voltages * 0.2 V / (2**15 - 1)
+        data = data.astype(np.float16) * 0.2 / 32767.0
+        # check that we have an integer number of triggers
+        n_triggers = data.size / self._n_points / 4.0
+        assert n_triggers.is_integer(), "non-integer number of noise traces found found in {0}".format(self._bin)
+        # break noise data into I and Q data
+        i_trace = np.zeros((n_triggers, self._n_points), dtype=np.float16)
+        q_trace = np.zeros((n_triggers, self._n_points), dtype=np.float16)
+        channel = self.channel % 2  # for if data is from sweep
+        for trigger_num in range(n_triggers):
+            trace_num = 4 * trigger_num
+            i_trace[trigger_num, :] = data[(trace_num + 2 * channel) * self._n_points:
+                                           (trace_num + 2 * channel + 1) * self._n_points]
+            q_trace[trigger_num, :] = data[(trace_num + 2 * channel + 1) * self._n_points:
+                                           (trace_num + 2 * channel + 2) * self._n_points]
+        self._data.update({"i_trace": i_trace, "q_trace": q_trace})
+
+
+class LegacyPulse(LegacyABC):
+    def __init__(self, config_file, channel=None, energies=None, wavelengths=None):
+        super().__init__(config_file, channel=channel)
+        if energies is not None:
+            self._data["energies"] = np.atleast_1d(energies)
+        elif wavelengths is not None:
+            self._data["energies"] = ev_nm_convert(np.atleast_1d(wavelengths))
+        else:
+            raise ValueError("Either energies or wavelengths must be specified.")
+        self._data["f_bias"] = self.metadata["f0" + str(channel)]
+        self._data["offset"] = None
+        self._data["attenuation"] = self._data['metadata']['atten1'] + self._data['metadata']['atten2']
+        self._do_not_clear += ['f_bias', 'attenuation', 'offset']
+        self._empty_fields += ["offset"]
+
+        # TODO: self._bin =
+        #  self._n_points =
+
+    def _load_data(self):
+        pass # TODO: write this method
+
+
+def legacy_sweep(config_file):
+    pass
