@@ -211,8 +211,6 @@ class Loop:
         except AttributeError:
             pass
 
-        _loaded_npz_files.free_memory(self._data._npz)
-
     @classmethod
     def load(cls, loop_file_name, noise_file_names=(), pulse_file_names=(), data=AnalogReadoutLoop,
              noise_data=AnalogReadoutNoise, pulse_data=AnalogReadoutPulse, sort=True, channel=None, noise_kwargs=None,
