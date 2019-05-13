@@ -304,7 +304,6 @@ class Noise:
         """
         noise = cls()
         noise._data = data(noise_file_name, **kwargs)
-        assert not isinstance(noise.f_bias, np.ndarray), "f_bias should be a number not an array"
         return noise
 
     def compute_phase_and_amplitude(self, label="best", fit_type="lmfit", fr=None, center=None, unwrap=True):
