@@ -191,17 +191,15 @@ class Sweep:
                 sort noise data and pulse data lists by their bias frequency.
                 The default is True. If False, the input order is preserved.
             kwargs: optional keyword arguments
-                Extra keyword arguments to send to Loop.load() not
-                specified by data.
+                Extra keyword arguments to send to data.
         """
         # create sweep
         sweep = cls()
         # load loop kwargs based on the sweep file
-        loop_kwargs_list = data(sweep_file_name)
+        loop_kwargs_list = data(sweep_file_name, **kwargs)
         loops = []
         # load loops
         for kws in loop_kwargs_list:
-            kws.update(kwargs)
             kws.update({"sort": sort})
             loops.append(Loop.load(**kws))
         sweep.add_loops(loops, sort=sort)

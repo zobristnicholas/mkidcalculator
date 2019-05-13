@@ -189,14 +189,25 @@ class AnalogReadoutPulse(AnalogReadoutABC):
         return result
 
 
-def analogreadout_sweep(file_name):
+def analogreadout_sweep(file_name, channel=None):
+    """
+    Class for loading in analogreadout sweep data.
+    Args:
+        file_name: string
+            The sweep configuration file name.
+        channel: integer
+            The resonator channel for the data.
+    Returns:
+        loop_kwargs: list of dictionaries
+            A list of keyword arguments to send to Loop.load().
+    """
     directory = os.path.dirname(file_name)
     npz = np.load(file_name)
     loop_kwargs = []
     for loop_name, parameters in npz['parameter_dict'].item().items():
         loop_file_name = os.path.join(directory, loop_name)
         if os.path.isfile(loop_file_name):
-            loop_kwargs.append({"loop_file_name": loop_file_name})
+            loop_kwargs.append({"loop_file_name": loop_file_name, "channel": channel})
             if parameters['noise'][0]:
                 n_noise = 1 + int(parameters['noise'][5])
                 noise_name = "_".join(["noise", *loop_name.split("_")[1:]])
@@ -204,7 +215,8 @@ def analogreadout_sweep(file_name):
                 if os.path.isfile:
                     noise_names = [noise_file_name] * n_noise
                     noise_kwargs = [{'index': ii} for ii in range(n_noise)]
-                    loop_kwargs[-1].update({"noise_file_names": noise_names, "noise_kwargs": noise_kwargs})
+                    loop_kwargs[-1].update({"noise_file_names": noise_names, "noise_kwargs": noise_kwargs,
+                                            "channel": channel})
                 else:
                     log.warning("Could not find '{}'".format(noise_file_name))
         else:
