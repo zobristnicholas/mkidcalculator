@@ -265,6 +265,16 @@ class LegacyABC:
             value = self._data[item]
         return value
 
+    def __getstate__(self):
+        __dict__ = self.__dict__.copy()
+        __dict__['_data'] = {}
+        for key in self.__dict__['_data'].keys():
+            if key not in self._do_not_clear:
+                __dict__['_data'][key] = None
+            else:
+                __dict__['_data'][key] = self.__dict__['_data'][key]
+        return __dict__
+
     def free_memory(self):
         """Frees memory from the wrapped data."""
         for key in self._data.keys():
