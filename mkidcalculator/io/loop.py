@@ -461,8 +461,8 @@ class Loop:
         self._response_calibration = calibration
 
     def plot(self, plot_types=("iq", "magnitude", "phase"), plot_fit=False, label="best", fit_type="lmfit",
-             n_rows=2, title=True, title_kwargs=None, legend=True, legend_kwargs=None, fit_parameters=(),
-             parameters_kwargs=None, tighten=True, plot_kwargs=None, axes_list=None):
+             plot_guess=None, n_rows=2, title=True, title_kwargs=None, legend=True, legend_kwargs=None,
+             fit_parameters=(), parameters_kwargs=None, tighten=True, plot_kwargs=None, axes_list=None):
         """
         Plot a variety of data representations in a matplotlib pyplot.subplots
         grid.
@@ -484,6 +484,9 @@ class Loop:
                 The type of fit to use. Allowed options are "lmfit", "emcee",
                 and "emcee_mle" where MLE estimates are used instead of the
                 medians. The default is "lmfit".
+            plot_guess: lmfit.Parameters object
+                Determines whether the fit guess is plotted or not. The default
+                is None.
             n_rows: integer
                 An integer specifying how many rows there are in the subplots
                 grid. The default is 2.
@@ -551,21 +554,21 @@ class Loop:
         for index, plot_type in enumerate(plot_types):
             kwargs = {"title": False, "legend": False, "axes": axes_list[index], "tighten": tighten}
             if plot_type == "iq":
-                kwargs.update({"plot_fit": plot_fit, "label": label, "fit_type": fit_type})
+                kwargs.update({"plot_fit": plot_fit, "plot_guess": plot_guess, "label": label, "fit_type": fit_type})
                 kwargs.update(plot_kwargs[index])
                 self.plot_iq(**kwargs)
             elif plot_type == "r_iq":
                 kwargs.update(plot_kwargs[index])
                 self.plot_iq_residual(**kwargs)
             elif plot_type == "magnitude":
-                kwargs.update({"plot_fit": plot_fit, "label": label, "fit_type": fit_type})
+                kwargs.update({"plot_fit": plot_fit, "plot_guess": plot_guess, "label": label, "fit_type": fit_type})
                 kwargs.update(plot_kwargs[index])
                 self.plot_magnitude(**kwargs)
             elif plot_type == "r_magnitude":
                 kwargs.update(plot_kwargs[index])
                 self.plot_magnitude_residual(**kwargs)
             elif plot_type == "phase":
-                kwargs.update({"plot_fit": plot_fit, "label": label, "fit_type": fit_type})
+                kwargs.update({"plot_fit": plot_fit, "plot_guess": plot_guess, "label": label, "fit_type": fit_type})
                 kwargs.update(plot_kwargs[index])
                 self.plot_phase(**kwargs)
             elif plot_type == "r_phase":
@@ -615,8 +618,9 @@ class Loop:
         return axes_list
 
     def plot_iq(self, data_kwargs=None, plot_fit=False, label="best", fit_type="lmfit", fit_kwargs=None,
-                fit_parameters=(), parameters_kwargs=None, x_label=None, y_label=None, label_kwargs=None, legend=True,
-                legend_kwargs=None, title=True, title_kwargs=None, tighten=True, axes=None):
+                fit_parameters=(), parameters_kwargs=None, plot_guess=None, guess_kwargs=None, x_label=None,
+                y_label=None, label_kwargs=None, legend=True, legend_kwargs=None, title=True, title_kwargs=None,
+                tighten=True, axes=None):
         """
         Plot the IQ data.
         Args:
@@ -648,6 +652,13 @@ class Loop:
                 Keyword arguments for the parameters textbox in axes.text().
                 The default is None which uses default options. Keywords in
                 this dictionary override the default options.
+            plot_guess: lmfit.Parameters object
+                Determines whether the fit guess is plotted or not. The default
+                is None.
+            guess_kwargs: dictionary
+                Keyword arguments for the guess in axes.plot(). The default is
+                None which uses default options. Keywords in this dictionary
+                override the default options.
             x_label: string
                 The label for the x axis. The default is None which uses the
                 default label. If x_label evaluates to False, parameter_kwargs
@@ -729,6 +740,22 @@ class Loop:
         else:
             string = "power: {:.0f} dBm, field: {:.2f} V, temperature: {:.2f} mK"
             title = string.format(self.power, self.field, self.temperature * 1000) if title is True else title
+        # plot guess
+        if plot_guess is not None:
+            # get the model
+            fit_name, result_dict = self._get_model(fit_type, label)
+            if fit_name is None:
+                raise ValueError("No fit of type '{}' with the label '{}' has been done".format(fit_type, label))
+            result = result_dict['result']
+            model = result_dict['model']
+            # calculate the model values
+            f = np.linspace(np.min(self.f), np.max(self.f), np.size(self.f) * 10)
+            m = model.model(plot_guess, f)
+            # add the plot
+            kwargs = {"linestyle": '-.', "label": "guess", "color": "k"}
+            if guess_kwargs is not None:
+                kwargs.update(guess_kwargs)
+            axes.plot(m.real, m.imag, **kwargs)
         if legend:
             kwargs = {}
             if legend_kwargs is not None:
@@ -856,8 +883,9 @@ class Loop:
         return axes
 
     def plot_magnitude(self, data_kwargs=None, plot_fit=False, label="best", fit_type="lmfit", fit_kwargs=None,
-                       fit_parameters=(), parameters_kwargs=None, x_label=None, y_label=None, label_kwargs=None,
-                       legend=True, legend_kwargs=None, title=True, title_kwargs=None, tighten=True, axes=None):
+                       fit_parameters=(), parameters_kwargs=None, plot_guess=None, guess_kwargs=None, x_label=None,
+                       y_label=None, label_kwargs=None, legend=True, legend_kwargs=None, title=True, title_kwargs=None,
+                       tighten=True, axes=None):
         """
         Plot the magnitude data.
         Args:
@@ -889,6 +917,13 @@ class Loop:
                 Keyword arguments for the parameters textbox in axes.text().
                 The default is None which uses default options. Keywords in
                 this dictionary override the default options.
+            plot_guess: lmfit.Parameters object
+                Determines whether the fit guess is plotted or not. The default
+                is None.
+            guess_kwargs: dictionary
+                Keyword arguments for the guess in axes.plot(). The default is
+                None which uses default options. Keywords in this dictionary
+                override the default options.
             x_label: string
                 The label for the x axis. The default is None which uses the
                 default label.
@@ -968,6 +1003,22 @@ class Loop:
         else:
             string = "power: {:.0f} dBm, field: {:.2f} V, temperature: {:.2f} mK"
             title = string.format(self.power, self.field, self.temperature * 1000) if title is True else title
+        # plot guess
+        if plot_guess is not None:
+            # get the model
+            fit_name, result_dict = self._get_model(fit_type, label)
+            if fit_name is None:
+                raise ValueError("No fit of type '{}' with the label '{}' has been done".format(fit_type, label))
+            result = result_dict['result']
+            model = result_dict['model']
+            # calculate the model values
+            f = np.linspace(np.min(self.f), np.max(self.f), np.size(self.f) * 10)
+            m = model.model(plot_guess, f)
+            # add the plot
+            kwargs = {"linestyle": '-.', "label": "guess", "color": "k"}
+            if guess_kwargs is not None:
+                kwargs.update(guess_kwargs)
+            axes.plot(f, np.abs(m), **kwargs)
         if legend:
             kwargs = {}
             if legend_kwargs is not None:
@@ -1093,8 +1144,9 @@ class Loop:
         return axes
 
     def plot_phase(self, data_kwargs=None, plot_fit=False, label="best", fit_type="lmfit", fit_kwargs=None,
-                   fit_parameters=(), parameters_kwargs=None, x_label=None, y_label=None, label_kwargs=None,
-                   legend=True, legend_kwargs=None, title=True, title_kwargs=None, tighten=True, axes=None):
+                   fit_parameters=(), parameters_kwargs=None, plot_guess=None, guess_kwargs=None, x_label=None,
+                   y_label=None, label_kwargs=None, legend=True, legend_kwargs=None, title=True, title_kwargs=None,
+                   tighten=True, axes=None):
         """
         Plot the phase data.
         Args:
@@ -1122,6 +1174,13 @@ class Loop:
                 included in the list to display the reduced chi squared value
                 for the fit. If fit_parameters evaluates to False,
                 parameter_kwargs is ignored.
+            plot_guess: lmfit.Parameters object
+                Determines whether the fit guess is plotted or not. The default
+                is None.
+            guess_kwargs: dictionary
+                Keyword arguments for the guess in axes.plot(). The default is
+                None which uses default options. Keywords in this dictionary
+                override the default options.
             parameters_kwargs: dictionary
                 Keyword arguments for the parameters textbox in axes.text().
                 The default is None which uses default options. Keywords in
@@ -1205,6 +1264,22 @@ class Loop:
         else:
             string = "power: {:.0f} dBm, field: {:.2f} V, temperature: {:.2f} mK"
             title = string.format(self.power, self.field, self.temperature * 1000) if title is True else title
+        # plot guess
+        if plot_guess is not None:
+            # get the model
+            fit_name, result_dict = self._get_model(fit_type, label)
+            if fit_name is None:
+                raise ValueError("No fit of type '{}' with the label '{}' has been done".format(fit_type, label))
+            result = result_dict['result']
+            model = result_dict['model']
+            # calculate the model values
+            f = np.linspace(np.min(self.f), np.max(self.f), np.size(self.f) * 10)
+            m = model.model(plot_guess, f)
+            # add the plot
+            kwargs = {"linestyle": '-.', "label": "guess", "color": "k"}
+            if guess_kwargs is not None:
+                kwargs.update(guess_kwargs)
+            axes.plot(f, np.unwrap(np.arctan2(m.imag, m.real)), **kwargs)
         if legend:
             kwargs = {}
             if legend_kwargs is not None:
