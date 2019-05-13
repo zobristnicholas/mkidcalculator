@@ -153,7 +153,7 @@ class S21:
             offset = params['i_offset'].value + 1j * params['q_offset'].value
         else:
             alpha, gamma, offset = params
-        z -= offset
+        z = z - offset
         z = (z.real / alpha + 1j * (-z.real * np.tan(gamma) / alpha + z.imag / np.cos(gamma)))
         return z
 
