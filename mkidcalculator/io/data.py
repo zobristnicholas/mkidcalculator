@@ -395,7 +395,8 @@ class LegacyPulse(LegacyABC):
         self._data["f_bias"] = self._data['metadata']["f0" + str(channel + 1)]
         self._data["offset"] = None
         self._data["attenuation"] = self._data['metadata']['atten1'] + self._data['metadata']['atten2']
-        self._do_not_clear += ['f_bias', 'attenuation', 'offset', 'energies']
+        self._data['sample_rate'] = self._data['metadata']["samprate"]
+        self._do_not_clear += ['f_bias', 'attenuation', 'offset', 'energies', 'sample_rate']
         self._empty_fields += ["offset"]
 
         directory = os.path.dirname(os.path.abspath(config_file))
