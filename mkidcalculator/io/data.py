@@ -349,7 +349,7 @@ class LegacyNoise(LegacyABC):
             self._data['sample_rate'] = self._data['metadata']['noiserate']
         else:
             time = os.path.basename(config_file).split('.')[0].split('_')[2:]
-            file_name = "pulse_data.ns" if not time else "pulse_data" + "_".join(time) + ".ns"
+            file_name = "pulse_data.ns" if not time else "pulse_data_" + "_".join(time) + ".ns"
             n_points = self._data['metadata']['noise_adtime'] * self._data['metadata']['samprate']
             self._data['attenuation'] = self._data['metadata']['atten1'] + self._data['metadata']['atten2']
             self._data['sample_rate'] = self._data['metadata']["samprate"]
@@ -398,7 +398,7 @@ class LegacyPulse(LegacyABC):
 
         directory = os.path.dirname(os.path.abspath(config_file))
         time = os.path.basename(config_file).split('.')[0].split('_')[2:]
-        file_name = "pulse_data.dat" if not time else "pulse_data" + "_".join(time) + ".dat"
+        file_name = "pulse_data.dat" if not time else "pulse_data_" + "_".join(time) + ".dat"
         self._bin = os.path.join(directory, file_name)
         self._n_points = int(self._data['metadata']['numpts'])
         self._data.update({"i_trace": None, "q_trace": None})  # defer loading
@@ -422,9 +422,6 @@ def legacy_sweep(config_file, channel=None):
     """
     directory = os.path.dirname(config_file)
     config = loadmat(config_file, squeeze_me=True)['curr_config']
-    time = os.path.basename(config_file).split('_')[2:]
-    mat_file = "sweep_data.mat" if not time else "sweep_data_" + "_".join(time)
-    # sweep_data = loadmat(mat_file, struct_as_record=False)['IQ_data']
 
     temperatures = np.arange(config['starttemp'], config['stoptemp'], config['steptemp'])
     attenuations = np.arange(config['startatten'], config['stopatten'], config['stepatten'])
