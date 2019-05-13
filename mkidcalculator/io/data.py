@@ -249,15 +249,18 @@ class LegacyABC:
             if not key.startswith("_"):
                 for name in config[key].dtype.names:
                     try:
-                        self._data['metadata'][name] = float(config[name].item())
+                        self._data['metadata'][name] = float(config[key][name].item())
                     except ValueError:
-                        self._data['metadata'][name] = config[name].item()
+                        self._data['metadata'][name] = config[key][name].item()
                     except TypeError:
-                        self._data['metadata'][name] = config[name].item().astype(float)
+                        try:
+                            self._data['metadata'][name] = config[key][name].item().astype(float)
+                        except ValueError:
+                            self._data['metadata'][name] = config[key][name].item()  # spec_settings exception
 
     def __getitem__(self, item):
         value = self._data[item]
-        if value is None and key not in self._empty_fields:
+        if value is None and item not in self._empty_fields:
             self._load_data()
             value = self._data[item]
         return value
@@ -291,17 +294,19 @@ class LegacyLoop(LegacyABC):
         super().__init__(config_file, channel, index=index)
         # load in the loop data
         time = os.path.basename(config_file).split('_')[2:]
+        directory = os.path.dirname(config_file)
         mat_file = "sweep_data.mat" if not time else "sweep_data_" + "_".join(time)
-        self._mat = mat_file
+        self._mat = os.path.join(directory, mat_file)
         self._empty_fields += ["imbalance"]
         self._data.update({"f": None, "z": None, "imbalance": None, "offset": None, "field": None, "temperature": None,
                            "attenuation": None})  # defer loading
 
     def _load_data(self):
-        data = loadmat(self._mat, struct_as_record=False)['IQ_data']
+        data = loadmat(self._mat, struct_as_record=False)['IQ_data'][0, 0]
         res = data.temps[0, self.index[0]].attens[0, self.index[1]].res[0, self.channel]
-        self._data.update({"f": res.freqs, "z": res.z, "imbalance": None, "offset": res.zeropt, "field": 0,
-                           "temperature": data.temprange[0, self.index[0]],
+        self._data.update({"f": res.freqs.squeeze(), "z": res.z.squeeze(), "imbalance": None,
+                           "offset": res.zeropt.squeeze(), "field": 0,
+                           "temperature": data.temprange[0, self.index[0]] * 1e-3,
                            "attenuation": data.attenrange[0, self.index[1]]})
 
 
