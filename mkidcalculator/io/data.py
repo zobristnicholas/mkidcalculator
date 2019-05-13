@@ -385,15 +385,17 @@ class LegacyPulse(LegacyABC):
         channel = channel % 2  # channels can't be > 1
         super().__init__(config_file, channel=channel)
         # record the photon energies
-        if energies == ():
+        if energies != ():
             self._data["energies"] = tuple(np.atleast_1d(energies))
-        elif wavelengths == ():
+        elif wavelengths != ():
             self._data["energies"] = tuple(ev_nm_convert(np.atleast_1d(wavelengths)))
+        else:
+            self._data["energies"] = ()
         # get the important parameters from the metadata
         self._data["f_bias"] = self._data['metadata']["f0" + str(channel + 1)]
         self._data["offset"] = None
         self._data["attenuation"] = self._data['metadata']['atten1'] + self._data['metadata']['atten2']
-        self._do_not_clear += ['f_bias', 'attenuation', 'offset']
+        self._do_not_clear += ['f_bias', 'attenuation', 'offset', 'energies']
         self._empty_fields += ["offset"]
 
         directory = os.path.dirname(os.path.abspath(config_file))
