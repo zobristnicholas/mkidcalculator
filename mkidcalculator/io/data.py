@@ -1,9 +1,10 @@
 import os
+import glob
 import logging
 import numpy as np
 from scipy.io import loadmat
 
-from mkidcalculator.io.utils import _loaded_npz_files, offload_data, ev_nm_convert
+from mkidcalculator.io.utils import _loaded_npz_files, offload_data, ev_nm_convert, load_legacy_binary_data
 
 log = logging.getLogger(__name__)
 log.addHandler(logging.NullHandler())
@@ -180,7 +181,7 @@ class AnalogReadoutPulse(AnalogReadoutABC):
                     laser_state = np.array(metadata['parameters']['laser'])
                     laser_state *= np.array([808, 920, 980, 1120, 1310])
                     laser_state = laser_state[laser_state != 0]
-                    self._energies = tuple(ev_nm_convert(laser_state))  # 1239.842 nm eV = h c
+                    self._energies = tuple(ev_nm_convert(laser_state))
                 except KeyError:
                     pass
                 result = self._energies
@@ -225,7 +226,21 @@ def analogreadout_sweep(file_name, channel=None):
 
 
 class LegacyABC:
-    def __init__(self, config_file, channel=0, index=(0, 0)):
+    """
+    Abstract base class for handling data from the Legacy matlab code.
+    Args:
+        config_file: string
+            A file path to the config file for the measurement.
+        channel: integer (optional)
+            An integer specifying which channel to load. The default is None
+            which will raise an error forcing the user to directly specify the
+            channel.
+        index: tuple of integers (optional)
+            An integer specifying which temperature and attenuation index to
+            load. The default is None will raise an error forcing the user to
+            directly specify the index.
+    """
+    def __init__(self, config_file, channel=None, index=None):
         self.channel = channel
         self.index = index
         self._empty_fields = []
@@ -261,14 +276,29 @@ class LegacyABC:
 
 
 class LegacyLoop(LegacyABC):
-    def __init__(self, config_file, channel=None, index=(0, 0)):
+    """
+    Class for handling loop data from the legacy Matlab code.
+    Args:
+        config_file: string
+            A file path to the config file for the measurement.
+        channel: integer (optional)
+            An integer specifying which channel to load. The default is None
+            which will raise an error forcing the user to directly specify the
+            channel.
+        index: tuple of integers (optional)
+            An integer specifying which temperature and attenuation index to
+            load. The default is None will raise an error forcing the user to
+            directly specify the index.
+    """
+    def __init__(self, config_file, channel=None, index=None):
         super().__init__(config_file, channel=channel, index=index)
         # load in the loop data
         time = os.path.basename(config_file).split('_')[2:]
         mat_file = "sweep_data.mat" if not time else "sweep_data_" + "_".join(time)
         self._mat = mat_file
         self._empty_fields += ["imbalance"]
-        self._load_data()
+        self._data.update({"f": None, "z": None, "imbalance": None, "offset": None, "field": None, "temperature": None,
+                           "attenuation": None})  # defer loading
 
     def _load_data(self):
         data = loadmat(self._mat, struct_as_record=False)['IQ_data']
@@ -279,7 +309,22 @@ class LegacyLoop(LegacyABC):
 
 
 class LegacyNoise(LegacyABC):
-    def __init__(self, config_file, channel=None, index=None):
+    """
+    Class for handling noise data from the legacy Matlab code.
+    Args:
+        config_file: string
+            A file path to the config file for the measurement.
+        channel: integer (optional)
+            An integer specifying which channel to load. The default is None
+            which will raise an error forcing the user to directly specify the
+            channel.
+        index: tuple of integers (optional)
+            An integer specifying which temperature and attenuation index to
+            load. An additional third index may be included in the tuple to
+            specify additional noise points. The default is None will raise
+            an error forcing the user to directly specify the index.
+    """
+    def __init__(self, config_file, channel=None, index=None, on_res=True):
         super().__init__(config_file, channel=channel, index=index)
         # figure out the file specifics
         directory = os.path.dirname(os.path.abspath(config_file))
@@ -289,69 +334,118 @@ class LegacyNoise(LegacyABC):
                 raise ValueError("The index (temperature, attenuation) must be specified for Sweep GUI data.")
             temps = np.arange(self.metadata['starttemp'], self.metadata['stoptemp'], self.metadata['steptemp'])
             attens = np.arange(self.metadata['startatten'], self.metadata['stopatten'], self.metadata['stepatten'])
-            file_name = str(temps[index[0]]) + "-" + str(channel // 2 + 1) + "a-" + str(attens[index[1]]) + ".ns"
+            label = "a" if on_res else "b"
+            label += str(index[2]) + "-" if len(index) > 2 and index[2] != 0 else "-"
+            file_name = str(temps[index[0]]) + "-" + str(channel // 2 + 1) + label + str(attens[index[1]]) + ".ns"
             n_points = self.metadata['adtime'] * self.metadata['noiserate'] / self.metadata['decfac']
-            self._data['f_bias'] = self._data['metadata']['f0list'][self.channel]
             self._data['attenuation'] = attens[index[1]]
             self._data['sample_rate'] = self.metadata['noiserate']
         else:
             time = os.path.basename(config_file).split('.')[0].split('_')[2:]
             file_name = "pulse_data.ns" if not time else "pulse_data" + "_".join(time) + ".ns"
             n_points = self.metadata['noise_adtime'] * self.metadata['samprate']
-            self._data['f_bias'] = self._data['metadata']['f0' + str(self.channel)]
             self._data['attenuation'] = self._data['metadata']['atten1'] + self._data['metadata']['atten2']
             self._data['sample_rate'] = self.metadata["samprate"]
-        self._do_not_clear += ['f_bias', 'attenuation', 'sample_rate']
+        self._do_not_clear += ['attenuation', 'sample_rate']
         # load the data
         assert n_points.is_integer(), "The noise adtime and sample rate do not give an integer number of data points"
         self._n_points = int(n_points)
         self._bin = os.path.join(directory, file_name)
-        self._load_data()
+        self._data.update({"i_trace": None, "q_trace": None})  # defer loading
 
     def _load_data(self):
-        # get the binary data from the file
-        data = np.fromfile(self._bin, dtype=np.int16)
-        # remove the header from the file
-        data = data[4 * 12:]
-        # convert the data to voltages * 0.2 V / (2**15 - 1)
-        data = data.astype(np.float16) * 0.2 / 32767.0
-        # check that we have an integer number of triggers
-        n_triggers = data.size / self._n_points / 4.0
-        assert n_triggers.is_integer(), "non-integer number of noise traces found found in {0}".format(self._bin)
-        # break noise data into I and Q data
-        i_trace = np.zeros((n_triggers, self._n_points), dtype=np.float16)
-        q_trace = np.zeros((n_triggers, self._n_points), dtype=np.float16)
-        channel = self.channel % 2  # for if data is from sweep
-        for trigger_num in range(n_triggers):
-            trace_num = 4 * trigger_num
-            i_trace[trigger_num, :] = data[(trace_num + 2 * channel) * self._n_points:
-                                           (trace_num + 2 * channel + 1) * self._n_points]
-            q_trace[trigger_num, :] = data[(trace_num + 2 * channel + 1) * self._n_points:
-                                           (trace_num + 2 * channel + 2) * self._n_points]
-        self._data.update({"i_trace": i_trace, "q_trace": q_trace})
+        i_trace, q_trace, f = load_legacy_binary_data(self._bin, self.channel % 2, self._n_points)  # % 2 for sweep data
+        self._data.update({"i_trace": i_trace, "q_trace": q_trace, 'f_bias': f})
 
 
 class LegacyPulse(LegacyABC):
-    def __init__(self, config_file, channel=None, energies=None, wavelengths=None):
+    """
+    Class for handling pulse data from the legacy Matlab code.
+    Args:
+        config_file: string
+            A file path to the config file for the measurement.
+        channel: integer (optional)
+            An integer specifying which channel to load. The default is None
+            which will raise an error forcing the user to directly specify the
+            channel.
+        energies: number or iterable of numbers (optional)
+            The known energies in the pulse data. The default is an empty
+            tuple.
+        wavelengths number or iterable of numbers (optional)
+            If energies is not specified, wavelengths can be specified instead
+            which are internally converted to energies. The default is an empty
+            tuple.
+    """
+    def __init__(self, config_file, channel=None, energies=(), wavelengths=()):
+        channel = channel % 2  # channels can't be > 1
         super().__init__(config_file, channel=channel)
-        if energies is not None:
-            self._data["energies"] = np.atleast_1d(energies)
-        elif wavelengths is not None:
-            self._data["energies"] = ev_nm_convert(np.atleast_1d(wavelengths))
-        else:
-            raise ValueError("Either energies or wavelengths must be specified.")
-        self._data["f_bias"] = self.metadata["f0" + str(channel)]
+        # record the photon energies
+        if energies == ():
+            self._data["energies"] = tuple(np.atleast_1d(energies))
+        elif wavelengths == ():
+            self._data["energies"] = tuple(ev_nm_convert(np.atleast_1d(wavelengths)))
+        # get the important parameters from the metadata
+        self._data["f_bias"] = self.metadata["f0" + str(channel + 1)]
         self._data["offset"] = None
         self._data["attenuation"] = self._data['metadata']['atten1'] + self._data['metadata']['atten2']
         self._do_not_clear += ['f_bias', 'attenuation', 'offset']
         self._empty_fields += ["offset"]
 
-        # TODO: self._bin =
-        #  self._n_points =
+        directory = os.path.dirname(os.path.abspath(config_file))
+        time = os.path.basename(config_file).split('.')[0].split('_')[2:]
+        file_name = "pulse_data.dat" if not time else "pulse_data" + "_".join(time) + ".dat"
+        self._bin = os.path.join(directory, file_name)
+        self._n_points = self._data['metadata']['numpts']
+        self._data.update({"i_trace": None, "q_trace": None})  # defer loading
 
     def _load_data(self):
-        pass # TODO: write this method
+        i_trace, q_trace, _ = load_legacy_binary_data(self._bin, self.channel, self._n_points)
+        self._data.update({"i_trace": i_trace, "q_trace": q_trace})
 
 
-def legacy_sweep(config_file):
-    pass
+def legacy_sweep(config_file, channel=None):
+    """
+    Class for loading in legacy matlab sweep data.
+    Args:
+        config_file: string
+            The sweep configuration file name.
+        channel: integer
+            The resonator channel for the data.
+    Returns:
+        loop_kwargs: list of dictionaries
+            A list of keyword arguments to send to Loop.load().
+    """
+    directory = os.path.dirname(config_file)
+    config = loadmat(config_file, squeeze_me=True)['curr_config']
+    time = os.path.basename(config_file).split('_')[2:]
+    mat_file = "sweep_data.mat" if not time else "sweep_data_" + "_".join(time)
+    # sweep_data = loadmat(mat_file, struct_as_record=False)['IQ_data']
+
+    temperatures = np.arange(config['starttemp'], config['stoptemp'], config['steptemp'])
+    attenuations = np.arange(config['startatten'], config['stopatten'], config['stepatten'])
+
+    loop_kwargs = []
+    for t_index, temp in enumerate(temperatures):
+        for a_index, atten in enumerate(attenuations):
+            loop_kwargs.append({"loop_file_name": config_file, "index": (t_index, a_index), "data": LegacyLoop,
+                                "channel": channel})
+            if config['donoise']:
+                group = channel // 2 + 1
+                # on resonance file names
+                on_res = glob.glob(os.path.join(directory, "{:g}-{:d}a*-{:g}.ns".format(temp, group, atten)))
+                noise_kwargs = []
+                for file_name in on_res:
+                    # collect the index for the file name
+                    index2 = file_name.split("a")[1].split("-")[0]
+                    index = (t_index, a_index, index2) if index2 else (t_index, a_index)
+                    noise_kwargs.append({"index": index, "on_res": True, "data": LegacyNoise, "channel": channel})
+                # off resonance file names
+                off_res_names = glob.glob(os.path.join(directory, "{:g}-{:d}b*-{:g}.ns".format(temp, group, atten)))
+                for file_name in off_res_names:
+                    # collect the index for the file name
+                    index2 = file_name.split("b")[1].split("-")[0]
+                    index = (t_index, a_index, index2) if index2 else (t_index, a_index)
+                    noise_kwargs.append({"index": index, "on_res": False, "data": LegacyNoise, "channel": channel})
+                loop_kwargs.update({"noise_file_names": on_res + off_res_names, "noise_kwargs": noise_kwargs})
+                if not noise_kwargs:
+                    log.warning("Could not find noise files for '{}'".format(config_file))

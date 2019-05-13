@@ -188,3 +188,45 @@ def ev_nm_convert(x):
     If x is an energy in eV, the corresponding wavelength in nm is returned.
     """
     return c.speed_of_light * c.h / c.eV * 1e9 / x
+
+
+def load_legacy_binary_data(binary_file, channel, n_points):
+    """
+    Load data from legacy Matlab code binary files (.ns or .dat).
+    Args:
+        binary_file: string
+            The full file name and path to the binary data.
+        channel: integer
+            Either 0 or 1 specifying which channel to load data from.
+        n_points: integer
+            The number of points per trigger per trace. Both I and Q traces
+            should have the same number of points.
+    Returns:
+        i_trace: numpy.ndarray
+            An N x n_points numpy array with N traces.
+        q_trace: numpy.ndarray
+            An N x n_points numpy array with N traces.
+        f: float
+            The bias frequency for the noise data.
+    """
+    # get the binary data from the file
+    data = np.fromfile(binary_file, dtype=np.int16)
+    # grab the tone frequency (not a 16 bit integer)
+    f = np.frombuffer(data[4 * channel : 4 * (channel + 1)].tobytes(), dtype=np.float64)[0]
+    # remove the header from the file
+    data = data[4 * 12:]
+    # convert the data to voltages * 0.2 V / (2**15 - 1)
+    data = data.astype(np.float16) * 0.2 / 32767.0
+    # check that we have an integer number of triggers
+    n_triggers = data.size / n_points / 4.0
+    assert n_triggers.is_integer(), "non-integer number of noise traces found found in {0}".format(binary_file)
+    n_triggers = int(n_triggers)
+    # break noise data into I and Q data
+    i_trace = np.zeros((n_triggers, n_points), dtype=np.float16)
+    q_trace = np.zeros((n_triggers, n_points), dtype=np.float16)
+    for trigger_num in range(n_triggers):
+        trace_num = 4 * trigger_num
+        i_trace[trigger_num, :] = data[(trace_num + 2 * channel) * n_points: (trace_num + 2 * channel + 1) * n_points]
+        q_trace[trigger_num, :] = data[(trace_num + 2 * channel + 1) * n_points:
+                                       (trace_num + 2 * channel + 2) * n_points]
+    return i_trace, q_trace, f
