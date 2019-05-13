@@ -190,7 +190,7 @@ def ev_nm_convert(x):
     return c.speed_of_light * c.h / c.eV * 1e9 / x
 
 
-def load_legacy_binary_data(binary_file, channel, n_points):
+def load_legacy_binary_data(binary_file, channel, n_points, noise=True):
     """
     Load data from legacy Matlab code binary files (.ns or .dat).
     Args:
@@ -201,6 +201,8 @@ def load_legacy_binary_data(binary_file, channel, n_points):
         n_points: integer
             The number of points per trigger per trace. Both I and Q traces
             should have the same number of points.
+        noise: boolean (optional)
+            A flag specifying if the data is in the noise or pulse format.
     Returns:
         i_trace: numpy.ndarray
             An N x n_points numpy array with N traces.
@@ -212,9 +214,12 @@ def load_legacy_binary_data(binary_file, channel, n_points):
     # get the binary data from the file
     data = np.fromfile(binary_file, dtype=np.int16)
     # grab the tone frequency (not a 16 bit integer)
-    f = np.frombuffer(data[4 * channel : 4 * (channel + 1)].tobytes(), dtype=np.float64)[0]
+    if noise:
+        f = np.frombuffer(data[4 * channel: 4 * (channel + 1)].tobytes(), dtype=np.float64)[0]
+    else:
+        f = np.frombuffer(data[4 * (channel + 2): 4 * (channel + 3)].tobytes(), dtype=np.float64)[0]
     # remove the header from the file
-    data = data[4 * 12:]
+    data = data[4 * 12:] if noise else data[4 * 14:]
     # convert the data to voltages * 0.2 V / (2**15 - 1)
     data = data.astype(np.float16) * 0.2 / 32767.0
     # check that we have an integer number of triggers

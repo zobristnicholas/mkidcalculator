@@ -318,16 +318,17 @@ class LegacyNoise(LegacyABC):
             A file path to the config file for the measurement.
         channel: integer
             An integer specifying which channel to load.
-        index: tuple of integers
+        index: tuple of integers (optional)
             An integer specifying which temperature and attenuation index to
             load. An additional third index may be included in the tuple to
-            specify additional noise points.
+            specify additional noise points. This is only needed if the data
+            is from a sweep config.
         on_res: boolean (optional)
             A boolean specifying if the noise is on or off resonance. This is
             only used when the noise comes from the sweep GUI. The default is
             True.
     """
-    def __init__(self, config_file, channel, index, on_res=True):
+    def __init__(self, config_file, channel, index=None, on_res=True):
         super().__init__(config_file, channel, index=index)
         # figure out the file specifics
         directory = os.path.dirname(os.path.abspath(config_file))
@@ -335,26 +336,29 @@ class LegacyNoise(LegacyABC):
         if self._sweep_gui:
             if self.index is None:
                 raise ValueError("The index (temperature, attenuation) must be specified for Sweep GUI data.")
-            temps = np.arange(self.metadata['starttemp'], self.metadata['stoptemp'], self.metadata['steptemp'])
-            attens = np.arange(self.metadata['startatten'], self.metadata['stopatten'], self.metadata['stepatten'])
+            temps = np.arange(self._data['metadata']['starttemp'], self._data['metadata']['stoptemp'],
+                              self._data['metadata']['steptemp'])
+            attens = np.arange(self._data['metadata']['startatten'], self._data['metadata']['stopatten'],
+                               self._data['metadata']['stepatten'])
             label = "a" if on_res else "b"
             label += str(index[2]) + "-" if len(index) > 2 and index[2] != 0 else "-"
             file_name = str(temps[index[0]]) + "-" + str(channel // 2 + 1) + label + str(attens[index[1]]) + ".ns"
-            n_points = self.metadata['adtime'] * self.metadata['noiserate'] / self.metadata['decfac']
+            n_points = (self._data['metadata']['adtime'] * self._data['metadata']['noiserate'] /
+                        self._data['metadata']['decfac'])
             self._data['attenuation'] = attens[index[1]]
-            self._data['sample_rate'] = self.metadata['noiserate']
+            self._data['sample_rate'] = self._data['metadata']['noiserate']
         else:
             time = os.path.basename(config_file).split('.')[0].split('_')[2:]
             file_name = "pulse_data.ns" if not time else "pulse_data" + "_".join(time) + ".ns"
-            n_points = self.metadata['noise_adtime'] * self.metadata['samprate']
+            n_points = self._data['metadata']['noise_adtime'] * self._data['metadata']['samprate']
             self._data['attenuation'] = self._data['metadata']['atten1'] + self._data['metadata']['atten2']
-            self._data['sample_rate'] = self.metadata["samprate"]
+            self._data['sample_rate'] = self._data['metadata']["samprate"]
         self._do_not_clear += ['attenuation', 'sample_rate']
         # load the data
         assert n_points.is_integer(), "The noise adtime and sample rate do not give an integer number of data points"
         self._n_points = int(n_points)
         self._bin = os.path.join(directory, file_name)
-        self._data.update({"i_trace": None, "q_trace": None})  # defer loading
+        self._data.update({"i_trace": None, "q_trace": None, "f_bias": None})  # defer loading
 
     def _load_data(self):
         i_trace, q_trace, f = load_legacy_binary_data(self._bin, self.channel % 2, self._n_points)  # % 2 for sweep data
@@ -386,7 +390,7 @@ class LegacyPulse(LegacyABC):
         elif wavelengths == ():
             self._data["energies"] = tuple(ev_nm_convert(np.atleast_1d(wavelengths)))
         # get the important parameters from the metadata
-        self._data["f_bias"] = self.metadata["f0" + str(channel + 1)]
+        self._data["f_bias"] = self._data['metadata']["f0" + str(channel + 1)]
         self._data["offset"] = None
         self._data["attenuation"] = self._data['metadata']['atten1'] + self._data['metadata']['atten2']
         self._do_not_clear += ['f_bias', 'attenuation', 'offset']
@@ -396,11 +400,11 @@ class LegacyPulse(LegacyABC):
         time = os.path.basename(config_file).split('.')[0].split('_')[2:]
         file_name = "pulse_data.dat" if not time else "pulse_data" + "_".join(time) + ".dat"
         self._bin = os.path.join(directory, file_name)
-        self._n_points = self._data['metadata']['numpts']
+        self._n_points = int(self._data['metadata']['numpts'])
         self._data.update({"i_trace": None, "q_trace": None})  # defer loading
 
     def _load_data(self):
-        i_trace, q_trace, _ = load_legacy_binary_data(self._bin, self.channel, self._n_points)
+        i_trace, q_trace, _ = load_legacy_binary_data(self._bin, self.channel, self._n_points, noise=False)
         self._data.update({"i_trace": i_trace, "q_trace": q_trace})
 
 
