@@ -231,16 +231,13 @@ class LegacyABC:
     Args:
         config_file: string
             A file path to the config file for the measurement.
-        channel: integer (optional)
-            An integer specifying which channel to load. The default is None
-            which will raise an error forcing the user to directly specify the
-            channel.
+        channel: integer
+            An integer specifying which channel to load.
         index: tuple of integers (optional)
             An integer specifying which temperature and attenuation index to
-            load. The default is None will raise an error forcing the user to
-            directly specify the index.
+            load. The default is None.
     """
-    def __init__(self, config_file, channel=None, index=None):
+    def __init__(self, config_file, channel, index=None):
         self.channel = channel
         self.index = index
         self._empty_fields = []
@@ -281,17 +278,17 @@ class LegacyLoop(LegacyABC):
     Args:
         config_file: string
             A file path to the config file for the measurement.
-        channel: integer (optional)
+        channel: integer
             An integer specifying which channel to load. The default is None
             which will raise an error forcing the user to directly specify the
             channel.
-        index: tuple of integers (optional)
+        index: tuple of integers
             An integer specifying which temperature and attenuation index to
             load. The default is None will raise an error forcing the user to
             directly specify the index.
     """
-    def __init__(self, config_file, channel=None, index=None):
-        super().__init__(config_file, channel=channel, index=index)
+    def __init__(self, config_file, channel, index):
+        super().__init__(config_file, channel, index=index)
         # load in the loop data
         time = os.path.basename(config_file).split('_')[2:]
         mat_file = "sweep_data.mat" if not time else "sweep_data_" + "_".join(time)
@@ -314,18 +311,19 @@ class LegacyNoise(LegacyABC):
     Args:
         config_file: string
             A file path to the config file for the measurement.
-        channel: integer (optional)
-            An integer specifying which channel to load. The default is None
-            which will raise an error forcing the user to directly specify the
-            channel.
-        index: tuple of integers (optional)
+        channel: integer
+            An integer specifying which channel to load.
+        index: tuple of integers
             An integer specifying which temperature and attenuation index to
             load. An additional third index may be included in the tuple to
-            specify additional noise points. The default is None will raise
-            an error forcing the user to directly specify the index.
+            specify additional noise points.
+        on_res: boolean (optional)
+            A boolean specifying if the noise is on or off resonance. This is
+            only used when the noise comes from the sweep GUI. The default is
+            True.
     """
-    def __init__(self, config_file, channel=None, index=None, on_res=True):
-        super().__init__(config_file, channel=channel, index=index)
+    def __init__(self, config_file, channel, index, on_res=True):
+        super().__init__(config_file, channel, index=index)
         # figure out the file specifics
         directory = os.path.dirname(os.path.abspath(config_file))
         self._sweep_gui = os.path.basename(config_file).split("_")[0] == "sweep"
@@ -364,10 +362,8 @@ class LegacyPulse(LegacyABC):
     Args:
         config_file: string
             A file path to the config file for the measurement.
-        channel: integer (optional)
-            An integer specifying which channel to load. The default is None
-            which will raise an error forcing the user to directly specify the
-            channel.
+        channel: integer
+            An integer specifying which channel to load.
         energies: number or iterable of numbers (optional)
             The known energies in the pulse data. The default is an empty
             tuple.
@@ -376,7 +372,7 @@ class LegacyPulse(LegacyABC):
             which are internally converted to energies. The default is an empty
             tuple.
     """
-    def __init__(self, config_file, channel=None, energies=(), wavelengths=()):
+    def __init__(self, config_file, channel, energies=(), wavelengths=()):
         channel = channel % 2  # channels can't be > 1
         super().__init__(config_file, channel=channel)
         # record the photon energies
