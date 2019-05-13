@@ -746,7 +746,6 @@ class Loop:
             fit_name, result_dict = self._get_model(fit_type, label)
             if fit_name is None:
                 raise ValueError("No fit of type '{}' with the label '{}' has been done".format(fit_type, label))
-            result = result_dict['result']
             model = result_dict['model']
             # calculate the model values
             f = np.linspace(np.min(self.f), np.max(self.f), np.size(self.f) * 10)
@@ -1009,7 +1008,6 @@ class Loop:
             fit_name, result_dict = self._get_model(fit_type, label)
             if fit_name is None:
                 raise ValueError("No fit of type '{}' with the label '{}' has been done".format(fit_type, label))
-            result = result_dict['result']
             model = result_dict['model']
             # calculate the model values
             f = np.linspace(np.min(self.f), np.max(self.f), np.size(self.f) * 10)
@@ -1270,7 +1268,6 @@ class Loop:
             fit_name, result_dict = self._get_model(fit_type, label)
             if fit_name is None:
                 raise ValueError("No fit of type '{}' with the label '{}' has been done".format(fit_type, label))
-            result = result_dict['result']
             model = result_dict['model']
             # calculate the model values
             f = np.linspace(np.min(self.f), np.max(self.f), np.size(self.f) * 10)
