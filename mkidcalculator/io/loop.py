@@ -39,6 +39,11 @@ class Loop:
         self._directory = None
         # response calibrations
         self._energy_calibration = None
+        # energy calibrations
+        self._phase_calibration = None
+        self._amplitude_calibration = None
+        self._phase_avg = None
+        self._amplitude_avg = None
         log.info("Loop object created. ID: {}".format(id(self)))
 
     @property
@@ -451,12 +456,12 @@ class Loop:
                 Keyword arguments to the calibration function
         """
         if self._energy_calibration is None:
-            raise AttributeError("The response calibration has not been computed yet.")
+            raise AttributeError("The energy calibration has not been computed yet.")
         return self._energy_calibration(*args, **kwargs)
 
     def set_energy_calibration(self, calibration):
         """
-        Set the response calibration function.
+        Set the energy calibration function.
         Args:
             calibration: function
                 A function that converts detector response to energy.
@@ -464,6 +469,128 @@ class Loop:
         if not callable(calibration):
             raise AttributeError("The calibration must be a function")
         self._energy_calibration = calibration
+
+    def compute_phase_calibration(self, pulse_indices=None, use_mask=True, fix_zero=True, k=2):
+        """
+        Compute the energy to phase calibration from data in the pulse objects.
+        There must be at least two distinct single energy pulses.
+        Args:
+            pulse_indices: iterable of integers
+                Indices of pulse objects in loop.pulses to use for the
+                calibration. The default is None and all are used.
+            use_mask: boolean
+                Determines if the pulse mask is used to filter the pulse
+                responses used for the calibration. The default is True.
+            fix_zero: boolean
+                Determines if the zero point is added as a fixed point in the
+                calibration. The default is True.
+            k: integer
+                The interpolating spline degree. The default is 2.
+        """
+        indices, energies = self._calibration_points(pulse_indices=pulse_indices)
+        assert len(energies) >= 2, "There must be at least 2 pulse data sets with unique, known, single energy lines."
+        # compute phase and amplitude responses
+        phase = []
+        for pulse in itemgetter(indices)(self.pulses):
+            data = pulse.p_trace[pulse.mask] if use_mask else pulse.p_trace
+            phase.append(np.median(pulse.compute_responses("phase_filter", data=data)))
+        if fix_zero:
+            energies, phase = [0] + energies, [0] + phase
+        # store for future plotting
+        self._phase_avg = phase
+        # sort them by increasing energy
+        phase, energies = np.array(phase), np.array(energies)
+        energies, indices = np.unique(energies, return_index=True)
+        phase = phase[indices]
+
+        spline = InterpolatedUnivariateSpline(energies, phase, k=k)
+        self.set_phase_calibration(spline)
+
+    def phase_calibration(self, *args, **kwargs):
+        """
+        A calibration from energy to detector phase. The calibration is set
+        via loop.set_phase_calibration().
+        Args:
+            args: optional arguments
+                Arguments to the calibration function
+            kwargs: optional keyword arguments
+                Keyword arguments to the calibration function
+        """
+        if self._phase_calibration is None:
+            raise AttributeError("The phase calibration has not been computed yet.")
+        return self._phase_calibration(*args, **kwargs)
+
+    def set_phase_calibration(self, calibration):
+        """
+        Set the phase calibration function.
+        Args:
+            calibration: function
+                A function that converts energy to detector phase.
+        """
+        if not callable(calibration):
+            raise AttributeError("The calibration must be a function")
+        self._phase_calibration = calibration
+
+    def compute_amplitude_calibration(self, pulse_indices=None, use_mask=True, fix_zero=True, k=2):
+        """
+        Compute the energy to amplitude calibration from data in the pulse
+        objects. There must be at least two distinct single energy pulses.
+        Args:
+            pulse_indices: iterable of integers
+                Indices of pulse objects in loop.pulses to use for the
+                calibration. The default is None and all are used.
+            use_mask: boolean
+                Determines if the pulse mask is used to filter the pulse
+                responses used for the calibration. The default is True.
+            fix_zero: boolean
+                Determines if the zero point is added as a fixed point in the
+                calibration. The default is True.
+            k: integer
+                The interpolating spline degree. The default is 2.
+        """
+        indices, energies = self._calibration_points(pulse_indices=pulse_indices)
+        assert len(energies) >= 2, "There must be at least 2 pulse data sets with unique, known, single energy lines."
+        # compute phase and amplitude responses
+        amplitude = []
+        for pulse in itemgetter(indices)(self.pulses):
+            data = pulse.p_trace[pulse.mask] if use_mask else pulse.p_trace
+            amplitude.append(np.median(pulse.compute_responses("amplitude_filter", data=data)))
+        if fix_zero:
+            energies, amplitude = [0] + energies, [0] + amplitude
+        # store for future plotting
+        self._amplitude_avg = amplitude
+        # sort them by increasing energy
+        amplitude, energies = np.array(amplitude), np.array(energies)
+        energies, indices = np.unique(energies, return_index=True)
+        amplitude = amplitude[indices]
+
+        spline = InterpolatedUnivariateSpline(energies, amplitude, k=k)
+        self.set_phase_calibration(spline)
+
+    def amplitude_calibration(self, *args, **kwargs):
+        """
+        A calibration from energy to detector amplitude. The calibration is set
+        via loop.set_amplitude_calibration().
+        Args:
+            args: optional arguments
+                Arguments to the calibration function
+            kwargs: optional keyword arguments
+                Keyword arguments to the calibration function
+        """
+        if self._amplitude_calibration is None:
+            raise AttributeError("The phase calibration has not been computed yet.")
+        return self._amplitude_calibration(*args, **kwargs)
+
+    def set_amplitude_calibration(self, calibration):
+        """
+        Set the amplitude calibration function.
+        Args:
+            calibration: function
+                A function that converts energy to detector amplitude.
+        """
+        if not callable(calibration):
+            raise AttributeError("The calibration must be a function")
+        self._amplitude_calibration = calibration
 
     def plot(self, plot_types=("iq", "magnitude", "phase"), plot_fit=False, label="best", fit_type="lmfit",
              plot_guess=None, n_rows=2, title=True, title_kwargs=None, legend=True, legend_kwargs=None,
@@ -1567,6 +1694,24 @@ class Loop:
         if fix_zero:
             responses, energies = np.append(0, responses), np.append(0, energies)
         return responses, energies
+
+    def _energy_calibration_points(self, pulse_indices=None):
+        pulses = self.pulses if pulse_indices is None else itemgetter(*pulse_indices)(self.pulses)
+        indices = []
+        energies = []
+        for index, pulse in enumerate(pulses):
+            energy = pulse.energies
+            if energy is None:
+                continue
+            try:
+                n_energy = len(energy)
+            except TypeError:
+                n_energy = 1
+                energy = [energy]
+            if n_energy == 1:
+                energies.append(energy[0])
+                indices.append(index)
+        return indices, energies
 
     def _set_directory(self, directory):
         self._directory = directory
