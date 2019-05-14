@@ -333,6 +333,18 @@ class Pulse:
             raise AttributeError("The spectrum for this pulse has not been computed yet.")
         return self._spectrum
 
+    @property
+    def resolving_power(self):
+        """
+        The resolving power for the data set. The spectrum must be computed
+        first. If the spectrum is calibrated and pulse.energies has length 1,
+        pulse.energies[0] is used as the energy. Otherwise, the mode of the
+        spectrum is used.
+        """
+        peak = self.energies[0] if len(self.energies) == 1 and self.spectrum["calibrated"] else self.spectrum["peak"]
+        fwhm = self.spectrum["fwhm"]
+        return peak / fwhm
+
     def clear_loop_data(self):
         """Remove all data calculated from the pulse.loop attribute."""
         self.clear_traces()

@@ -103,6 +103,11 @@ class Loop:
         """The temperature at the resonator."""
         return self._data['temperature']
 
+    @property
+    def resolving_powers(self):
+        """Returns a list of resolving powers for the pulses."""
+        return [pulse.resolving_power for pulse in self.pulses]
+
     def to_pickle(self, file_name):
         """Pickle and save the class as the file 'file_name'."""
         # set the _directory attributes so all the data gets saved in the right folder
@@ -1495,14 +1500,11 @@ class Loop:
             pdf = pulse.spectrum["pdf"]
             bandwidth = pulse.spectrum["bandwidth"]
             calibrated = pulse.spectrum["calibrated"]
-            # use the known energy if possible
-            peak = pulse.energies[0] if len(pulse.energies) == 1 and calibrated else pulse.spectrum["peak"]
-            fwhm = pulse.spectrum["fwhm"]
             # plot the data
             n_bins = 10 * int((max_energy - min_energy) / bandwidth)
             xx = np.linspace(min_energy, max_energy,  10 * n_bins)
-            if not np.isnan(peak) and not np.isnan(fwhm):
-                label = "{:.0f} nm: R = {:.2f}".format(ev_nm_convert(pulse.energies[0]), peak / fwhm)
+            if not np.isnan(pulse.resolving_power):
+                label = "{:.0f} nm: R = {:.2f}".format(ev_nm_convert(pulse.energies[0]), pulse.resolving_power)
             else:
                 label = ""
             axes.plot(xx, norms[index] * pdf(xx) / np.sum(norms), label=label)
