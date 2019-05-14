@@ -81,8 +81,9 @@ class Noise:
 
     @loop.setter
     def loop(self, loop):
+        if self._loop is not loop:
+            self.clear_loop_data()
         self._loop = loop
-        self.clear_loop_data()
 
     @property
     def p_trace(self):

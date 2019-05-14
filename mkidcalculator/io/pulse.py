@@ -175,8 +175,9 @@ class Pulse:
 
     @noise.setter
     def noise(self, noise):
+        if self._noise is not noise:
+            self.clear_noise_data()
         self._noise = noise
-        self.clear_noise_data()
         try:
             self.noise.loop = self.loop
         except AttributeError:
