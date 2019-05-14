@@ -954,7 +954,7 @@ class Pulse:
         self.clear_spectrum()
         # compute an estimate of the distribution function for the amplitude data
         if use_calibration:
-            calibration = self.loop.response_calibration
+            calibration = self.loop.energy_calibration
             energies = calibration(self.responses[self.mask]) if use_mask else calibration(self.responses)
         else:
             energies = self.responses[self.mask] if use_mask else self.responses

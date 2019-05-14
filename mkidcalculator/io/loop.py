@@ -38,7 +38,7 @@ class Loop:
         # directory of the saved data
         self._directory = None
         # response calibrations
-        self._response_calibration = None
+        self._energy_calibration = None
         log.info("Loop object created. ID: {}".format(id(self)))
 
     @property
@@ -412,7 +412,7 @@ class Loop:
             self.emcee_results['best']['label'] = label
         return result
 
-    def compute_response_calibration(self, pulse_indices=None, use_mask=True, fix_zero=True, k=2):
+    def compute_energy_calibration(self, pulse_indices=None, use_mask=True, fix_zero=True, k=2):
         """
         Compute the response to energy calibration from data in the pulse
         objects. There must be at least two distinct single energy pulses.
@@ -438,23 +438,23 @@ class Loop:
         responses, indices = np.unique(responses, return_index=True)
         energies = energies[indices]
         spline = InterpolatedUnivariateSpline(responses, energies, k=k)
-        self.set_response_calibration(spline)
+        self.set_energy_calibration(spline)
 
-    def response_calibration(self, *args, **kwargs):
+    def energy_calibration(self, *args, **kwargs):
         """
         A calibration from detector response to energy. The calibration is set
-        via loop.set_response_calibration().
+        via loop.set_energy_calibration().
         Args:
             args: optional arguments
                 Arguments to the calibration function
             kwargs: optional keyword arguments
                 Keyword arguments to the calibration function
         """
-        if self._response_calibration is None:
+        if self._energy_calibration is None:
             raise AttributeError("The response calibration has not been computed yet.")
-        return self._response_calibration(*args, **kwargs)
+        return self._energy_calibration(*args, **kwargs)
 
-    def set_response_calibration(self, calibration):
+    def set_energy_calibration(self, calibration):
         """
         Set the response calibration function.
         Args:
@@ -463,7 +463,7 @@ class Loop:
         """
         if not callable(calibration):
             raise AttributeError("The calibration must be a function")
-        self._response_calibration = calibration
+        self._energy_calibration = calibration
 
     def plot(self, plot_types=("iq", "magnitude", "phase"), plot_fit=False, label="best", fit_type="lmfit",
              plot_guess=None, n_rows=2, title=True, title_kwargs=None, legend=True, legend_kwargs=None,
@@ -1406,9 +1406,9 @@ class Loop:
             axes.figure.tight_layout()
         return axes
 
-    def plot_response_calibration(self, pulse_indices=None, use_mask=True, fix_zero=True, axes=None):
+    def plot_energy_calibration(self, pulse_indices=None, use_mask=True, fix_zero=True, axes=None):
         """
-        Plot the response calibration.
+        Plot the energy calibration.
         Args:
             pulse_indices: iterable of integers
                 Indices of pulse objects in loop.pulses to use for the
@@ -1433,7 +1433,7 @@ class Loop:
         responses, energies = self._calibration_points(pulse_indices=pulse_indices, use_mask=use_mask,
                                                        fix_zero=fix_zero)
         xx = np.linspace(np.min(responses) * 0.8, np.max(responses) * 1.2, 1000)
-        axes.plot(xx, self.response_calibration(xx), label='calibration')
+        axes.plot(xx, self.energy_calibration(xx), label='calibration')
         axes.plot(responses, energies, 'o', label='true')
         axes.set_xlabel('response [radians]')
         axes.set_ylabel('energy [eV]')
