@@ -565,7 +565,7 @@ class Loop:
         amplitude = amplitude[indices]
 
         spline = InterpolatedUnivariateSpline(energies, amplitude, k=k)
-        self.set_phase_calibration(spline)
+        self.set_amplitude_calibration(spline)
 
     def amplitude_calibration(self, *args, **kwargs):
         """
