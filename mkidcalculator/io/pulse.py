@@ -1078,7 +1078,7 @@ class Pulse:
 
     def plot_template(self):
         """
-        Plot the template
+        Plot the template.
         """
         time = np.linspace(0, self.i_trace.shape[1] / self.sample_rate, self.i_trace.shape[1]) * 1e6
         figure = plt.figure(figsize=(12, 4))
