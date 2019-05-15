@@ -469,13 +469,13 @@ class Loop:
             k: integer
                 The interpolating spline degree. The default is 2.
         """
-        indices, energies = self._calibration_points(pulse_indices=pulse_indices)
+        indices, energies = self._energy_calibration_points(pulse_indices=pulse_indices)
         assert len(energies) >= 2, "There must be at least 2 pulse data sets with unique, known, single energy lines."
         # compute phase and amplitude responses
         phase = []
-        for pulse in itemgetter(indices)(self.pulses):
+        for pulse in itemgetter(*indices)(self.pulses):
             data = pulse.p_trace[pulse.mask] if use_mask else pulse.p_trace
-            phase.append(np.median(pulse.compute_responses("phase_filter", data=data)))
+            phase.append(np.median(pulse.compute_responses("phase_filter", data=data)[0]))
         if fix_zero:
             energies, phase = [0] + energies, [0] + phase
         # sort them by increasing energy
@@ -505,13 +505,13 @@ class Loop:
             k: integer
                 The interpolating spline degree. The default is 2.
         """
-        indices, energies = self._calibration_points(pulse_indices=pulse_indices)
+        indices, energies = self._energy_calibration_points(pulse_indices=pulse_indices)
         assert len(energies) >= 2, "There must be at least 2 pulse data sets with unique, known, single energy lines."
         # compute phase and amplitude responses
         amplitude = []
-        for pulse in itemgetter(indices)(self.pulses):
+        for pulse in itemgetter(*indices)(self.pulses):
             data = pulse.p_trace[pulse.mask] if use_mask else pulse.p_trace
-            amplitude.append(np.median(pulse.compute_responses("amplitude_filter", data=data)))
+            amplitude.append(np.median(pulse.compute_responses("amplitude_filter", data=data)[0]))
         if fix_zero:
             energies, amplitude = [0] + energies, [0] + amplitude
         # sort them by increasing energy
