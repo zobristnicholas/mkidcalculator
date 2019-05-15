@@ -39,11 +39,15 @@ class Loop:
         self._directory = None
         # response calibrations
         self.energy_calibration = None
+        self._response_avg = None
+        self._response_energies = None
         # energy calibrations
         self.phase_calibration = None
         self.amplitude_calibration = None
         self._phase_avg = None
+        self._phase_energies = None
         self._amplitude_avg = None
+        self._amplitude_energies = None
         log.info("Loop object created. ID: {}".format(id(self)))
 
     @property
@@ -442,6 +446,10 @@ class Loop:
         responses, energies = np.array(responses), np.array(energies)
         responses, indices = np.unique(responses, return_index=True)
         energies = energies[indices]
+        # store for future plotting
+        self._response_avg = responses
+        self._response_energies = energies
+
         self.energy_calibration = InterpolatedUnivariateSpline(responses, energies, k=k)
 
     def compute_phase_calibration(self, pulse_indices=None, use_mask=True, fix_zero=True, k=2):
@@ -470,12 +478,13 @@ class Loop:
             phase.append(np.median(pulse.compute_responses("phase_filter", data=data)))
         if fix_zero:
             energies, phase = [0] + energies, [0] + phase
-        # store for future plotting
-        self._phase_avg = phase
         # sort them by increasing energy
         phase, energies = np.array(phase), np.array(energies)
         energies, indices = np.unique(energies, return_index=True)
         phase = phase[indices]
+        # store for future plotting
+        self._phase_avg = phase
+        self._phase_energies = energies
 
         self.phase_calibration = InterpolatedUnivariateSpline(energies, phase, k=k)
 
@@ -505,12 +514,13 @@ class Loop:
             amplitude.append(np.median(pulse.compute_responses("amplitude_filter", data=data)))
         if fix_zero:
             energies, amplitude = [0] + energies, [0] + amplitude
-        # store for future plotting
-        self._amplitude_avg = amplitude
         # sort them by increasing energy
         amplitude, energies = np.array(amplitude), np.array(energies)
         energies, indices = np.unique(energies, return_index=True)
         amplitude = amplitude[indices]
+        # store for future plotting
+        self._amplitude_avg = amplitude
+        self._amplitude_energies = energies
 
         self.amplitude_calibration = InterpolatedUnivariateSpline(energies, amplitude, k=k)
 
@@ -1455,19 +1465,10 @@ class Loop:
             axes.figure.tight_layout()
         return axes
 
-    def plot_energy_calibration(self, pulse_indices=None, use_mask=True, fix_zero=True, axes=None):
+    def plot_energy_calibration(self, axes=None):
         """
         Plot the energy calibration.
         Args:
-            pulse_indices: iterable of integers
-                Indices of pulse objects in loop.pulses to use for the
-                'true' points. The default is None and all pulses are used.
-            use_mask: boolean
-                Determines if the pulse mask is used to filter the pulse
-                responses used for the 'true' points. The default is True.
-            fix_zero: boolean
-                Determines if the zero point is added as a fixed point in the
-                for the 'true' points. The default is True.
             axes: matplotlib.axes.Axes class
                 An Axes class on which to put the plot. The default is None and
                 a new figure is made.
@@ -1479,13 +1480,59 @@ class Loop:
             figure, axes = plt.subplots()
         else:
             figure = axes.figure
-        responses, energies = self._calibration_points(pulse_indices=pulse_indices, use_mask=use_mask,
-                                                       fix_zero=fix_zero)
-        xx = np.linspace(np.min(responses) * 0.8, np.max(responses) * 1.2, 1000)
+        xx = np.linspace(np.min(self._response_avg) * 0.8, np.max(self._response_avg) * 1.2, 1000)
         axes.plot(xx, self.energy_calibration(xx), label='calibration')
-        axes.plot(responses, energies, 'o', label='true')
+        axes.plot(self._response_avg, self._response_energies, 'o', label='true')
         axes.set_xlabel('response [radians]')
         axes.set_ylabel('energy [eV]')
+        axes.legend()
+        figure.tight_layout()
+        return axes
+
+    def plot_phase_calibration(self, axes=None):
+        """
+        Plot the phase calibration.
+        Args:
+            axes: matplotlib.axes.Axes class
+                An Axes class on which to put the plot. The default is None and
+                a new figure is made.
+        Returns:
+            axes: matplotlib.axes.Axes class
+                An Axes class with the plotted calibration.
+        """
+        if not axes:
+            figure, axes = plt.subplots()
+        else:
+            figure = axes.figure
+        xx = np.linspace(np.min(self._phase_energies) * 0.8, np.max(self._phase_energies) * 1.2, 1000)
+        axes.plot(xx, self.phase_calibration(xx), label='calibration')
+        axes.plot(self._phase_energies, self._phase_avg, 'o', label='true')
+        axes.set_xlabel('energy [eV]')
+        axes.set_ylabel('phase [radians]')
+        axes.legend()
+        figure.tight_layout()
+        return axes
+
+    def plot_amplitude_calibration(self, axes=None):
+        """
+        Plot the phase calibration.
+        Args:
+            axes: matplotlib.axes.Axes class
+                An Axes class on which to put the plot. The default is None and
+                a new figure is made.
+        Returns:
+            axes: matplotlib.axes.Axes class
+                An Axes class with the plotted calibration.
+        """
+        if not axes:
+            figure, axes = plt.subplots()
+        else:
+            figure = axes.figure
+        xx = np.linspace(np.min(self._amplitude_energies) * 0.8, np.max(self._amplitude_energies) * 1.2, 1000)
+        axes.plot(xx, self.amplitude_calibration(xx), label='calibration')
+        axes.plot(self._amplitude_energies, self._amplitude_avg, 'o', label='true')
+        axes.set_xlabel('energy [eV]')
+        axes.set_ylabel('amplitude [radians]')
         axes.legend()
         figure.tight_layout()
         return axes
