@@ -805,11 +805,8 @@ class Pulse:
             else:
                 data = self.a_trace if data is None else data
             results = self.fit_traces(data, fit_type=calculation_type)
-            responses = []
-            peak_indices = []
-            for result in results:
-                responses.append(result.params["energy"].value)
-                peak_indices.append(result.params["index"].value)
+            responses = np.array([result.params["energy"].value for result in results])
+            peak_indices = np.array([result.params["index"].value for result in results])
         elif calculation_type == "orthogonal_filter":
             raise NotImplementedError
         elif calculation_type == "phase_orthogonal_filter":
@@ -845,9 +842,10 @@ class Pulse:
     def fit_traces(self, data, fit_type="optimal_fit"):
         # initialize parameters
         n_points = self.template.shape[1]
+        f = np.fft.rfftfreq(n_points)[:, np.newaxis, np.newaxis]  # n_points x 1 x 1
         params = lm.Parameters()
         params.add("energy", value=self.energies[0] if len(self.energies) == 1 else 0, min=0)
-        params.add("index", value=n_points - n_points // 2)
+        params.add("index", self.peak_indices[self.mask].mean())
         # get fft of the data along the last axis
         data_fft = np.fft.rfft(data)
         if fit_type == "optimal_fit":
@@ -868,7 +866,7 @@ class Pulse:
 
             # define the calibration
             def calibration(energy):
-                return np.array([self.loop.phase_calibration(energy), self.loop.amplitude_calibration(energy)])
+                return np.array([[self.loop.phase_calibration(energy)], [self.loop.amplitude_calibration(energy)]])
         elif fit_type == "phase_fit":
             # normalize the template
             template = self.template[0] / np.abs(self.template[0].min())
@@ -899,7 +897,8 @@ class Pulse:
         results = []
         for index in range(data_fft.shape[0]):
             results.append(lm.minimize(self._chi2, params, scale_covar=True,
-                                       args=(template_fft, data_fft[index], s_inv, calibration)))
+                                       args=(template_fft, data_fft[index], s_inv, calibration, f, n_points)))
+        return np.array(results)
 
     def characterize_traces(self, smoothing=False):
         """
@@ -1182,14 +1181,15 @@ class Pulse:
         return data
 
     @staticmethod
-    def _chi2(params, template_fft, s_inv, calibration):
+    def _chi2(params, template_fft, data_fft, s_inv, calibration, f,  size):
+        # pull out parameters
         energy = params['energy'].value
         index = params['index'].value
-        n_points = template_fft.shape[0]
-        m_fft = template_fft * calibration(energy)
-        m_fft *= np.exp(-2j * np.pi * np.arange(n_points) * (index - (n_points - n_points // 2)))
-        # remove zero frequency bin (DC offset)
-        x = (data_fft - m_fft)[1:]  # n_frequencies x 2 x 1
+        # make model
+        model_fft = template_fft * calibration(energy)
+        model_fft *= np.exp(-2j * np.pi * f * (index - (size - size // 2)))
+        # remove zero frequency bin (DC f)
+        x = (data_fft - model_fft)[1:]  # n_frequencies x 2 x 1
         s_inv = s_inv[1:]  # n_frequencies x 1 x 1 or n_frequencies x 2 x 2
         return np.sqrt((np.conj(x.transpose(0, 2, 1)) @ s_inv @ x).real)
 
