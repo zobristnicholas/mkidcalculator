@@ -767,6 +767,12 @@ class Pulse:
                 "optimal_filter"
                 "phase_filter"
                 "amplitude_filter"
+                "optimal_fit"
+                "phase_fit"
+                "amplitude_fit"
+                "orthogonal_filter"
+                "phase_orthogonal_filter"
+                "amplitude_orthogonal_filter"
             data: numpy.ndarray
                 A numpy array for which to compute responses. The data must
                 be in the shape specified by pulse.apply_filter for the given
@@ -780,24 +786,35 @@ class Pulse:
                 The response arrival time index for each trace.
         """
         save_values = data is None
-        if calculation_type == "optimal_filter":
-            if data is None:
-                data = np.array([self.p_trace, self.a_trace])
+        if calculation_type in ["optimal_filter", "phase_filter", "amplitude_filter"]:
+            if calculation_type == "optimal_filter":
+                data = np.array([self.p_trace, self.a_trace]) if data is None else data
+            elif calculation_type == "phase_filter":
+                data = self.p_trace if data is None else data
+            else:
+                data = self.a_trace if data is None else data
             filtered_data = self.apply_filter(data, filter_type=calculation_type)
             responses = filtered_data.max(axis=1)
             peak_indices = np.argmax(filtered_data, axis=1)
-        elif calculation_type == "phase_filter":
-            if data is None:
-                data = self.p_trace
-            filtered_data = self.apply_filter(data, filter_type=calculation_type)
-            responses = filtered_data.max(axis=1)
-            peak_indices = np.argmax(filtered_data, axis=1)
-        elif calculation_type == "amplitude_filter":
-            if data is None:
-                data = self.a_trace
-            filtered_data = self.apply_filter(data, filter_type=calculation_type)
-            responses = filtered_data.max(axis=1)
-            peak_indices = np.argmax(filtered_data, axis=1)
+        elif calculation_type in ["optimal_fit", "phase_fit", "amplitude_fit"]:
+            if calculation_type == "optimal_fit":
+                data = np.array([self.p_trace, self.a_trace]) if data is None else data
+            elif calculation_type == "phase_fit":
+                data = self.p_trace if data is None else data
+            else:
+                data = self.a_trace if data is None else data
+            results = self.fit_traces(data, fit_type=calculation_type)
+            responses = []
+            peak_indices = []
+            for result in results:
+                responses.append(result.params["energy"].value)
+                peak_indices.append(result.params["index"].value)
+        elif calculation_type == "orthogonal_filter":
+            raise NotImplementedError
+        elif calculation_type == "phase_orthogonal_filter":
+            raise NotImplementedError
+        elif calculation_type == "amplitude_orthogonal_filter":
+            raise NotImplementedError
         else:
             raise ValueError("'{}' is not a valid calculation_type".format(calculation_type))
         if save_values:
@@ -811,23 +828,77 @@ class Pulse:
         first axis must be for the phase and amplitude. The filter is applied
         to the last axis.
         """
-        size = data.shape[-1]
-        pad_back = size // 2
-        pad_front = size - pad_back - 1
-        pad = [(0, 0)] * (data.ndim - 1)
-        pad.append((pad_front, pad_back))
-        padded_data = np.pad(data, pad, 'wrap')
+        data = self._pad_data(data)
         kwargs = {"mode": "valid", "axes": -1}
         if filter_type == "optimal_filter":
-            result = (fftconvolve(np.atleast_2d(padded_data[0]), np.atleast_2d(self.optimal_filter[0]), **kwargs) +
-                      fftconvolve(np.atleast_2d(padded_data[1]), np.atleast_2d(self.optimal_filter[1]), **kwargs))
+            result = (fftconvolve(np.atleast_2d(data[0]), np.atleast_2d(self.optimal_filter[0]), **kwargs) +
+                      fftconvolve(np.atleast_2d(data[1]), np.atleast_2d(self.optimal_filter[1]), **kwargs))
         elif filter_type == "phase_filter":
-            result = fftconvolve(np.atleast_2d(padded_data), np.atleast_2d(self.p_filter), **kwargs)
+            result = fftconvolve(np.atleast_2d(data), np.atleast_2d(self.p_filter), **kwargs)
         elif filter_type == "amplitude_filter":
-            result = fftconvolve(np.atleast_2d(padded_data), np.atleast_2d(self.a_filter), **kwargs)
+            result = fftconvolve(np.atleast_2d(data), np.atleast_2d(self.a_filter), **kwargs)
         else:
             raise ValueError("'{}' is not a valid calculation_type".format(filter_type))
         return result
+
+    def fit_traces(self, data, fit_type="optimal_fit"):
+        # initialize parameters
+        n_points = self.template.shape[1]
+        params = lm.Parameters()
+        params.add("energy", value=self.energies[0] if len(self.energies) == 1 else 0, min=0)
+        params.add("index", value=n_points - n_points // 2)
+        # get fft of the data along the last axis
+        data_fft = np.fft.rfft(data)
+        if fit_type == "optimal_fit":
+            # normalize the template to have unit pulse heights in both quadratures
+            template = self.template / np.abs(np.min(self.template, axis=1, keepdims=True))
+            template_fft = np.fft.rfft(template)
+            template_fft = template_fft.T[..., np.newaxis]  # n_frequencies x 2 x 1
+            # assemble noise matrix
+            s = np.array([[self.noise.pp_psd, self.noise.pa_psd],
+                          [np.conj(self.noise.pa_psd), self.noise.aa_psd]], dtype=np.complex)
+            s = s.transpose((2, 0, 1))  # n_frequencies x 2 x 2
+            s_inv = np.linalg.inv(s)
+            # coerce data into the right shape
+            data_fft = np.moveaxis(data_fft, 0, -1)  # n_traces x n_frequencies x 2  or  n_frequencies x 2
+            if data_fft.ndim == 2:
+                data_fft = data_fft[np.newaxis, ...]
+            data_fft = data_fft[..., np.newaxis]  # n_traces x n_frequencies x 2 x 1
+
+            # define the calibration
+            def calibration(energy):
+                return np.array([self.loop.phase_calibration(energy), self.loop.amplitude_calibration(energy)])
+        elif fit_type == "phase_fit":
+            # normalize the template
+            template = self.template[0] / np.abs(self.template[0].min())
+            template_fft = np.fft.rfft(template)
+            template_fft = template_fft[..., np.newaxis, np.newaxis]  # n_frequencies x 1 x 1
+            # get noise
+            s = self.noise.pp_psd[..., np.newaxis, np.newaxis]  # n_frequencies x 1 x 1
+            s_inv = np.linalg.inv(s)
+            # coerce data into the right shape
+            data_fft = np.atleast_2d(data_fft)[..., np.newaxis, np.newaxis]  # n_traces x n_frequencies x 1 x 1
+            # define the calibration
+            calibration = self.loop.phase_calibration
+        elif fit_type == "amplitude_fit":
+            # normalize the template
+            template = self.template[1] / np.abs(self.template[1].min())
+            template_fft = np.fft.rfft(template)
+            template_fft = template_fft[..., np.newaxis, np.newaxis]  # n_frequencies x 1 x 1
+            # get noise
+            s = self.noise.aa_psd[..., np.newaxis, np.newaxis]  # n_frequencies x 1 x 1
+            s_inv = np.linalg.inv(s)
+            # coerce data into the right shape
+            data_fft = np.atleast_2d(data_fft)[..., np.newaxis, np.newaxis]  # n_traces x n_frequencies x 1 x 1
+            # define the calibration
+            calibration = self.loop.amplitude_calibration
+        else:
+            raise ValueError("'{}' is not a valid fit_type".format(fit_type))
+        # fit results
+        results = []
+        for index in range(data_fft.shape[0]):
+            results.append(lm.minimize(self._chi2, params, scale_covar=True,
+                                       args=(template_fft, data_fft[index], s_inv, calibration)))
 
     def characterize_traces(self, smoothing=False):
         """
@@ -1098,6 +1169,28 @@ class Pulse:
         ind = int(np.floor(traces.shape[-1] / 5))
         traces -= np.median(traces[..., :ind], axis=-1, keepdims=True)
         return traces
+
+    @staticmethod
+    def _pad_data(data):
+        size = data.shape[-1]
+        pad_back = size // 2
+        pad_front = size - pad_back - 1
+        pad = [(0, 0)] * (data.ndim - 1)
+        pad.append((pad_front, pad_back))
+        data = np.pad(data, pad, 'wrap')
+        return data
+
+    @staticmethod
+    def _chi2(params, template_fft, s_inv, calibration):
+        energy = params['energy'].value
+        index = params['index'].value
+        n_points = template_fft.shape[0]
+        m_fft = template_fft * calibration(energy)
+        m_fft *= np.exp(-2j * np.pi * np.arange(n_points) * (index - (n_points - n_points // 2)))
+        # remove zero frequency bin (DC offset)
+        x = (data_fft - m_fft)[1:]  # n_frequencies x 2 x 1
+        s_inv = s_inv[1:]  # n_frequencies x 1 x 1 or n_frequencies x 2 x 2
+        return np.sqrt((np.conj(x.transpose(0, 2, 1)) @ s_inv @ x).real)
 
     def plot_template(self):
         """
