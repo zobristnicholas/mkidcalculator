@@ -38,10 +38,10 @@ class Loop:
         # directory of the saved data
         self._directory = None
         # response calibrations
-        self._energy_calibration = None
+        self.energy_calibration = None
         # energy calibrations
-        self._phase_calibration = None
-        self._amplitude_calibration = None
+        self.phase_calibration = None
+        self.amplitude_calibration = None
         self._phase_avg = None
         self._amplitude_avg = None
         log.info("Loop object created. ID: {}".format(id(self)))
@@ -442,33 +442,7 @@ class Loop:
         responses, energies = np.array(responses), np.array(energies)
         responses, indices = np.unique(responses, return_index=True)
         energies = energies[indices]
-        spline = InterpolatedUnivariateSpline(responses, energies, k=k)
-        self.set_energy_calibration(spline)
-
-    def energy_calibration(self, *args, **kwargs):
-        """
-        A calibration from detector response to energy. The calibration is set
-        via loop.set_energy_calibration().
-        Args:
-            args: optional arguments
-                Arguments to the calibration function
-            kwargs: optional keyword arguments
-                Keyword arguments to the calibration function
-        """
-        if self._energy_calibration is None:
-            raise AttributeError("The energy calibration has not been computed yet.")
-        return self._energy_calibration(*args, **kwargs)
-
-    def set_energy_calibration(self, calibration):
-        """
-        Set the energy calibration function.
-        Args:
-            calibration: function
-                A function that converts detector response to energy.
-        """
-        if not callable(calibration):
-            raise AttributeError("The calibration must be a function")
-        self._energy_calibration = calibration
+        self.energy_calibration = InterpolatedUnivariateSpline(responses, energies, k=k)
 
     def compute_phase_calibration(self, pulse_indices=None, use_mask=True, fix_zero=True, k=2):
         """
@@ -503,33 +477,7 @@ class Loop:
         energies, indices = np.unique(energies, return_index=True)
         phase = phase[indices]
 
-        spline = InterpolatedUnivariateSpline(energies, phase, k=k)
-        self.set_phase_calibration(spline)
-
-    def phase_calibration(self, *args, **kwargs):
-        """
-        A calibration from energy to detector phase. The calibration is set
-        via loop.set_phase_calibration().
-        Args:
-            args: optional arguments
-                Arguments to the calibration function
-            kwargs: optional keyword arguments
-                Keyword arguments to the calibration function
-        """
-        if self._phase_calibration is None:
-            raise AttributeError("The phase calibration has not been computed yet.")
-        return self._phase_calibration(*args, **kwargs)
-
-    def set_phase_calibration(self, calibration):
-        """
-        Set the phase calibration function.
-        Args:
-            calibration: function
-                A function that converts energy to detector phase.
-        """
-        if not callable(calibration):
-            raise AttributeError("The calibration must be a function")
-        self._phase_calibration = calibration
+        self.phase_calibration = InterpolatedUnivariateSpline(energies, phase, k=k)
 
     def compute_amplitude_calibration(self, pulse_indices=None, use_mask=True, fix_zero=True, k=2):
         """
@@ -564,33 +512,7 @@ class Loop:
         energies, indices = np.unique(energies, return_index=True)
         amplitude = amplitude[indices]
 
-        spline = InterpolatedUnivariateSpline(energies, amplitude, k=k)
-        self.set_amplitude_calibration(spline)
-
-    def amplitude_calibration(self, *args, **kwargs):
-        """
-        A calibration from energy to detector amplitude. The calibration is set
-        via loop.set_amplitude_calibration().
-        Args:
-            args: optional arguments
-                Arguments to the calibration function
-            kwargs: optional keyword arguments
-                Keyword arguments to the calibration function
-        """
-        if self._amplitude_calibration is None:
-            raise AttributeError("The phase calibration has not been computed yet.")
-        return self._amplitude_calibration(*args, **kwargs)
-
-    def set_amplitude_calibration(self, calibration):
-        """
-        Set the amplitude calibration function.
-        Args:
-            calibration: function
-                A function that converts energy to detector amplitude.
-        """
-        if not callable(calibration):
-            raise AttributeError("The calibration must be a function")
-        self._amplitude_calibration = calibration
+        self.amplitude_calibration = InterpolatedUnivariateSpline(energies, amplitude, k=k)
 
     def plot(self, plot_types=("iq", "magnitude", "phase"), plot_fit=False, label="best", fit_type="lmfit",
              plot_guess=None, n_rows=2, title=True, title_kwargs=None, legend=True, legend_kwargs=None,
