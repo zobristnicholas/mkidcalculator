@@ -510,7 +510,7 @@ class Loop:
         # compute phase and amplitude responses
         amplitude = []
         for pulse in itemgetter(*indices)(self.pulses):
-            data = pulse.p_trace[pulse.mask] if use_mask else pulse.p_trace
+            data = pulse.a_trace[pulse.mask] if use_mask else pulse.a_trace
             amplitude.append(np.median(pulse.compute_responses("amplitude_filter", data=data)[0]))
         if fix_zero:
             energies, amplitude = [0] + energies, [0] + amplitude
