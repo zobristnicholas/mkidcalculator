@@ -4,13 +4,14 @@ import pickle
 import logging
 import warnings
 import numpy as np
+import lmfit as lm
 import numpy.fft as fft
 import numpy.linalg as la
+from matplotlib import pyplot as plt
+from matplotlib.widgets import Button, Slider
 from scipy.signal import fftconvolve
 from scipy.stats import gaussian_kde
 from scipy.interpolate import UnivariateSpline, InterpolatedUnivariateSpline
-from matplotlib import pyplot as plt
-from matplotlib.widgets import Button, Slider
 
 from mkidcalculator.io.data import AnalogReadoutPulse
 from mkidcalculator.io.utils import (compute_phase_and_amplitude, offload_data, _loaded_npz_files,
