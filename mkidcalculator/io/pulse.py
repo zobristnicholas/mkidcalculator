@@ -936,7 +936,7 @@ class Pulse:
         logic = self._postpulse_min_slope < minimum
         self.mask[logic] = False
 
-    def compute_spectrum(self, use_mask=True, use_calibration=True, **kwargs):
+    def compute_spectrum(self, use_mask=True, use_calibration=True, calibrated=None, **kwargs):
         """
         Compute the spectrum of the pulse data. The result is stored in
         pulse.spectrum.
@@ -948,6 +948,13 @@ class Pulse:
                 Use the response calibration in pulse.loop to calculate the
                 energies. If False, the responses are used directly. The
                 default is True.
+            calibrated: boolean (optional)
+                Determines whether the spectrum is saved as 'calibrated' for
+                plotting and resolving_power purposes. This has no effect on
+                the use_calibration parameter. The default is None which
+                corresponds to the state of use_calibration. Setting this
+                parameter is useful for when the responses are already
+                energies.
             kwargs: optional keyword arguments
                 Optional arguments to scipy.stats.gaussian_kde
         """
@@ -959,8 +966,9 @@ class Pulse:
         else:
             energies = self.responses[self.mask] if use_mask else self.responses
 
+        calibrated = use_calibration if calibrated is None else calibrated
         fwhm, peak, pdf, pdf_interp = self._compute_fwhm(energies, **kwargs)
-        self._spectrum = {"pdf": pdf, "interpolation": pdf_interp, "energies": energies, "calibrated": use_calibration,
+        self._spectrum = {"pdf": pdf, "interpolation": pdf_interp, "energies": energies, "calibrated": calibrated,
                           "bandwidth": pdf.factor, "fwhm": fwhm, "peak": peak}
 
     @staticmethod
