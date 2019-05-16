@@ -10,7 +10,7 @@ import numpy.linalg as la
 from matplotlib import pyplot as plt
 from matplotlib.widgets import Button, Slider
 from scipy.signal import fftconvolve
-from scipy.stats import gaussian_kde
+from scipy.stats import gaussian_kde, mode
 from scipy.interpolate import UnivariateSpline, InterpolatedUnivariateSpline
 
 from mkidcalculator.io.data import AnalogReadoutPulse
@@ -1020,7 +1020,9 @@ class Pulse:
         n_samples = self.p_trace.shape[1]
         peak_offset = 10
         data = np.array([self.p_trace, self.a_trace])
-        data -= np.mean(data, axis=-1, keepdims=True)
+        # subtract off the half the average prepulse mean for the data set (half because summing components later)
+        peak_index = mode(self.peak_indices).mode.item()
+        data -= data[:, :, :peak_index - 2 * peak_offset].sum(axis=0).mean() / 2  # be extra lenient with peak offset
         # determine the mean of the trace prior to the pulse
         self._prepulse_mean = np.zeros(self.peak_indices.shape)
         for index, peak in enumerate(self.peak_indices):
@@ -1037,7 +1039,7 @@ class Pulse:
                 self._prepulse_rms[index] = np.inf
             else:
                 prepulse = data[:, index, :peak - peak_offset].sum(axis=0)
-                self._prepulse_rms[index] = np.sqrt(np.mean(prepulse ** 2))
+                self._prepulse_rms[index] = np.sqrt(np.mean((prepulse - np.mean(prepulse))**2))
 
         # determine the minimum slope after the pulse peak
         self._postpulse_min_slope = np.zeros(self.peak_indices.shape)
