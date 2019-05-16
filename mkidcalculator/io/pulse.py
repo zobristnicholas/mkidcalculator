@@ -634,27 +634,33 @@ class Pulse:
                 Valid options are listed. The default is "optimal_filter".
                 Options that are Monte Carlo simulations are computationally
                 expensive and re-run on each call of pulse.variance().
-                "optimal_filter"
+                "optimal_filter":
                     Theoretical two dimensional optimal filter performance.
-                "optimal_filter_mc"
+                "optimal_filter_mc":
                     Monte Carlo simulation of the two dimensional optimal
                     filter performance.
-                "phase_filter"
+                "phase_filter":
                     Theoretical phase optimal filter performance.
-                "phase_filter_mc"
+                "phase_filter_mc":
                     Monte Carlo simulation of the phase optimal filter
                     performance.
-                "amplitude_filter"
+                "amplitude_filter":
                     Theoretical amplitude optimal filter performance.
-                "amplitude_filter_mc"
+                "amplitude_filter_mc":
                     Monte Carlo simulation of the amplitude optimal filter
                     performance.
-                "optimal_fit"
-                "optimal_fit_mc"
-                "phase_fit"
-                "phase_fit_mc"
-                "amplitude_fit"
-                "amplitude_fit_mc"
+                "optimal_fit":
+                    Theoretical two dimensional optimal fit performance.
+                "optimal_fit_mc":
+                    Monte Carlo simulation of the optimal fit performance.
+                "phase_fit":
+                    Theoretical phase fit performance.
+                "phase_fit_mc":
+                    Monte Carlo simulation of the phase fit performance.
+                "amplitude_fit":
+                    Theoretical amplitude fit performance.
+                "amplitude_fit_mc":
+                    Monte Carlo simulation of the amplitude fit performance.
             mode: string (optional)
                 Valid options are listed below the default is "variance".
                 "variance"
@@ -812,15 +818,27 @@ class Pulse:
             calculation_type: string
                 The calculation type used to compute the responses. Valid
                 options are listed below. The default is "optimal_filter".
-                "optimal_filter"
-                "phase_filter"
-                "amplitude_filter"
-                "optimal_fit"
-                "phase_fit"
-                "amplitude_fit"
-                "orthogonal_filter"
-                "phase_orthogonal_filter"
-                "amplitude_orthogonal_filter"
+                "optimal_filter":
+                    Use a filter constructed with the phase/amplitude template
+                    and noise.
+                "phase_filter":
+                    Use a filter constructed with the phase template and noise.
+                "amplitude_filter":
+                    Use a filter constructed with the amplitude template and
+                    noise.
+                "optimal_fit":
+                    Fit the data with a combined phase/amplitude template and
+                    noise.
+                "phase_fit":
+                    Fit the data with the phase template and noise.
+                "amplitude_fit":
+                    Fit the data with the amplitude template and noise.
+                "orthogonal_filter":
+                    Work in progress
+                "phase_orthogonal_filter":
+                    Work in progress
+                "amplitude_orthogonal_filter":
+                    Work in progress
             data: numpy.ndarray
                 A numpy array for which to compute responses. The data must
                 be in the shape specified by pulse.apply_filter for the given
@@ -872,6 +890,27 @@ class Pulse:
         Method for convolving the filters with the data. For the 2D filter the
         first axis must be for the phase and amplitude. The filter is applied
         to the last axis.
+        Args:
+            data: numpy.ndarray
+                Pulse data to filter. For filtering both phase and amplitude
+                the shape must be either 2 x n_traces x n_points or
+                2 x n_points. For filtering just one of the phase or amplitude
+                the shape must be n_points or n_traces x n_points.
+            filter_type: string
+                The type of filter to use. Valid options are listed below. The
+                default is "optimal_filter".
+                "optimal_filter":
+                    Use a filter constructed with the phase/amplitude template
+                    and noise.
+                "phase_filter":
+                    Use a filter constructed with the phase template and noise.
+                "amplitude_filter":
+                    Use a filter constructed with the amplitude template and
+                    noise.
+        Returns:
+            result: numpy.ndarray
+                A numpy array of the same shape as the input that has been
+                filtered.
         """
         data = self._pad_data(data)
         kwargs = {"mode": "valid", "axes": -1}
@@ -887,6 +926,28 @@ class Pulse:
         return result
 
     def fit_traces(self, data, fit_type="optimal_fit"):
+        """
+        Method for fitting the data to the template pulse model.
+        Args:
+            data: numpy.ndarray
+                Pulse data to fit. For fitting both phase and amplitude the
+                shape must be either 2 x n_traces x n_points or 2 x n_points.
+                For fitting just one of the phase or amplitude the shape must
+                be n_points or n_traces x n_points.
+            fit_type: string
+                The type of fit to perform. Valid options are listed below. The
+                default is "optimal_fit".
+                "optimal_fit":
+                    Fit the data with a combined phase/amplitude template and
+                    noise.
+                "phase_fit":
+                    Fit the data with the phase template and noise.
+                "amplitude_fit":
+                    Fit the data with the amplitude template and noise.
+        Returns:
+            results: numpy.ndarray
+                A numpy array of lmfit.ModelResults containing the fit results.
+        """
         # initialize parameters
         n_points = self.template.shape[1]
         f = np.fft.rfftfreq(n_points)[:, np.newaxis, np.newaxis]  # n_points x 1 x 1
