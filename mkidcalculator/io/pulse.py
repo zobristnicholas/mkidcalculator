@@ -624,13 +624,13 @@ class Pulse:
         norm = self.apply_filter(template, filter_type="amplitude_filter").max()
         self._a_filter /= norm
 
-    def performance(self, calculation_type="optimal_filter", mode="variance", response=1.5, baseline=(1, .1),
-                    distribution=False):
+    def performance(self, calculation_type="optimal_filter", mode="variance", response=1.5, energy=None,
+                    baseline=(1, .1), distribution=False):
         """
         Return the expected variance for a particular response calculation
         type.
         Args:
-            calculation_type: string
+            calculation_type: string (optional)
                 Valid options are listed. The default is "optimal_filter".
                 Options that are Monte Carlo simulations are computationally
                 expensive and re-run on each call of pulse.variance().
@@ -649,7 +649,13 @@ class Pulse:
                 "amplitude_filter_mc"
                     Monte Carlo simulation of the amplitude optimal filter
                     performance.
-            mode: string
+                "optimal_fit"
+                "optimal_fit_mc"
+                "phase_fit"
+                "phase_fit_mc"
+                "amplitude_fit"
+                "amplitude_fit_mc"
+            mode: string (optional)
                 Valid options are listed below the default is "variance".
                 "variance"
                     The variance in the response estimation. The returned value
@@ -666,16 +672,21 @@ class Pulse:
                     the mean response / the resolution. The mean response may
                     differ from the requested response due to bias in the
                     calculation type if a Monte Carlo method is being used.
-            response: float
+            response: float (optional)
                 The combined phase and amplitude response in radians to use in
-                the calculation. This is only used in Monte Carlo methods and
-                for computing the resolving power. The default is 1.
-            baseline: float or iterable of two floats
+                the calculation. This is only used in Monte Carlo filter methods
+                and for computing the resolving power. The default is 1.
+            energy: float (optional)
+                The energy of the response in eV. This is only used for the
+                fitting methods that need to evaluate a derivative of a
+                calibration at a particular energy. The default is None in
+                which case the first energy in pulse.energies will be used.
+            baseline: float or iterable of two floats (optional)
                 The baseline of the photon response. This is only used in Monte
                 Carlo methods. If a tuple, it corresponds to (phase baseline,
                 amplitude baseline). Otherwise, both are assumed to be the
                 same. The default is (1, .1).
-            distribution: bool
+            distribution: bool (optional)
                 Determines if the detector responses are returned as well. This
                 is only allowed if the calculation was a Monte Carlo method.
         Returns:
@@ -695,6 +706,10 @@ class Pulse:
             baseline = np.ones(2) * baseline
         elif baseline.size != 2:
             raise ValueError("The baseline keyword must be a number or have length 2.")
+        if energy is None and len(self.energies) > 0:
+            energy = self.energies[0]
+        mc_types = ["optimal_filter_mc", "phase_filter_mc", "amplitude_filter_mc", "optimal_fit_mc", "phase_fit_mc",
+                    "amplitude_fit_mc"]
         # theory calculations
         if calculation_type in ["optimal_filter", "phase_filter", "amplitude_filter"]:
             if calculation_type == "optimal_filter":
@@ -710,9 +725,38 @@ class Pulse:
             elif mode == 'resolving_power':
                 result = response / (2 * np.sqrt(2 * np.log(2) * result))
             responses = None
+        elif calculation_type in ["optimal_fit", "phase_fit", "amplitude_fit"]:
+            # normalize the template to have unit pulse heights in both quadratures
+            template = self.template / np.abs(np.min(self.template, axis=1, keepdims=True))
+            template_fft = np.fft.rfft(template).T[..., np.newaxis]  # n_frequencies x 2 x 1
+            sample_rate = self.sample_rate
+            n_points = template.shape[1]
+            if calculation_type == "optimal_fit":
+                s = np.array([[self.noise.pp_psd, self.noise.pa_psd],
+                              [np.conj(self.noise.pa_psd), self.noise.aa_psd]], dtype=np.complex)
+                s = s.transpose((2, 0, 1))[1:]  # n_frequencies x 2 x 2
+                s_inv = np.linalg.inv(s)
+                dm_fft = (template_fft * np.array([[self.loop.phase_calibration.derivative()(energy)],
+                                                   [self.loop.amplitude_calibration.derivative()(energy)]]))[1:]
+                result = sample_rate * n_points / (4 * np.conj(dm_fft.transpose(0, 2, 1)) @ s_inv @ dm_fft).real.sum()
+            elif calculation_type == "phase_fit":
+                noise = self.noise.pp_psd[1:]
+                dm_fft = template_fft[1:, 0, 0] * self.loop.phase_calibration.derivative()(energy)
+                result = sample_rate * n_points / (4 * np.abs(dm_fft)**2 / noise).sum()
+            else:
+                noise = self.noise.aa_psd[1:]
+                dm_fft = template_fft[1:, 1, 0] * self.loop.amplitude_calibration.derivative()(energy)
+                result = sample_rate * n_points / (4 * np.abs(dm_fft)**2 / noise).sum()
+            if mode == 'fwhm':
+                result = 2 * np.sqrt(2 * np.log(2) * result)
+            elif mode == 'resolving_power':
+                result = energy / (2 * np.sqrt(2 * np.log(2) * result))
+            responses = None
         # Monte Carlo calculations
-        elif calculation_type in ["optimal_filter_mc", "phase_filter_mc", "amplitude_filter_mc"]:
-            if calculation_type == "optimal_filter_mc":
+        elif calculation_type in mc_types:
+            if calculation_type in ["optimal_fit_mc", "phase_fit_mc", "amplitude_fit_mc"]:
+                response = self.loop.phase_calibration(energy) + self.loop.amplitude_calibration(energy)
+            if calculation_type in ["optimal_filter_mc", "optimal_fit_mc"]:
                 # get noise traces
                 noise = self.noise.generate_noise(noise_type="pa", n_traces=10000)
                 # normalize the template for response = phase + amplitude
@@ -720,8 +764,9 @@ class Pulse:
                 # make data traces
                 data = noise + response * template[:, np.newaxis, :] + baseline[:, np.newaxis, np.newaxis]
                 # compute the responses
-                responses, _ = self.compute_responses(calculation_type="optimal_filter", data=data)
-            elif calculation_type == "phase_filter_mc":
+                method = "optimal_filter" if calculation_type == "optimal_filter_mc" else "optimal_fit"
+                responses, _ = self.compute_responses(calculation_type=method, data=data)
+            elif calculation_type in ["phase_filter_mc", "phase_fit_mc"]:
                 # get noise traces
                 noise = self.noise.generate_noise(noise_type="p", n_traces=10000)
                 # normalize the template for response = phase + amplitude
@@ -729,7 +774,8 @@ class Pulse:
                 # make data traces
                 data = noise + response * template + baseline[0]
                 # compute the responses
-                responses, _ = self.compute_responses(calculation_type="phase_filter", data=data)
+                method = "phase_filter" if calculation_type == "phase_filter_mc" else "phase_fit"
+                responses, _ = self.compute_responses(calculation_type=method, data=data)
             else:
                 # get noise traces
                 noise = self.noise.generate_noise(noise_type="a", n_traces=10000)
@@ -737,7 +783,8 @@ class Pulse:
                 template = self.template[1] / np.abs(self.template[0].min() + self.template[1].min())
                 data = noise + response * template + baseline[1]
                 # compute the responses
-                responses, _ = self.compute_responses(calculation_type="amplitude_filter", data=data)
+                method = "amplitude_filter" if calculation_type == "amplitude_filter_mc" else "amplitude_fit"
+                responses, _ = self.compute_responses(calculation_type=method, data=data)
             # compute the result
             if mode == 'variance':
                 result = np.var(responses, ddof=1)
@@ -851,8 +898,7 @@ class Pulse:
         if fit_type == "optimal_fit":
             # normalize the template to have unit pulse heights in both quadratures
             template = self.template / np.abs(np.min(self.template, axis=1, keepdims=True))
-            template_fft = np.fft.rfft(template)
-            template_fft = template_fft.T[..., np.newaxis]  # n_frequencies x 2 x 1
+            template_fft = np.fft.rfft(template).T[..., np.newaxis]  # n_frequencies x 2 x 1
             # assemble noise matrix
             s = np.array([[self.noise.pp_psd, self.noise.pa_psd],
                           [np.conj(self.noise.pa_psd), self.noise.aa_psd]], dtype=np.complex)
