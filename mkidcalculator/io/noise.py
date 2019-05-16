@@ -376,7 +376,7 @@ class Noise:
         except AttributeError:
             pass
 
-    def generate_noise(self, noise_type="pa", n_traces=10000):
+    def generate_noise(self, noise_type="pa", n_traces=10000, psd=None):
         """
         Generate fake noise traces from the computed PSDs.
         Args:
@@ -386,6 +386,10 @@ class Noise:
                 and Q.
             n_traces: integer
                 The number of noise traces to make.
+            psd: length 3 iterable of numpy.arrays
+                PSD to use to generate the noise in the form
+                (PSD_00, PSD_11, PSD_01). Components that aren't used can be
+                set to None.
         Returns:
             noise: np.ndarray
                 If noise_type == "pa" (or "iq"), a 2 x n_traces x N array of
@@ -400,44 +404,51 @@ class Noise:
             raise ValueError("'noise_type' is not in {}".format(noise_types))
         # get constants
         dt = 1 / self.sample_rate
-        f = self.f_psd
-        if noise_type in ["pa", "p", "a"]:
+        if psd is not None:
+            psd_00, psd_11, psd_01 = psd
+            if hasattr(psd_00, "size"):
+                n_frequencies = psd_00.size
+            else:
+                n_frequencies = psd_11.size
+        elif noise_type in ["pa", "p", "a"]:
             psd_00 = self.pp_psd
             psd_01 = self.pa_psd
             psd_11 = self.aa_psd
+            n_frequencies = self.f_psd.size
         else:
             psd_00 = self.ii_psd
             psd_01 = self.iq_psd
             psd_11 = self.qq_psd
+            n_frequencies = self.f_psd.size
 
         if noise_type in ["pa", "iq"]:
             # compute square root of covariance
-            c = np.array([[psd_00, psd_01],  # 2 x 2 x f.size
+            c = np.array([[psd_00, psd_01],  # 2 x 2 x n_frequencies
                           [np.conj(psd_01), psd_11]])
-            c = np.moveaxis(c, 2, 0)  # f.size x 2 x 2
+            c = np.moveaxis(c, 2, 0)  # n_frequencies x 2 x 2
             u, s, vh = np.linalg.svd(c)
             s = np.array([[s[:, 0], np.zeros(s[:, 0].shape)],
                           [np.zeros(s[:, 0].shape), s[:, 1]]])
             s = np.moveaxis(s, -1, 0)
             a = u @ np.sqrt(self._n_samples * s / (2 * dt)) @ vh  # divide by 2 for single sided noise
             # get unit amplitude random phase noise in both quadratures
-            phase_phi = 2 * np.pi * np.random.rand(n_traces, f.size)
+            phase_phi = 2 * np.pi * np.random.rand(n_traces, n_frequencies)
             phase_fft = np.exp(1j * phase_phi)
-            amp_phi = 2 * np.pi * np.random.rand(n_traces, f.size)
+            amp_phi = 2 * np.pi * np.random.rand(n_traces, n_frequencies)
             amp_fft = np.exp(1j * amp_phi)
             # rescale the noise to the covariance
-            noise_fft = np.array([[phase_fft],  # 2 x 1 x n_traces x f.size
+            noise_fft = np.array([[phase_fft],  # 2 x 1 x n_traces x n_frequencies
                                   [amp_fft]])
-            noise_fft = np.moveaxis(noise_fft, [0, 1], [-2, -1])  # n_traces x f.size x 2 x 1
-            noise_fft = (a @ noise_fft).squeeze()  # n_traces x f.size x 2
-            noise_fft = np.moveaxis(noise_fft, -1, 0)  # 2 x n_traces x f.size
+            noise_fft = np.moveaxis(noise_fft, [0, 1], [-2, -1])  # n_traces x n_frequencies x 2 x 1
+            noise_fft = (a @ noise_fft).squeeze()  # n_traces x n_frequencies x 2
+            noise_fft = np.moveaxis(noise_fft, -1, 0)  # 2 x n_traces x n_frequencies
         else:
             # compute square root of covariance
             psd = psd_00 if noise_type in ["p", "i"] else psd_11
             a = np.sqrt(self._n_samples * psd / (2 * dt))
             # get unit amplitude random phase noise
-            noise_phi = 2 * np.pi * np.random.rand(n_traces, f.size)
-            noise_fft = np.exp(1j * noise_phi)  # n_traces x f.size
+            noise_phi = 2 * np.pi * np.random.rand(n_traces, n_frequencies)
+            noise_fft = np.exp(1j * noise_phi)  # n_traces x n_frequencies
             # rescale the noise to the covariance
             noise_fft = a * noise_fft
         noise = np.fft.irfft(noise_fft, self._n_samples)
