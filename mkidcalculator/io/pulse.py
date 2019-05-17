@@ -9,8 +9,8 @@ import numpy.fft as fft
 import numpy.linalg as la
 from matplotlib import pyplot as plt
 from matplotlib.widgets import Button, Slider
+import scipy.stats as stats
 from scipy.signal import fftconvolve
-from scipy.stats import gaussian_kde, mode
 from scipy.interpolate import UnivariateSpline, InterpolatedUnivariateSpline
 
 from mkidcalculator.io.data import AnalogReadoutPulse
@@ -1021,7 +1021,7 @@ class Pulse:
         peak_offset = 10
         data = np.array([self.p_trace, self.a_trace])
         # subtract off the half the average prepulse mean for the data set (half because summing components later)
-        peak_index = mode(self.peak_indices).mode.item()
+        peak_index = stats.mode(self.peak_indices).mode.item()
         data -= data[:, :, :peak_index - 2 * peak_offset].sum(axis=0).mean() / 2  # be extra lenient with peak offset
         # determine the mean of the trace prior to the pulse
         self._prepulse_mean = np.zeros(self.peak_indices.shape)
@@ -1153,7 +1153,7 @@ class Pulse:
 
     @staticmethod
     def _compute_fwhm(energies, **kwargs):
-        pdf = gaussian_kde(energies, **kwargs)
+        pdf = stats.gaussian_kde(energies, **kwargs)
         maximum, minimum = energies.max(), energies.min()
         x = np.linspace(minimum, maximum, int(10 * (maximum - minimum) / pdf.factor))  # sample at 10x the bandwidth
         # convert to a spline so that we can robustly compute the FWHM and maximum later
