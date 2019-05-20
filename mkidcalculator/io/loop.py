@@ -439,8 +439,8 @@ class Loop:
                 The interpolating spline degree. The default is 2.
         """
         # get energies and responses for the calibration
-        responses, energies = self._calibration_points(pulse_indices=pulse_indices, use_mask=use_mask,
-                                                       fix_zero=fix_zero)
+        responses, energies, _ = self._calibration_points(pulse_indices=pulse_indices, use_mask=use_mask,
+                                                          fix_zero=fix_zero)
         assert len(energies) >= 2, "There must be at least 2 pulse data sets with unique, known, single energy lines."
         # sort them by increasing response
         responses, energies = np.array(responses), np.array(energies)
@@ -469,15 +469,14 @@ class Loop:
             k: integer
                 The interpolating spline degree. The default is 2.
         """
-        indices, energies = self._energy_calibration_points(pulse_indices=pulse_indices)
+        _, energies, indices = self._calibration_points(pulse_indices=pulse_indices, fix_zero=fix_zero)
         assert len(energies) >= 2, "There must be at least 2 pulse data sets with unique, known, single energy lines."
         # compute phase and amplitude responses
         phase = []
         for pulse in itemgetter(*indices)(self.pulses):
             data = pulse.p_trace[pulse.mask] if use_mask else pulse.p_trace
             phase.append(np.median(pulse.compute_responses("phase_filter", data=data)[0]))
-        if fix_zero:
-            energies, phase = [0] + energies, [0] + phase
+        phase = [0] + phase if fix_zero else phase
         # sort them by increasing energy
         phase, energies = np.array(phase), np.array(energies)
         energies, indices = np.unique(energies, return_index=True)
@@ -505,15 +504,14 @@ class Loop:
             k: integer
                 The interpolating spline degree. The default is 2.
         """
-        indices, energies = self._energy_calibration_points(pulse_indices=pulse_indices)
+        _, energies, indices = self._calibration_points(pulse_indices=pulse_indices, fix_zero=fix_zero)
         assert len(energies) >= 2, "There must be at least 2 pulse data sets with unique, known, single energy lines."
         # compute phase and amplitude responses
         amplitude = []
         for pulse in itemgetter(*indices)(self.pulses):
             data = pulse.a_trace[pulse.mask] if use_mask else pulse.a_trace
             amplitude.append(np.median(pulse.compute_responses("amplitude_filter", data=data)[0]))
-        if fix_zero:
-            energies, amplitude = [0] + energies, [0] + amplitude
+        amplitude = [0] + amplitude if fix_zero else amplitude
         # sort them by increasing energy
         amplitude, energies = np.array(amplitude), np.array(energies)
         energies, indices = np.unique(energies, return_index=True)
@@ -1644,43 +1642,33 @@ class Loop:
         return axes
 
     def _calibration_points(self, pulse_indices=None, use_mask=True, fix_zero=True):
-        pulses = self.pulses if pulse_indices is None else itemgetter(*pulse_indices)(self.pulses)
         responses = []
         energies = []
-        for pulse in pulses:
-            energy = pulse.energies
-            if energy is None:
-                continue
-            try:
-                n_energy = len(energy)
-            except TypeError:
-                n_energy = 1
-                energy = [energy]
-            if n_energy == 1:
-                energies.append(energy[0])
-                response = np.median(pulse.responses[pulse.mask]) if use_mask else np.median(pulse.responses)
-                responses.append(response)
+        if pulse_indices is None:
+            indices = []
+            for index, pulse in enumerate(pulses):
+                energy = pulse.energies
+                if energy is None:
+                    continue
+                try:
+                    n_energy = len(energy)
+                except TypeError:
+                    n_energy = 1
+                    energy = [energy]
+                if n_energy == 1:
+                    energies.append(energy[0])
+                    responses.append(np.median(pulse.responses[pulse.mask]) if use_mask else np.median(pulse.responses))
+                    indices.append(index)
+        else:
+            indices = pulse_indices
+            for pulse in itemgetter(*pulse_indices)(self.pulses):
+                assert len(pulse.energies) == 1, "only pulses with single energies can be used as calibration points"
+                energies.append(pulse.energies[0])
+                responses.append(np.median(pulse.responses[pulse.mask]) if use_mask else np.median(pulse.responses))
+
         if fix_zero:
             responses, energies = np.append(0, responses), np.append(0, energies)
-        return responses, energies
-
-    def _energy_calibration_points(self, pulse_indices=None):
-        pulses = self.pulses if pulse_indices is None else itemgetter(*pulse_indices)(self.pulses)
-        indices = []
-        energies = []
-        for index, pulse in enumerate(pulses):
-            energy = pulse.energies
-            if energy is None:
-                continue
-            try:
-                n_energy = len(energy)
-            except TypeError:
-                n_energy = 1
-                energy = [energy]
-            if n_energy == 1:
-                energies.append(energy[0])
-                indices.append(index)
-        return indices, energies
+        return responses, energies, indices
 
     def _set_directory(self, directory):
         self._directory = directory
