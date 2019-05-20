@@ -870,8 +870,8 @@ class Pulse:
             else:
                 data = self.a_trace if data is None else data
             results = self.fit_traces(data, fit_type=calculation_type)
-            responses = np.array([result.params["energy"].value for result in results])
-            peak_indices = np.array([result.params["index"].value for result in results])
+            responses = np.array([r.params["energy"].value if r.errorbars else np.nan for r in results])
+            peak_indices = np.array([r.params["index"].value if r.errorbars else np.nan for r in results])
         elif calculation_type == "orthogonal_filter":
             raise NotImplementedError
         elif calculation_type == "phase_orthogonal_filter":
