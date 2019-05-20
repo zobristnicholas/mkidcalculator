@@ -7,7 +7,7 @@ import numpy as np
 import matplotlib.pyplot as plt
 from operator import itemgetter
 import scipy.stats as stats
-from scipy.interpolate import InterpolatedUnivariateSpline
+from scipy.interpolate import InterpolatedUnivariateSpline, interp1d
 
 
 from mkidcalculator.io.noise import Noise
@@ -48,6 +48,9 @@ class Loop:
         self._phase_energies = None
         self._amplitude_avg = None
         self._amplitude_energies = None
+        # template calibration
+        self.template = None
+        self.template_fft = None
         log.info("Loop object created. ID: {}".format(id(self)))
 
     @property
@@ -521,6 +524,32 @@ class Loop:
         self._amplitude_energies = energies
 
         self.amplitude_calibration = InterpolatedUnivariateSpline(energies, amplitude, k=k)
+
+    def compute_template_calibration(self, pulse_indices=None):
+        """
+        Compute the energy to template calibration from data in the pulse
+        objects. Each component of the template is normalized to unit height,
+        and energies outside of the bounds use the nearest energy template.
+        Args:
+            pulse_indices: iterable of integers
+                Indices of pulse objects in loop.pulses to use for the
+                calibration. The default is None and all are used.
+        """
+        _, energies, indices = self._calibration_points(pulse_indices=pulse_indices, fix_zero=False)
+        templates = np.array([pulse.template for pulse in itemgetter(*indices)(self.pulses)]) # energies x 2 x points
+        templates /= np.abs(np.min(templates, axis=-1, keepdims=True))  # normalize to unit height on both signals
+        # setup bounds
+        energies = [0] + energies + [np.inf]
+        templates = np.concatenate((templates[:1], templates, templates[-1:]), axis=0)
+        templates_fft = np.fft.rfft(templates, axis=-1)  # energies x 2 x frequencies
+        template_fft_func = interp1d(energies, templates_fft, kind='linear', axis=0)
+
+        def template_func(energy):
+            fft = template_fft_func(energy)
+            return np.fft.irfft(fft, templates.shape[2])
+
+        self.template_fft = template_fft_func
+        self.template = template_func
 
     def plot(self, plot_types=("iq", "magnitude", "phase"), plot_fit=False, label="best", fit_type="lmfit",
              plot_guess=None, n_rows=2, title=True, title_kwargs=None, legend=True, legend_kwargs=None,
