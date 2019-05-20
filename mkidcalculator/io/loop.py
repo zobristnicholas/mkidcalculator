@@ -1642,30 +1642,36 @@ class Loop:
         return axes
 
     def _calibration_points(self, pulse_indices=None, use_mask=True, fix_zero=True):
+        skip_bad = True if pulse_indices is None else False
+        pulse_indices = range(len(self.pulses)) if pulse_indices is None else pulse_indices
         responses = []
         energies = []
-        if pulse_indices is None:
-            indices = []
-            for index, pulse in enumerate(pulses):
-                energy = pulse.energies
-                if energy is None:
-                    continue
-                try:
-                    n_energy = len(energy)
-                except TypeError:
-                    n_energy = 1
-                    energy = [energy]
-                if n_energy == 1:
-                    energies.append(energy[0])
-                    responses.append(np.median(pulse.responses[pulse.mask]) if use_mask else np.median(pulse.responses))
-                    indices.append(index)
-        else:
-            indices = pulse_indices
-            for pulse in itemgetter(*pulse_indices)(self.pulses):
-                assert len(pulse.energies) == 1, "only pulses with single energies can be used as calibration points"
-                energies.append(pulse.energies[0])
-                responses.append(np.median(pulse.responses[pulse.mask]) if use_mask else np.median(pulse.responses))
-
+        indices = list(pulse_indices)  # creates a copy
+        bad_indices = []
+        # get energies and responses for pulses
+        for index, pulse in enumerate(itemgetter(*pulse_indices)(self.pulses)):
+            energy = pulse.energies
+            # skip if no energy
+            if energy is None and skip_bad:
+                bad_indices.append(index)
+                continue
+            try:
+                n_energy = len(energy)
+            except TypeError:
+                n_energy = 1
+                energy = [energy]
+            # skip if more than one energy
+            if n_energy != 1 and skip_bad:
+                bad_indices.append(index)
+                continue
+            # record results
+            assert n_energy == 1, "only pulses with single energies can be used as calibration points"
+            energies.append(energy[0])
+            responses.append(np.median(pulse.responses[pulse.mask]) if use_mask else np.median(pulse.responses))
+        # remove indices we skipped from the index list
+        for index in sorted(bad_indices, reverse=True):
+            del indices[index]
+        # add zero point
         if fix_zero:
             responses, energies = np.append(0, responses), np.append(0, energies)
         return responses, energies, indices
