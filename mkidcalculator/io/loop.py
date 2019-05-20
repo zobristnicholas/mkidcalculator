@@ -1673,7 +1673,7 @@ class Loop:
             del indices[index]
         # add zero point
         if fix_zero:
-            responses, energies = np.append(0, responses), np.append(0, energies)
+            responses, energies = [0] + responses, [0] + energies
         return responses, energies, indices
 
     def _set_directory(self, directory):
