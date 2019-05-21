@@ -538,7 +538,8 @@ class Loop:
 
         self.amplitude_calibration = make_interp_spline(energies, amplitude, k=k, bc_type=bc_type)
 
-    def compute_template_calibration(self, pulse_indices=None, k=2, bc_type='not-a-knot'):
+    def compute_template_calibration(self, pulse_indices=None, k=1, bc_type='not-a-knot', average_phase=False,
+                                     average_amplitude=False):
         """
         Compute the energy to template calibration from data in the pulse
         objects. Each component of the template is normalized to unit height,
@@ -549,19 +550,29 @@ class Loop:
                 Indices of pulse objects in loop.pulses to use for the
                 calibration. The default is None and all are used.
             k: integer
-                The interpolating spline degree. The default is 2.
+                The interpolating spline degree. The default is 1.
             bc_type: string or 2-tuple or None
                 The type of spline boundary condition. Valid kinds
                 correspond to those in scipy.interpolate.make_interp_spline.
                 The default is 'not-a-knot'.
+            average_phase: bool
+                Average all of the phase templates together to use as the
+                template for all energies. The default is False.
+            average_amplitude: bool
+                Average all of the amplitude templates together to use as the
+                template for all energies. The default is False.
         """
         # find energies and order
         _, energies, indices = self._calibration_points(pulse_indices=pulse_indices, fix_zero=False)
         energies, order = np.unique(energies, return_index=True)
         indices = np.array(indices)[order]
 
-        templates = np.array([pulse.template for pulse in itemgetter(*indices)(self.pulses)]) # energies x 2 x points
+        templates = np.array([pulse.template for pulse in itemgetter(*indices)(self.pulses)])  # energies x 2 x points
         templates /= np.abs(np.min(templates, axis=-1, keepdims=True))  # normalize to unit height on both signals
+        if average_phase:
+            templates[:, 0, :] = templates[:, 0, :].mean(axis=0, keepdims=True)
+        if average_amplitude:
+            templates[:, 1, :] = templates[:, 1, :].mean(axis=0, keepdims=True)
         templates_fft = np.fft.rfft(templates, axis=-1)  # energies x 2 x frequencies
 
         self.template_fft = make_interp_spline(energies, templates_fft, k=k, axis=0, bc_type=bc_type)
