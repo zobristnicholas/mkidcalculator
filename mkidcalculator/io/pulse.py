@@ -732,26 +732,28 @@ class Pulse:
                 result = response / (2 * np.sqrt(2 * np.log(2) * result))
             responses = None
         elif calculation_type in ["optimal_fit", "phase_fit", "amplitude_fit"]:
-            # normalize the template to have unit pulse heights in both quadratures
-            template = self.template / np.abs(np.min(self.template, axis=1, keepdims=True))
-            template_fft = np.fft.rfft(template).T[..., np.newaxis]  # n_frequencies x 2 x 1
+            # grab the normalized template, calibration, and parameters
+            template_fft = self.loop.template_fft(energy).T[..., np.newaxis]  # n_frequencies x 2 x 1
+            d_template_fft = self.loop.template_fft.derivative()(energy).T[..., np.newaxis]  # n_frequencies x 2 x 1
+            calibration = np.array([[self.loop.phase_calibration(energy)], [self.loop.amplitude_calibration(energy)]])
+            d_calibration = np.array([[self.loop.phase_calibration.derivative()(energy)],  # 2 x 1
+                                      [self.loop.amplitude_calibration.derivative()(energy)]])
             sample_rate = self.sample_rate
-            n_points = template.shape[1]
+            n_points = self.loop.template(energy).shape[1]
             if calculation_type == "optimal_fit":
                 s = np.array([[self.noise.pp_psd, self.noise.pa_psd],
                               [np.conj(self.noise.pa_psd), self.noise.aa_psd]], dtype=np.complex)
                 s = s.transpose((2, 0, 1))[1:]  # n_frequencies x 2 x 2
                 s_inv = np.linalg.inv(s)
-                dm_fft = (template_fft * np.array([[self.loop.phase_calibration.derivative()(energy)],
-                                                   [self.loop.amplitude_calibration.derivative()(energy)]]))[1:]
+                dm_fft = template_fft[1:, :, :] * d_calibration + d_template_fft[1:, :, :] * calibration
                 result = sample_rate * n_points / (4 * np.conj(dm_fft.transpose(0, 2, 1)) @ s_inv @ dm_fft).real.sum()
             elif calculation_type == "phase_fit":
                 noise = self.noise.pp_psd[1:]
-                dm_fft = template_fft[1:, 0, 0] * self.loop.phase_calibration.derivative()(energy)
+                dm_fft = template_fft[1:, 0, 0] * d_calibration[0, 0] + d_template_fft[1:, 0, 0] * calibration[0, 0]
                 result = sample_rate * n_points / (4 * np.abs(dm_fft)**2 / noise).sum()
             else:
                 noise = self.noise.aa_psd[1:]
-                dm_fft = template_fft[1:, 1, 0] * self.loop.amplitude_calibration.derivative()(energy)
+                dm_fft = template_fft[1:, 1, 0] * d_calibration[1, 0] + d_template_fft[1:, 1, 0] * calibration[1, 0]
                 result = sample_rate * n_points / (4 * np.abs(dm_fft)**2 / noise).sum()
             if mode == 'fwhm':
                 result = 2 * np.sqrt(2 * np.log(2) * result)
@@ -957,9 +959,9 @@ class Pulse:
         # get fft of the data along the last axis
         data_fft = np.fft.rfft(data)
         if fit_type == "optimal_fit":
-            # normalize the template to have unit pulse heights in both quadratures
-            template = self.template / np.abs(np.min(self.template, axis=1, keepdims=True))
-            template_fft = np.fft.rfft(template).T[..., np.newaxis]  # n_frequencies x 2 x 1
+            # get the template
+            def template_fft(energy):
+                return self.loop.template_fft(energy).T[..., np.newaxis]  # n_frequencies x 2 x 1
             # assemble noise matrix
             s = np.array([[self.noise.pp_psd, self.noise.pa_psd],
                           [np.conj(self.noise.pa_psd), self.noise.aa_psd]], dtype=np.complex)
@@ -975,10 +977,9 @@ class Pulse:
             def calibration(energy):
                 return np.array([[self.loop.phase_calibration(energy)], [self.loop.amplitude_calibration(energy)]])
         elif fit_type == "phase_fit":
-            # normalize the template
-            template = self.template[0] / np.abs(self.template[0].min())
-            template_fft = np.fft.rfft(template)
-            template_fft = template_fft[..., np.newaxis, np.newaxis]  # n_frequencies x 1 x 1
+            # get the template
+            def template_fft(energy):
+                return self.loop.template_fft(energy)[0, ..., np.newaxis, np.newaxis]  # n_frequencies x 1 x 1
             # get noise
             s = self.noise.pp_psd[..., np.newaxis, np.newaxis]  # n_frequencies x 1 x 1
             s_inv = np.linalg.inv(s)
@@ -987,10 +988,9 @@ class Pulse:
             # define the calibration
             calibration = self.loop.phase_calibration
         elif fit_type == "amplitude_fit":
-            # normalize the template
-            template = self.template[1] / np.abs(self.template[1].min())
-            template_fft = np.fft.rfft(template)
-            template_fft = template_fft[..., np.newaxis, np.newaxis]  # n_frequencies x 1 x 1
+            # get the template
+            def template_fft(energy):
+                return self.loop.template_fft(energy)[1, ..., np.newaxis, np.newaxis]  # n_frequencies x 1 x 1
             # get noise
             s = self.noise.aa_psd[..., np.newaxis, np.newaxis]  # n_frequencies x 1 x 1
             s_inv = np.linalg.inv(s)
@@ -1295,7 +1295,7 @@ class Pulse:
         energy = params['energy'].value
         index = params['index'].value
         # make model
-        model_fft = template_fft * calibration(energy)
+        model_fft = template_fft(energy) * calibration(energy)
         model_fft *= np.exp(-2j * np.pi * f * (index - (size - size // 2)))
         # remove zero frequency bin (DC f)
         x = (data_fft - model_fft)[1:]  # n_frequencies x 2 x 1
