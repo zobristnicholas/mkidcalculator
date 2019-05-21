@@ -549,7 +549,7 @@ class Pulse:
             self._traces = self._remove_baseline(np.array([self.p_trace[self.mask, :], self.a_trace[self.mask, :]]))
         else:
             self._traces = self._remove_baseline(np.array([self.p_trace, self.a_trace]))
-        self._threshold_cut()
+            self._threshold_cut()
         self._average_pulses()
         # make a filter with the template
         self.make_filters()
@@ -559,7 +559,8 @@ class Pulse:
         else:
             self._traces = self._remove_baseline(np.array([self.p_trace, self.a_trace]))
         self._p_trace_filtered = self.apply_filter(self._traces[0], filter_type="phase_filter")
-        self._threshold_cut(use_filter=True)
+        if not use_mask:
+            self._threshold_cut(use_filter=True)
         self._offset_correction()
         self._average_pulses()
         self._traces = None  # release the memory since we no longer need this
