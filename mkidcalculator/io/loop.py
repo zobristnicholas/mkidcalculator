@@ -7,7 +7,7 @@ import numpy as np
 import matplotlib.pyplot as plt
 from operator import itemgetter
 import scipy.stats as stats
-from scipy.interpolate import InterpolatedUnivariateSpline, interp1d
+from scipy.interpolate import InterpolatedUnivariateSpline, CubicSpline
 
 
 from mkidcalculator.io.noise import Noise
@@ -49,8 +49,8 @@ class Loop:
         self._amplitude_avg = None
         self._amplitude_energies = None
         # template calibration
-        self.template = None
         self.template_fft = None
+        self._template_size = None
         log.info("Loop object created. ID: {}".format(id(self)))
 
     @property
@@ -525,31 +525,48 @@ class Loop:
 
         self.amplitude_calibration = InterpolatedUnivariateSpline(energies, amplitude, k=k)
 
-    def compute_template_calibration(self, pulse_indices=None):
+    def compute_template_calibration(self, pulse_indices=None, bc_type='natural'):
         """
         Compute the energy to template calibration from data in the pulse
         objects. Each component of the template is normalized to unit height,
-        and energies outside of the bounds use the nearest energy template.
+        and energies outside of the bounds are extrapolated and may lead to
+        poor results.
         Args:
             pulse_indices: iterable of integers
                 Indices of pulse objects in loop.pulses to use for the
                 calibration. The default is None and all are used.
+            bc_type: string
+                The type of cubic spline boundary condition. Valid kinds
+                correspond to those in scipy.interpolate.CubicSpline.
         """
+        # find energies and order
         _, energies, indices = self._calibration_points(pulse_indices=pulse_indices, fix_zero=False)
+        energies, order = np.unique(energies, return_index=True)
+        indices = np.array(indices)[order]
+
         templates = np.array([pulse.template for pulse in itemgetter(*indices)(self.pulses)]) # energies x 2 x points
         templates /= np.abs(np.min(templates, axis=-1, keepdims=True))  # normalize to unit height on both signals
-        # setup bounds
-        energies = [0] + energies + [np.inf]
-        templates = np.concatenate((templates[:1], templates, templates[-1:]), axis=0)
         templates_fft = np.fft.rfft(templates, axis=-1)  # energies x 2 x frequencies
-        template_fft_func = interp1d(energies, templates_fft, kind='linear', axis=0)
 
-        def template_func(energy):
-            fft = template_fft_func(energy)
-            return np.fft.irfft(fft, templates.shape[2])
+        self.template_fft = CubicSpline(energies, templates_fft, axis=0, bc_type=bc_type, extrapolate=True)
+        self._template_size = templates.shape[2]
 
-        self.template_fft = template_fft_func
-        self.template = template_func
+    def template(self, energy):
+        """
+        An interpolated function that gives the pulse template at all energies
+        as computed by pulse.compute_template_calibration().
+        Args:
+            energy: float
+                The energy at which to evaluate the template
+        Returns:
+            template: numpy.ndarray
+                A 2 x N array that represents the phase and amplitude template.
+        """
+        if self.template_fft is None:
+            raise AttributeError("The loop template has not been calculated yet.")
+        fft = self.template_fft(energy)
+        template = np.fft.irfft(fft, self._template_size)
+        return template
 
     def plot(self, plot_types=("iq", "magnitude", "phase"), plot_fit=False, label="best", fit_type="lmfit",
              plot_guess=None, n_rows=2, title=True, title_kwargs=None, legend=True, legend_kwargs=None,
