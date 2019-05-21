@@ -7,7 +7,7 @@ import numpy as np
 import matplotlib.pyplot as plt
 from operator import itemgetter
 import scipy.stats as stats
-from scipy.interpolate import InterpolatedUnivariateSpline, CubicSpline
+from scipy.interpolate import make_interp_spline
 
 
 from mkidcalculator.io.noise import Noise
@@ -453,7 +453,7 @@ class Loop:
         self._response_avg = responses
         self._response_energies = energies
 
-        self.energy_calibration = InterpolatedUnivariateSpline(responses, energies, k=k)
+        self.energy_calibration = make_interp_spline(responses, energies, k=k)
 
     def compute_phase_calibration(self, pulse_indices=None, use_mask=True, fix_zero=True, k=2):
         """
@@ -488,7 +488,7 @@ class Loop:
         self._phase_avg = phase
         self._phase_energies = energies
 
-        self.phase_calibration = InterpolatedUnivariateSpline(energies, phase, k=k)
+        self.phase_calibration = make_interp_spline(energies, phase, k=k)
 
     def compute_amplitude_calibration(self, pulse_indices=None, use_mask=True, fix_zero=True, k=2):
         """
@@ -523,9 +523,9 @@ class Loop:
         self._amplitude_avg = amplitude
         self._amplitude_energies = energies
 
-        self.amplitude_calibration = InterpolatedUnivariateSpline(energies, amplitude, k=k)
+        self.amplitude_calibration = make_interp_spline(energies, amplitude, k=k)
 
-    def compute_template_calibration(self, pulse_indices=None, bc_type='natural'):
+    def compute_template_calibration(self, pulse_indices=None, k=2, bc_type='not-a-knot'):
         """
         Compute the energy to template calibration from data in the pulse
         objects. Each component of the template is normalized to unit height,
@@ -535,9 +535,12 @@ class Loop:
             pulse_indices: iterable of integers
                 Indices of pulse objects in loop.pulses to use for the
                 calibration. The default is None and all are used.
-            bc_type: string
+            k: integer
+                The interpolating spline degree. The default is 2.
+            bc_type: string or 2-tuple or None
                 The type of cubic spline boundary condition. Valid kinds
-                correspond to those in scipy.interpolate.CubicSpline.
+                correspond to those in scipy.interpolate.make_interp_spline.
+                The default is 'not-a-knot'.
         """
         # find energies and order
         _, energies, indices = self._calibration_points(pulse_indices=pulse_indices, fix_zero=False)
@@ -548,7 +551,7 @@ class Loop:
         templates /= np.abs(np.min(templates, axis=-1, keepdims=True))  # normalize to unit height on both signals
         templates_fft = np.fft.rfft(templates, axis=-1)  # energies x 2 x frequencies
 
-        self.template_fft = CubicSpline(energies, templates_fft, axis=0, bc_type=bc_type, extrapolate=True)
+        self.template_fft = make_interp_spline(energies, templates_fft, k=k, axis=0, bc_type=bc_type)
         self._template_size = templates.shape[2]
 
     def template(self, energy):
