@@ -424,7 +424,7 @@ class Loop:
             self.emcee_results['best']['label'] = label
         return result
 
-    def compute_energy_calibration(self, pulse_indices=None, use_mask=True, fix_zero=True, k=2):
+    def compute_energy_calibration(self, pulse_indices=None, use_mask=True, fix_zero=True, k=2, bc_type='not-a-knot'):
         """
         Compute the response to energy calibration from data in the pulse
         objects. There must be at least two distinct single energy pulses.
@@ -440,6 +440,10 @@ class Loop:
                 calibration. The default is True.
             k: integer
                 The interpolating spline degree. The default is 2.
+            bc_type: string or 2-tuple or None
+                The type of spline boundary condition. Valid kinds
+                correspond to those in scipy.interpolate.make_interp_spline.
+                The default is 'not-a-knot'.
         """
         # get energies and responses for the calibration
         responses, energies, _ = self._calibration_points(pulse_indices=pulse_indices, use_mask=use_mask,
@@ -453,9 +457,9 @@ class Loop:
         self._response_avg = responses
         self._response_energies = energies
 
-        self.energy_calibration = make_interp_spline(responses, energies, k=k)
+        self.energy_calibration = make_interp_spline(responses, energies, k=k, bc_type=bc_type)
 
-    def compute_phase_calibration(self, pulse_indices=None, use_mask=True, fix_zero=True, k=2):
+    def compute_phase_calibration(self, pulse_indices=None, use_mask=True, fix_zero=True, k=2, bc_type='not-a-knot'):
         """
         Compute the energy to phase calibration from data in the pulse objects.
         There must be at least two distinct single energy pulses.
@@ -471,6 +475,10 @@ class Loop:
                 calibration. The default is True.
             k: integer
                 The interpolating spline degree. The default is 2.
+            bc_type: string or 2-tuple or None
+                The type of spline boundary condition. Valid kinds
+                correspond to those in scipy.interpolate.make_interp_spline.
+                The default is 'not-a-knot'.
         """
         _, energies, indices = self._calibration_points(pulse_indices=pulse_indices, fix_zero=fix_zero)
         assert len(energies) >= 2, "There must be at least 2 pulse data sets with unique, known, single energy lines."
@@ -488,9 +496,10 @@ class Loop:
         self._phase_avg = phase
         self._phase_energies = energies
 
-        self.phase_calibration = make_interp_spline(energies, phase, k=k)
+        self.phase_calibration = make_interp_spline(energies, phase, k=k, bc_type=bc_type)
 
-    def compute_amplitude_calibration(self, pulse_indices=None, use_mask=True, fix_zero=True, k=2):
+    def compute_amplitude_calibration(self, pulse_indices=None, use_mask=True, fix_zero=True, k=2,
+                                      bc_type='not-a-knot'):
         """
         Compute the energy to amplitude calibration from data in the pulse
         objects. There must be at least two distinct single energy pulses.
@@ -506,6 +515,10 @@ class Loop:
                 calibration. The default is True.
             k: integer
                 The interpolating spline degree. The default is 2.
+            bc_type: string or 2-tuple or None
+                The type of spline boundary condition. Valid kinds
+                correspond to those in scipy.interpolate.make_interp_spline.
+                The default is 'not-a-knot'.
         """
         _, energies, indices = self._calibration_points(pulse_indices=pulse_indices, fix_zero=fix_zero)
         assert len(energies) >= 2, "There must be at least 2 pulse data sets with unique, known, single energy lines."
@@ -523,7 +536,7 @@ class Loop:
         self._amplitude_avg = amplitude
         self._amplitude_energies = energies
 
-        self.amplitude_calibration = make_interp_spline(energies, amplitude, k=k)
+        self.amplitude_calibration = make_interp_spline(energies, amplitude, k=k, bc_type=bc_type)
 
     def compute_template_calibration(self, pulse_indices=None, k=2, bc_type='not-a-knot'):
         """
@@ -538,7 +551,7 @@ class Loop:
             k: integer
                 The interpolating spline degree. The default is 2.
             bc_type: string or 2-tuple or None
-                The type of cubic spline boundary condition. Valid kinds
+                The type of spline boundary condition. Valid kinds
                 correspond to those in scipy.interpolate.make_interp_spline.
                 The default is 'not-a-knot'.
         """
