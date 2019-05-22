@@ -812,7 +812,7 @@ class Pulse:
         else:
             return result
 
-    def compute_responses(self, calculation_type="optimal_filter", data=None):
+    def compute_responses(self, calculation_type="optimal_filter", data=None, mask_only=False):
         """
         Compute the detector response responses and peak indices using a
         particular calculation method. The results are stored in
@@ -848,6 +848,10 @@ class Pulse:
                 calculation type. The responses and peak indices are returned
                 instead of saved to the object if data is not None. None is the
                 default.
+            mask_only: boolean
+                If True, only responses where the pulse.mask is True are
+                computed. Nothing happens if data is specified. The default is
+                False.
         Returns:
              responses: numpy.ndarray
                 The response in radians for each trace.
@@ -856,25 +860,33 @@ class Pulse:
         """
         save_values = data is None
         if calculation_type in ["optimal_filter", "phase_filter", "amplitude_filter"]:
-            if calculation_type == "optimal_filter":
-                data = np.array([self.p_trace, self.a_trace]) if data is None else data
-            elif calculation_type == "phase_filter":
-                data = self.p_trace if data is None else data
-            else:
-                data = self.a_trace if data is None else data
+            if data is None:
+                if calculation_type == "optimal_filter":
+                    if mask_only:
+                        data = np.array([self.p_trace[self.mask, :], self.a_trace[self.mask, :]])
+                    else:
+                        data = np.array([self.p_trace, self.a_trace])
+                elif calculation_type == "phase_filter":
+                    data = self.p_trace if not mask_only else self.p_trace[self.mask, :]
+                else:
+                    data = self.a_trace if not mask_only else self.a_trace[self.mask, :]
             filtered_data = self.apply_filter(data, filter_type=calculation_type)
             responses = filtered_data.max(axis=1)
             peak_indices = np.argmax(filtered_data, axis=1)
         elif calculation_type in ["optimal_fit", "phase_fit", "amplitude_fit"]:
-            if calculation_type == "optimal_fit":
-                data = np.array([self.p_trace, self.a_trace]) if data is None else data
-            elif calculation_type == "phase_fit":
-                data = self.p_trace if data is None else data
-            else:
-                data = self.a_trace if data is None else data
+            if data is None:
+                if calculation_type == "optimal_fit":
+                    if mask_only:
+                        data = np.array([self.p_trace[self.mask, :], self.a_trace[self.mask, :]])
+                    else:
+                        data = np.array([self.p_trace, self.a_trace])
+                elif calculation_type == "phase_fit":
+                    data = self.p_trace if not mask_only else self.p_trace[self.mask, :]
+                else:
+                    data = self.a_trace if not mask_only else self.a_trace[self.mask, :]
             results = self.fit_traces(data, fit_type=calculation_type)
-            responses = np.array([r.params["energy"].value if r.errorbars else np.nan for r in results])
-            peak_indices = np.array([r.params["index"].value if r.errorbars else np.nan for r in results])
+            responses = np.array([r.params["energy"].value if r.errorbars and r.success else np.nan for r in results])
+            peak_indices = np.array([r.params["index"].value if r.errorbars and r.success else np.nan for r in results])
         elif calculation_type == "orthogonal_filter":
             raise NotImplementedError
         elif calculation_type == "phase_orthogonal_filter":
@@ -884,8 +896,16 @@ class Pulse:
         else:
             raise ValueError("'{}' is not a valid calculation_type".format(calculation_type))
         if save_values:
-            self.responses = responses
-            self.peak_indices = peak_indices
+            if mask_only:
+                self.responses = np.empty(self.mask.shape)
+                self.responses[np.logical_not(self.mask)] = np.nan
+                self.responses[self.mask] = responses
+                self.peak_indices = np.empty(self.mask.shape)
+                self.peak_indices[np.logical_not(self.mask)] = np.nan
+                self.peak_indices[self.mask] = peak_indices
+            else:
+                self.responses = responses
+                self.peak_indices = peak_indices
         return responses, peak_indices
 
     def apply_filter(self, data, filter_type="optimal_filter"):
@@ -955,7 +975,7 @@ class Pulse:
         n_points = self.template.shape[1]
         f = np.fft.rfftfreq(n_points)[:, np.newaxis, np.newaxis]  # n_points x 1 x 1
         params = lm.Parameters()
-        params.add("energy", value=self.energies[0] if len(self.energies) == 1 else 0, min=0)
+        params.add("energy", value=self.energies[0] if len(self.energies) == 1 else 0)
         params.add("index", self.peak_indices[self.mask].mean())
         # get fft of the data along the last axis
         data_fft = np.fft.rfft(data)
