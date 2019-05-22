@@ -555,10 +555,10 @@ class Loop:
                 The type of spline boundary condition. Valid kinds
                 correspond to those in scipy.interpolate.make_interp_spline.
                 The default is 'not-a-knot'.
-            average_phase: bool
+            average_phase: boolean
                 Average all of the phase templates together to use as the
                 template for all energies. The default is False.
-            average_amplitude: bool
+            average_amplitude: boolean
                 Average all of the amplitude templates together to use as the
                 template for all energies. The default is False.
         """
