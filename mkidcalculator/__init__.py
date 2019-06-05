@@ -3,3 +3,6 @@ from mkidcalculator.io.loop import Loop
 from mkidcalculator.io.noise import Noise
 from mkidcalculator.io.pulse import Pulse
 import mkidcalculator.models as models
+
+import pkg_resources
+__version__ = pkg_resources.require("mkidcalculator")[0].version
