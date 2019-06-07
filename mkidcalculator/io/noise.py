@@ -274,6 +274,7 @@ class Noise:
         self._set_directory(os.path.dirname(os.path.abspath(file_name)))
         with open(file_name, "wb") as f:
             pickle.dump(self, f)
+        log.info("saved noise as {}".format(file_name))
 
     @classmethod
     def from_pickle(cls, file_name):
@@ -281,6 +282,7 @@ class Noise:
         with open(file_name, "rb") as f:
             noise = pickle.load(f)
         assert isinstance(noise, cls), "'{}' does not contain a Noise class.".format(file_name)
+        log.info("loaded noise from {}".format(file_name))
         return noise
 
     @classmethod

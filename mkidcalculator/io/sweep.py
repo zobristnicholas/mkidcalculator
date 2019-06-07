@@ -28,6 +28,7 @@ class Sweep:
         self._set_directory(os.path.dirname(os.path.abspath(file_name)))
         with open(file_name, "wb") as f:
             pickle.dump(self, f)
+        log.info("saved sweep as {}".format(file_name))
 
     @classmethod
     def from_pickle(cls, file_name):
@@ -35,6 +36,7 @@ class Sweep:
         with open(file_name, "rb") as f:
             sweep = pickle.load(f)
         assert isinstance(sweep, cls), "'{}' does not contain a Sweep class.".format(file_name)
+        log.info("loaded sweep from {}".format(file_name))
         return sweep
 
     def create_parameters(self, label="best", fit_type="lmfit", group=True, n_groups=None):

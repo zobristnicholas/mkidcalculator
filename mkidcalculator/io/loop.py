@@ -143,6 +143,7 @@ class Loop:
         self._set_directory(os.path.dirname(os.path.abspath(file_name)))
         with open(file_name, "wb") as f:
             pickle.dump(self, f)
+        log.info("saved loop as {}".format(file_name))
 
     @classmethod
     def from_pickle(cls, file_name):
@@ -150,6 +151,7 @@ class Loop:
         with open(file_name, "rb") as f:
             loop = pickle.load(f)
         assert isinstance(loop, cls), "'{}' does not contain a Loop class.".format(file_name)
+        log.info("loaded loop from {}".format(file_name))
         return loop
 
     def add_pulses(self, pulses, sort=True):

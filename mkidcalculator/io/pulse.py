@@ -488,6 +488,7 @@ class Pulse:
         self._set_directory(os.path.dirname(os.path.abspath(file_name)))
         with open(file_name, "wb") as f:
             pickle.dump(self, f)
+        log.info("saved pulse as {}".format(file_name))
 
     @classmethod
     def from_pickle(cls, file_name):
@@ -495,6 +496,7 @@ class Pulse:
         with open(file_name, "rb") as f:
             pulse = pickle.load(f)
         assert isinstance(pulse, cls), "'{}' does not contain a Pulse class.".format(file_name)
+        log.info("loaded pulse from {}".format(file_name))
         return pulse
 
     @classmethod
