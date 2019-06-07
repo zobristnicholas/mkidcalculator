@@ -213,7 +213,7 @@ def analogreadout_sweep(file_name, channel=None):
                 n_noise = 1 + int(parameters['noise'][5])
                 noise_name = "_".join(["noise", *loop_name.split("_")[1:]])
                 noise_file_name = os.path.join(directory, noise_name)
-                if os.path.isfile:
+                if os.path.isfile(noise_file_name):
                     noise_names = [noise_file_name] * n_noise
                     noise_kwargs = [{'index': ii} for ii in range(n_noise)]
                     loop_kwargs[-1].update({"noise_file_names": noise_names, "noise_kwargs": noise_kwargs,
