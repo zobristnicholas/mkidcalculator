@@ -19,23 +19,23 @@ class NpzHolder:
             item = os.path.abspath(item)
             # check if already loaded
             if item in self._files.keys():
-                log.info("loaded from cache: {}".format(item))
+                log.debug("loaded from cache: {}".format(item))
                 return self._files[item]
             else:
                 npz = np.load(item)
-                log.info("loaded: {}".format(item))
+                log.debug("loaded: {}".format(item))
                 self._files[item] = npz
-                log.info("saved to cache: {}".format(item))
+                log.debug("saved to cache: {}".format(item))
                 return self._files[item]
         # if NpzFile skip loading but save if it hasn't been loaded before
         elif isinstance(item, np.lib.npyio.NpzFile):
             file_name = os.path.abspath(item.fid.name)
             if file_name not in _loaded_npz_files.keys():
-                log.info("loaded: {}".format(file_name))
+                log.debug("loaded: {}".format(file_name))
                 self._files[file_name] = item
-                log.info("saved to cache: {}".format(file_name))
+                log.debug("saved to cache: {}".format(file_name))
             else:
-                log.info("loaded from cache: {}".format(file_name))
+                log.debug("loaded from cache: {}".format(file_name))
             return item
         elif item is None:
             return None

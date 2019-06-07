@@ -58,7 +58,7 @@ class Pulse:
         # response information
         self._spectrum = None
 
-        log.info("Pulse object created. ID: {}".format(id(self)))
+        log.debug("Pulse object created. ID: {}".format(id(self)))
 
     def __getstate__(self):
         return offload_data(self, excluded_keys=("_a_trace", "_p_trace"), prefix="pulse_data_")

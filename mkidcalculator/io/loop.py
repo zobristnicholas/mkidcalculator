@@ -51,7 +51,7 @@ class Loop:
         # template calibration
         self.template_fft = None
         self._template_size = None
-        log.info("Loop object created. ID: {}".format(id(self)))
+        log.debug("Loop object created. ID: {}".format(id(self)))
 
     @property
     def z(self):

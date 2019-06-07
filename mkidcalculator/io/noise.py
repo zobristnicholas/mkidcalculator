@@ -32,7 +32,7 @@ class Noise:
         # for holding large data
         self._npz = None
         self._directory = None
-        log.info("Noise object created. ID: {}".format(id(self)))
+        log.debug("Noise object created. ID: {}".format(id(self)))
 
     def __getstate__(self):
         return offload_data(self, excluded_keys=("_a_trace", "_p_trace"), prefix="noise_data_")
