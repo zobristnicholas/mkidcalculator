@@ -403,3 +403,29 @@ class Sweep:
             cbar_width = cbar.ax.get_window_extent().transformed(axes_list[0].figure.dpi_scale_trans.inverted()).width
             axes_list[0].figure.set_figwidth(axes_list[0].figure.get_figwidth() + cbar_width)
         return axes_list
+
+    def plot_parameters(self, parameters, x="power", label="best", axes=None):
+        if axes is None:
+            figure, axes = plt.subplots()
+        else:
+            figure = axes.figure
+
+        levels = ["power", "field", "temperature"]
+        levels.pop(x)
+        values_dict = {"power": np.unique(self.powers), "field": np.unique(self.fields),
+                       "temperature": np.unique(self.temperature_groups)}
+        values_list = [values_dict[level] for level in levels]
+
+        table = self.loop_parameters[label]
+
+        def populate_index(data_list, current, index):
+            if current < len(data_list):
+                for d in data_list[current]:
+                    index.append(d)
+                    populate_index(data_list, current + 1, index)
+
+        for parameter in parameters:
+            ind = []
+            populate_index(values_list, 0, ind)
+            data = table[parameter].xs(ind, level=levels)
+            axes.plot(data.index, data.values)
