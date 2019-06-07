@@ -1566,7 +1566,7 @@ class Loop:
             axes: matplotlib.axes.Axes class
                 An Axes class with the plotted calibration.
         """
-        if not axes:
+        if axes is None:
             figure, axes = plt.subplots()
         else:
             figure = axes.figure
@@ -1590,7 +1590,7 @@ class Loop:
             axes: matplotlib.axes.Axes class
                 An Axes class with the plotted calibration.
         """
-        if not axes:
+        if axes is None:
             figure, axes = plt.subplots()
         else:
             figure = axes.figure
@@ -1614,7 +1614,7 @@ class Loop:
             axes: matplotlib.axes.Axes class
                 An Axes class with the plotted calibration.
         """
-        if not axes:
+        if axes is None:
             figure, axes = plt.subplots()
         else:
             figure = axes.figure
@@ -1646,7 +1646,7 @@ class Loop:
                 An axes class with the plotted data.
         """
         # get the figure axes
-        if not axes:
+        if axes is None:
             figure, axes = plt.subplots()
         else:
             figure = axes.figure
