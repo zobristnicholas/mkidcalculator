@@ -1,10 +1,11 @@
 import os
 import pickle
 import logging
-import matplotlib
 import numpy as np
 import pandas as pd
 from operator import itemgetter
+import matplotlib
+from matplotlib import pyplot as plt
 from scipy.cluster.vq import kmeans2, ClusterError
 
 from mkidcalculator.io.loop import Loop
