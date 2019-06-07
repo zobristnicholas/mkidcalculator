@@ -46,7 +46,7 @@ class Sweep:
     def create_parameters(self, label="best", fit_type="lmfit", group=True, n_groups=None):
         """
         Creates the loop parameters pandas DataFrame by looking at all of the
-        loop fits. in
+        loop fits.
         Args:
             label: string
                 Corresponds to the label in the loop.lmfit_results or
@@ -73,6 +73,17 @@ class Sweep:
             scipy.cluster.vq.ClusterError:
                 The temperature data is too disordered to cluster into the
                 specified number of groups.
+
+        Examples:
+            table = sweep.loop_parameters['best']
+            # get a table with only the 'fr' fit parameter
+            fr = table['fr']
+            # get a smaller table with all of the powers, zero field, and
+            # temperatures between 9 and 11 mK
+            idx = pandas.IndexSlice
+            fr_smaller = fr.loc[idx[:, 0, 0.009: 0.011]]
+            # get a cross section instead of a table
+            fr_smaller = fr.xs((idx[:], 0,  idx[0.009:0.011]), level=("power", "field", "temperature"))
         """
         # check inputs
         if fit_type not in ['lmfit', 'emcee', 'emcee_mle']:
