@@ -289,9 +289,11 @@ class S21:
             fit_resonance: bool (optional)
                 Allow the resonance parameters to vary in the fit. The default
                 is True.
-            nonlinear_resonance: bool (optional)
+            nonlinear_resonance: float, bool (optional)
                 Allow the resonance model to fit for nonlinear behavior. The
-                default is False.
+                default is False. If a float, this value is used for a_sqrt.
+                If True, the a_sqrt is set to 0.05, since the fit has trouble
+                if a_sqrt is initialized to 0.
             fit_gain: bool (optional)
                 Allow the gain parameters to vary in the fit. The default is
                 True.
@@ -414,7 +416,8 @@ class S21:
         params.add('f0', value=float(f0_guess), min=f_min, max=f_max, vary=fit_resonance)
         params.add('qc', value=float(qc_guess), min=1, max=10**8, vary=fit_resonance)
         params.add('qi', value=float(qi_guess), min=1, max=10**8, vary=fit_resonance)
-        params.add('a_sqrt', value=float(0), vary=nonlinear_resonance and fit_resonance)  # bifurcation at a=0.7698
+        a_sqrt = 0.05 if nonlinear_resonance is True else nonlinear_resonance  # bifurcation at a=0.7698
+        params.add('a_sqrt', value=float(a_sqrt), vary=bool(nonlinear_resonance) and fit_resonance)
         # polynomial gain parameters
         params.add('gain0', value=float(gain_poly[2]), min=0, vary=fit_gain)
         params.add('gain1', value=float(gain_poly[1]), vary=fit_gain)
