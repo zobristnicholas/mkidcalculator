@@ -24,6 +24,8 @@ class Loop:
     def __init__(self):
         # loop data
         self._data = AnalogReadoutLoop()  # dummy class replaced by load()
+        # sweep reference
+        self._sweep = None
         # noise and pulse classes
         self.noise = []
         self.f_bias_noise = []  # for bias frequency of each noise data set
@@ -119,6 +121,21 @@ class Loop:
     def resolving_powers(self):
         """Returns a list of resolving powers for the pulses."""
         return [pulse.resolving_power for pulse in self.pulses]
+
+    @property
+    def sweep(self):
+        """
+        A settable property that contains the Sweep object that this loop has
+        been assigned to. If the sweep has not been set, it will raise an
+        AttributeError.
+        """
+        if self._sweep is None:
+            raise AttributeError("The sweep object for this pulse has not been set yet.")
+        return self._sweep
+
+    @sweep.setter
+    def sweep(self, sweep):
+        self._sweep = sweep
 
     def to_pickle(self, file_name):
         """Pickle and save the class as the file 'file_name'."""

@@ -132,6 +132,7 @@ class Sweep:
             loops = [loops]
         # append loop data
         for loop in loops:
+            loop.sweep = self
             self.loops.append(loop)
             self.powers.append(loop.power)
             self.fields.append(loop.field)
