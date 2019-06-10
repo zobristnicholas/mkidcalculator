@@ -109,11 +109,13 @@ class Sweep:
         # determine the parameter names
         parameter_names = set()
         parameters = []
+        results = []
         for loop in self.loops:
             _, result_dict = loop._get_model(fit_type, label)
             p = result_dict['result'].params.valuesdict() if result_dict is not None else None
             # save the parameters and collect all the names into the set
             parameters.append(p)
+            results.append(result_dict['result'])
             if p is not None:
                 for name in p.keys():
                     parameter_names.add(name)
@@ -123,7 +125,12 @@ class Sweep:
             if "temperature" in parameter_names:
                 raise ValueError("'temperature' can not be a fit parameter name if group=True")
             parameter_names.append("temperature")
+        if {'chisqr', 'redchi', 'aic', 'bic'}.intersection(set(parameter_names)):
+            raise ValueError("'chisqr', 'redchi', 'aic', and 'bic' are reserved and cannot be a fit parameter name.")
+        parameter_names += ['chisqr', 'redchi', 'aic', 'bic']
         indices = list(zip(self.powers, self.fields, self.temperature_groups))
+        if np.unique(indices, axis=0).shape[0] != len(self.powers):
+            log.warning("The data does not have a unique value per table entry")
         multi_index = pd.MultiIndex.from_tuples(indices, names=["power", "field", "temperature"])
         df = pd.DataFrame(np.nan, index=multi_index, columns=parameter_names)
         # fill the data frame
@@ -133,6 +140,11 @@ class Sweep:
                     df.loc[indices[index]][key] = value
             if group:
                 df.loc[indices[index]]["temperature"] = self.temperatures[index]
+            df.loc[indices[index]]["chisqr"] = results[index].chisqr
+            df.loc[indices[index]]["redchi"] = results[index].redchi
+            df.loc[indices[index]]["aic"] = results[index].aic
+            df.loc[indices[index]]["bic"] = results[index].bic
+
         self.loop_parameters[label] = df
 
     def add_loops(self, loops, sort=True):
