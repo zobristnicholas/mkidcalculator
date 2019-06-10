@@ -44,10 +44,10 @@ def basic_fit(loop, label="basic_fit", model=S21, **load_kwargs):
         loop: string or mkidcalculator.Loop
             The loop object to fit. If a string, the loop is loaded from either
             Loop.from_pickle() or Loop.load().
-        label: string
+        label: string (optional)
             The label to store the fit results under. The default is
             "basic_fit".
-        model: class
+        model: class (optional)
             A model class to use for the fit. The default is
             mkidcalculator.models.S21.
         load_kwargs: optional keyword arguments
@@ -71,10 +71,10 @@ def temperature_fit(loop, label="temperature_fit", model=S21, **load_kwargs):
         loop: string or mkidcalculator.Loop
             The loop object to fit. If a string, the loop is loaded from either
             Loop.from_pickle() or Loop.load().
-        label: string
+        label: string (optional)
             The label to store the fit results under. The default is
             "temperature_fit".
-        model: class
+        model: class (optional)
             A model class to use for the fit. The default is
             mkidcalculator.models.S21.
         load_kwargs: optional keyword arguments
@@ -106,21 +106,46 @@ def temperature_fit(loop, label="temperature_fit", model=S21, **load_kwargs):
             loop.lmfit(model, guess, label=label + "_" + str(iteration))
 
 
-def nonlinear_fit(loop, label="nonlinear_fit", model=S21, parameter=("a_sqrt", 0.05), **load_kwargs):
+def linear_fit(loop, label="linear_fit", model=S21, parameter="a_sqrt", **load_kwargs):
+    """
+    Fit the loop using a previous good fit, but with the nonlinearity turned off.
+    Args:
+        loop: string or mkidcalculator.Loop
+            The loop object to fit. If a string, the loop is loaded from either
+            Loop.from_pickle() or Loop.load().
+        label: string (optional)
+            The label to store the fit results under. The default is
+            "nonlinear_fit".
+        model: class (optional)
+            A model class to use for the fit. The default is
+            mkidcalculator.models.S21.
+        parameter: string (optional)
+            The nonlinear parameter name to use.
+        load_kwargs: optional keyword arguments
+            Keyword arguments to send to Loop.load(). Loop.from_pickle() will
+            not be attempted if kwargs are given.
+    """
+    nonlinear_fit(loop, label=label, model=model, parameter=(parameter, 0), vary=False, **load_kwargs)
+
+
+def nonlinear_fit(loop, label="nonlinear_fit", model=S21, parameter=("a_sqrt", 0.05), vary=True, **load_kwargs):
     """
     Fit the loop using a previous good fit, but with the nonlinearity.
     Args:
         loop: string or mkidcalculator.Loop
             The loop object to fit. If a string, the loop is loaded from either
             Loop.from_pickle() or Loop.load().
-        label: string
+        label: string (optional)
             The label to store the fit results under. The default is
             "nonlinear_fit".
-        model: class
+        model: class (optional)
             A model class to use for the fit. The default is
             mkidcalculator.models.S21.
-        parameter: tuple (string, float)
+        parameter: tuple (string, float) (optional)
             The nonlinear parameter name and value to use.
+        vary: boolean (optional)
+            Determines if the nonlinearity is varied in the fit. The default is
+            True.
         load_kwargs: optional keyword arguments
             Keyword arguments to send to Loop.load(). Loop.from_pickle() will
             not be attempted if kwargs are given.
@@ -131,14 +156,14 @@ def nonlinear_fit(loop, label="nonlinear_fit", model=S21, parameter=("a_sqrt", 0
     if "best" in loop.lmfit_results.keys():
         # only fit if previous fit has been done
         guess = loop.lmfit_results["best"]["result"].params.copy()
-        guess[parameter[0]].set(value=parameter[1], vary=True)
+        guess[parameter[0]].set(value=parameter[1], vary=vary)
         # do fit
         loop.lmfit(model, guess, label=label)
     else:
         raise AttributeError("loop does not have a previous fit on which to base the nonlinear fit.")
 
 
-def sweep_fit(sweep, model=S21, extra_fits=(temperature_fit, nonlinear_fit), fit_kwargs=(), iterations=2,
+def sweep_fit(sweep, model=S21, extra_fits=(temperature_fit, nonlinear_fit, linear_fit), fit_kwargs=(), iterations=2,
               **load_kwargs):
     """
     Fit all of the loops in a sweep.
@@ -146,17 +171,17 @@ def sweep_fit(sweep, model=S21, extra_fits=(temperature_fit, nonlinear_fit), fit
         sweep: string or mkidcalculator.Sweep
             The sweep object to use for the fit. If a string, the sweep is
             loaded from either Sweep.from_pickle() or Sweep.from_config().
-        model: class
+        model: class (optional)
             A model class to use for the fit. The default is
             mkidcalculator.models.S21.
-        extra_fits: tuple of functions
+        extra_fits: tuple of functions (optional)
             Extra functions to use to try to fit the loops. They must have
             the arguments of basic_fit(). The default is
-            (temperature_fit, nonlinear_fit).
-        fit_kwargs: tuple of dictionaries
+            (temperature_fit, nonlinear_fit, linear_fit).
+        fit_kwargs: tuple of dictionaries (optional)
             Extra keyword arguments to send to the extra_fits. The default is
             an empty tuple which corresponds to no extra keyword arguments.
-        iterations: integer
+        iterations: integer (optional)
             Number of times to run the extra_fits. The default is 2. This is
             useful for when the extra_fits use fit information from other loops
             in the sweep.
