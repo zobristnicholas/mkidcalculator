@@ -112,13 +112,15 @@ class Sweep:
         results = []
         for loop in self.loops:
             _, result_dict = loop._get_model(fit_type, label)
-            p = result_dict['result'].params.valuesdict() if result_dict is not None else None
+            results.append(result_dict['result'])
+            p = result_dict['result'].params if result_dict is not None else None
             # save the parameters and collect all the names into the set
             parameters.append(p)
-            results.append(result_dict['result'])
             if p is not None:
                 for name in p.keys():
                     parameter_names.add(name)
+                    parameter_names.add(name + "_sigma")
+
         # initialize the data frame
         parameter_names = sorted(list(parameter_names))
         if group:
@@ -136,8 +138,10 @@ class Sweep:
         # fill the data frame
         for index, loop in enumerate(self.loops):
             if parameters[index] is not None:
-                for key, value in parameters[index].items():
-                    df.loc[indices[index]][key] = float(value)
+                for key, parameter in parameters[index].items():
+                    df.loc[indices[index]][key] = float(parameter.value)
+                    if results[index].errorbars:
+                        df.loc[indices[index]][key + "_sigma"] = float(parameter.stderr)
             if group:
                 df.loc[indices[index]]["temperature"] = self.temperatures[index]
             df.loc[indices[index]]["chisqr"] = results[index].chisqr
