@@ -137,7 +137,7 @@ class Sweep:
         for index, loop in enumerate(self.loops):
             if parameters[index] is not None:
                 for key, value in parameters[index].items():
-                    df.loc[indices[index]][key] = value
+                    df.loc[indices[index]][key] = float(value)
             if group:
                 df.loc[indices[index]]["temperature"] = self.temperatures[index]
             df.loc[indices[index]]["chisqr"] = results[index].chisqr

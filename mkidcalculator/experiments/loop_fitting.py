@@ -125,7 +125,7 @@ def linear_fit(loop, label="linear_fit", model=S21, parameter="a_sqrt", **load_k
             Keyword arguments to send to Loop.load(). Loop.from_pickle() will
             not be attempted if kwargs are given.
     """
-    nonlinear_fit(loop, label=label, model=model, parameter=(parameter, 0), vary=False, **load_kwargs)
+    nonlinear_fit(loop, label=label, model=model, parameter=(parameter, 0.), vary=False, **load_kwargs)
 
 
 def nonlinear_fit(loop, label="nonlinear_fit", model=S21, parameter=("a_sqrt", 0.05), vary=True, **load_kwargs):
