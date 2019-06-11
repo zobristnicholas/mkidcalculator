@@ -235,3 +235,10 @@ def load_legacy_binary_data(binary_file, channel, n_points, noise=True):
         q_trace[trigger_num, :] = data[(trace_num + 2 * channel + 1) * n_points:
                                        (trace_num + 2 * channel + 2) * n_points]
     return i_trace, q_trace, f
+
+
+def structured_to_complex(array):
+    if array.dtype == np.complex:
+        return array
+    else:
+        return array["I"] + 1j * array["Q"]

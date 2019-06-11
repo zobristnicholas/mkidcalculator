@@ -4,7 +4,8 @@ import logging
 import numpy as np
 from scipy.io import loadmat
 
-from mkidcalculator.io.utils import _loaded_npz_files, offload_data, ev_nm_convert, load_legacy_binary_data
+from mkidcalculator.io.utils import (_loaded_npz_files, offload_data, ev_nm_convert, load_legacy_binary_data,
+                                     structured_to_complex)
 
 log = logging.getLogger(__name__)
 log.addHandler(logging.NullHandler())
@@ -122,8 +123,8 @@ class AnalogReadoutLoop(AnalogReadoutABC):
             An integer specifying which index to load. The default is None and
             all indices will be returned.
     """
-    CONVERT = {"f": "freqs", "z": "z", "imbalance": "calibration", "offset": "z_offset", "metadata": "metadata",
-               "attenuation": ("metadata", ("parameters", "attenuation")),
+    CONVERT = {"f": "freqs", "z": "z", "imbalance": ("calibration", structured_to_complex), "offset": "z_offset",
+               "metadata": "metadata", "attenuation": ("metadata", ("parameters", "attenuation")),
                "field": ("metadata", ("parameters", "field")), "temperature": ("metadata", analogreadout_temperature)}
 
 
