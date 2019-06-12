@@ -1627,19 +1627,22 @@ class Loop:
         figure.tight_layout()
         return axes
 
-    def plot_spectra(self, pulse_indices=None, x_limits=None, second_x_axis=False, axes=None):
+    def plot_spectra(self, pulse_indices=None, x_limits=None, second_x_axis=False, n_bins=None, axes=None):
         """
         Plot the spectrum of the pulse responses in the loop.
         Args:
-            pulse_indices: iterable of integers
+            pulse_indices: iterable of integers (optional)
                 Indices of pulse objects in loop.pulses to include in the total
                 spectrum. The default is None and all pulses are used.
             x_limits: length 2 iterable of floats
                 Bounds on the x-axis
-            second_x_axis: boolean
+            second_x_axis: boolean (optional)
                 If True, a second x-axis is plotted below the first with the
                 wavelength values. The default is False.
-            axes: matplotlib.axes.Axes class
+            n_bins: integer (optional)
+                The number of bins to use in the histogram. The default is
+                None, and the best number of bins is guessed.
+            axes: matplotlib.axes.Axes class (optional)
                 An axes class for plotting the data.
         Returns:
             axes: matplotlib.axes.Axes class
@@ -1675,7 +1678,8 @@ class Loop:
                 pass
         energies = np.concatenate(energies)
         max_energy, min_energy = energies.max(), energies.min()
-        n_bins = 10 * int((max_energy - min_energy) / min_bandwidth)
+        if n_bins is None:
+            n_bins = 10 * int((max_energy - min_energy) / min_bandwidth)
         axes.hist(energies, n_bins, density=True)
 
         # plot the PDFs
