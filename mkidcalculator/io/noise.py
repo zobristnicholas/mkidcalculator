@@ -3,6 +3,7 @@ import pickle
 import logging
 import numpy as np
 from scipy.signal import welch, csd
+from matplotlib import pyplot as plt
 
 from mkidcalculator.io.data import AnalogReadoutNoise
 from mkidcalculator.io.utils import compute_phase_and_amplitude, offload_data, _loaded_npz_files
@@ -455,6 +456,30 @@ class Noise:
             noise_fft = a * noise_fft
         noise = np.fft.irfft(noise_fft, self._n_samples)
         return noise
+
+    def plot_psd(self, noise_type="iq", axes=None):
+        if noise_type not in ["iq", "pa"]:
+            raise ValueError("Noise type must be one of 'iq' or 'pa'.")
+        # get the figure axes
+        if not axes:
+            figure, axes = plt.subplots()
+        else:
+            figure = axes.figure
+        iq = (noise_type == "iq")
+        psd11 = self.ii_psd if iq else 10 * np.log10(self.pp_psd)
+        psd22 = self.qq_psd if iq else 10 * np.log10(self.aa_psd)
+
+        axes.step(self.f_psd[1:-1], psd22[1:-1], where='mid', label="Q" if iq else "dissipation", color="C1")
+        axes.step(self.f_psd[1:-1], psd11[1:-1], where='mid', label="I" if iq else "phase", color="C0")
+
+        axes.set_xlim(self.f_psd[1:-1].min(), self.f_psd[1:-1].max())
+        axes.set_ylabel('PSD [V² / Hz]' if iq else 'PSD [dBc / Hz]')
+        axes.set_xlabel('frequency  [Hz]')
+        axes.set_xscale('log')
+        if iq:
+            axes.set_yscale('log')
+        axes.legend()
+        figure.tight_layout()
 
     def _set_directory(self, directory):
         self._directory = directory
