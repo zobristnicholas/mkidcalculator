@@ -143,10 +143,13 @@ class AnalogReadoutNoise(AnalogReadoutABC):
             An integer specifying which index to load. The default is None and
             all indices will be returned.
     """
+    # "i_psd": ("psd", "I"), "q_psd": ("psd", "Q"), "f_psd": "f_psd" not using these from file but they are there
     CONVERT = {"f_bias": "freqs", "i_trace": ("noise", "I", np.real), "q_trace": ("noise", "Q", np.imag),
                "metadata": "metadata", "attenuation": ("metadata", ("parameters", "attenuation")),
                "sample_rate": ("metadata", analogreadout_sample_rate)}
-    # "i_psd": ("psd", "I"), "q_psd": ("psd", "Q"), "f_psd": "f_psd" not using these from file but they are there
+
+    def __init__(self, npz_handle=None, channel=None, index=0):
+        super().__init__(npz_handle=npz_handle, channel=channel, index=index)
 
 
 class AnalogReadoutPulse(AnalogReadoutABC):
