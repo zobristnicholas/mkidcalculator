@@ -872,9 +872,9 @@ class Loop:
         if axes is None:
             _, axes = plt.subplots()
         if x_label is None:
-            x_label = "I [V]"
+            x_label = "I [V]" if not calibrate else "I"
         if y_label is None:
-            y_label = "Q [V]"
+            y_label = "Q [V]" if not calibrate else "Q"
         # setup axes
         axes.axis('equal')
         kwargs = {}
