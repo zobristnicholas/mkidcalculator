@@ -100,7 +100,7 @@ def compute_phase_and_amplitude(cls, label="best", fit_type="lmfit", fr=None, ce
     fr = params["fr"].value if fr is None else params[fr].value
     if center is None:
         center = "1 - q0 / (2 * qc) - 1j * q0**2 / qc * df / f0"
-    center = params._asteval.eval(center)
+    center = params._asteval.eval(center)  # TODO: replace with params.eval(center) when lmfit publishes new release
     # get complex IQ data for the traces and loop at the resonance frequency
     traces = cls.i_trace + 1j * cls.q_trace
     z_fr = model.model(params, fr)
