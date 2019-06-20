@@ -616,7 +616,8 @@ class Loop:
 
     def plot(self, plot_types=("iq", "magnitude", "phase"), plot_fit=False, label="best", fit_type="lmfit",
              calibrate=False, plot_guess=None, n_rows=2, title=True, title_kwargs=None, legend=True, legend_kwargs=None,
-             fit_parameters=(), parameters_kwargs=None, tighten=True, db=False, plot_kwargs=None, axes_list=None):
+             fit_parameters=(), parameters_kwargs=None, tighten=True, db=False, unwrap=True, plot_kwargs=None,
+             axes_list=None):
         """
         Plot a variety of data representations in a matplotlib pyplot.subplots
         grid.
@@ -679,6 +680,9 @@ class Loop:
             db: boolean
                 Determines if magnitude plots are shown in dB. The default is
                 False.
+            unwrap: boolean
+                Determines if the phase plots are unwrapped. The default is
+                True.
             plot_kwargs: an iterable of dictionaries
                 A list of keyword arguments for each plot type. The default is
                 None which uses default options. Keywords in this dictionary
@@ -731,7 +735,7 @@ class Loop:
                 self.plot_magnitude_residual(**kwargs)
             elif plot_type == "phase":
                 kwargs.update({"plot_fit": plot_fit, "plot_guess": plot_guess, "label": label, "fit_type": fit_type,
-                               "calibrate": calibrate})
+                               "calibrate": calibrate, "unwrap": unwrap})
                 kwargs.update(plot_kwargs[index])
                 self.plot_phase(**kwargs)
             elif plot_type == "r_phase":
@@ -1324,7 +1328,7 @@ class Loop:
     def plot_phase(self, data_kwargs=None, plot_fit=False, label="best", fit_type="lmfit", calibrate=False,
                    fit_kwargs=None, fit_parameters=(), parameters_kwargs=None, plot_guess=None, guess_kwargs=None,
                    x_label=None, y_label=None, label_kwargs=None, legend=True, legend_kwargs=None, title=True,
-                   title_kwargs=None, tighten=True, axes=None):
+                   title_kwargs=None, tighten=True, unwrap=True, axes=None):
         """
         Plot the phase data.
         Args:
@@ -1395,6 +1399,8 @@ class Loop:
             tighten: boolean
                 Determines whether figure.tight_layout() is called. The default
                 is True.
+            unwrap: boolean
+                Determines if the phase is unwrapped or not. The default is True.
             axes: matplotlib.axes.Axes class
                 An Axes class on which to put the plot. The default is None and
                 a new figure is made.
@@ -1430,7 +1436,7 @@ class Loop:
             result = result_dict['result']
             model = result_dict['model']
             z = self.z if not calibrate else model.calibrate(result.params, self.z, self.f)
-            axes.plot(self.f, np.unwrap(np.arctan2(z.imag, z.real)), **kwargs)
+            axes.plot(self.f, np.unwrap(np.angle(z)) if unwrap else np.angle(z), **kwargs)
             # calculate the model values
             f = np.linspace(np.min(self.f), np.max(self.f), np.size(self.f) * 10)
             m = model.model(result.params, f)
@@ -1440,13 +1446,13 @@ class Loop:
             kwargs = {"linestyle": '--', "label": "fit"}
             if fit_kwargs is not None:
                 kwargs.update(fit_kwargs)
-            axes.plot(f, np.unwrap(np.arctan2(m.imag, m.real)), **kwargs)
+            axes.plot(f, np.unwrap(np.angle(m)) if unwrap else np.angle(m), **kwargs)
             string = "power: {:.0f} dBm, field: {:.2f} V, temperature: {:.2f} mK, '{}' fit"
             title = string.format(self.power, self.field, self.temperature * 1000, fit_name) if title is True else title
             if fit_parameters:
                 self._make_parameters_textbox(fit_parameters, result, axes, parameters_kwargs)
         else:
-            axes.plot(self.f, np.unwrap(np.arctan2(self.z.imag, self.z.real)), **kwargs)
+            axes.plot(self.f, np.unwrap(np.angle(self.z)) if unwrap else np.angle(self.z), **kwargs)
             string = "power: {:.0f} dBm, field: {:.2f} V, temperature: {:.2f} mK"
             title = string.format(self.power, self.field, self.temperature * 1000) if title is True else title
         # plot guess
@@ -1463,7 +1469,7 @@ class Loop:
             kwargs = {"linestyle": '-.', "label": "guess", "color": "k"}
             if guess_kwargs is not None:
                 kwargs.update(guess_kwargs)
-            axes.plot(f, np.unwrap(np.arctan2(m.imag, m.real)), **kwargs)
+            axes.plot(f, np.unwrap(np.angle(m)) if unwrap else np.angle(m), **kwargs)
         if legend:
             kwargs = {}
             if legend_kwargs is not None:
