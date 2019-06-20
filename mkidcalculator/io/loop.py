@@ -616,7 +616,7 @@ class Loop:
 
     def plot(self, plot_types=("iq", "magnitude", "phase"), plot_fit=False, label="best", fit_type="lmfit",
              calibrate=False, plot_guess=None, n_rows=2, title=True, title_kwargs=None, legend=True, legend_kwargs=None,
-             fit_parameters=(), parameters_kwargs=None, tighten=True, plot_kwargs=None, axes_list=None):
+             fit_parameters=(), parameters_kwargs=None, tighten=True, db=False, plot_kwargs=None, axes_list=None):
         """
         Plot a variety of data representations in a matplotlib pyplot.subplots
         grid.
@@ -676,6 +676,9 @@ class Loop:
             tighten: boolean
                 Determines whether figure.tight_layout() is called. The default
                 is True.
+            db: boolean
+                Determines if magnitude plots are shown in dB. The default is
+                False.
             plot_kwargs: an iterable of dictionaries
                 A list of keyword arguments for each plot type. The default is
                 None which uses default options. Keywords in this dictionary
@@ -720,7 +723,7 @@ class Loop:
                 self.plot_iq_residual(**kwargs)
             elif plot_type == "magnitude":
                 kwargs.update({"plot_fit": plot_fit, "plot_guess": plot_guess, "label": label, "fit_type": fit_type,
-                               "calibrate": calibrate})
+                               "calibrate": calibrate, "db": db})
                 kwargs.update(plot_kwargs[index])
                 self.plot_magnitude(**kwargs)
             elif plot_type == "r_magnitude":
@@ -1051,7 +1054,7 @@ class Loop:
     def plot_magnitude(self, data_kwargs=None, plot_fit=False, label="best", fit_type="lmfit", calibrate=False,
                        fit_kwargs=None, fit_parameters=(), parameters_kwargs=None, plot_guess=None, guess_kwargs=None,
                        x_label=None, y_label=None, label_kwargs=None, legend=True, legend_kwargs=None, title=True,
-                       title_kwargs=None, tighten=True, axes=None):
+                       title_kwargs=None, tighten=True, db=False, axes=None):
         """
         Plot the magnitude data.
         Args:
@@ -1119,6 +1122,9 @@ class Loop:
                 Keyword arguments for the axes title in axes.set_title(). The
                 default is None which uses default options. Keywords in this
                 dictionary override the default options.
+            db: boolean
+                Determines if magnitude plots are shown in dB. The default is
+                False.
             tighten: boolean
                 Determines whether figure.tight_layout() is called. The default
                 is True.
@@ -1135,7 +1141,7 @@ class Loop:
         if x_label is None:
             x_label = "frequency [GHz]"
         if y_label is None:
-            y_label = "|S₂₁| [V]"
+            y_label = "|S₂₁| [V]" if not db else "|S₂₁| [dB]"
         # setup axes
         kwargs = {}
         if label_kwargs is not None:
@@ -1157,7 +1163,7 @@ class Loop:
             result = result_dict['result']
             model = result_dict['model']
             z = self.z if not calibrate else model.calibrate(result.params, self.z, self.f)
-            axes.plot(self.f, np.abs(z), **kwargs)
+            axes.plot(self.f, np.abs(z) if not db else 20 * np.log10(np.abs(z)), **kwargs)
             # calculate the model values
             f = np.linspace(np.min(self.f), np.max(self.f), np.size(self.f) * 10)
             m = model.model(result.params, f)
@@ -1167,13 +1173,13 @@ class Loop:
             kwargs = {"linestyle": '--', "label": "fit"}
             if fit_kwargs is not None:
                 kwargs.update(fit_kwargs)
-            axes.plot(f, np.abs(m), **kwargs)
+            axes.plot(f, np.abs(m) if not db else 20 * np.log10(np.abs(m)), **kwargs)
             string = "power: {:.0f} dBm, field: {:.2f} V, temperature: {:.2f} mK, '{}' fit"
             title = string.format(self.power, self.field, self.temperature * 1000, fit_name) if title is True else title
             if fit_parameters:
                 self._make_parameters_textbox(fit_parameters, result, axes, parameters_kwargs)
         else:
-            axes.plot(self.f, np.abs(self.z), **kwargs)
+            axes.plot(self.f, np.abs(self.z) if not db else 20 * np.log10(np.abs(self.z)), **kwargs)
             string = "power: {:.0f} dBm, field: {:.2f} V, temperature: {:.2f} mK"
             title = string.format(self.power, self.field, self.temperature * 1000) if title is True else title
         # plot guess
