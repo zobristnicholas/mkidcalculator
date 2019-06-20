@@ -615,7 +615,7 @@ class Loop:
         return template
 
     def plot(self, plot_types=("iq", "magnitude", "phase"), plot_fit=False, label="best", fit_type="lmfit",
-             plot_guess=None, n_rows=2, title=True, title_kwargs=None, legend=True, legend_kwargs=None,
+             calibrate=False, plot_guess=None, n_rows=2, title=True, title_kwargs=None, legend=True, legend_kwargs=None,
              fit_parameters=(), parameters_kwargs=None, tighten=True, plot_kwargs=None, axes_list=None):
         """
         Plot a variety of data representations in a matplotlib pyplot.subplots
@@ -638,6 +638,9 @@ class Loop:
                 The type of fit to use. Allowed options are "lmfit", "emcee",
                 and "emcee_mle" where MLE estimates are used instead of the
                 medians. The default is "lmfit".
+            calibrate: boolean
+                Determines if the plotted data is calibrated by the model. The
+                default is False. Residuals aren't calibrated.
             plot_guess: lmfit.Parameters object
                 Determines whether the fit guess is plotted or not. The default
                 is None.
@@ -708,21 +711,24 @@ class Loop:
         for index, plot_type in enumerate(plot_types):
             kwargs = {"title": False, "legend": False, "axes": axes_list[index], "tighten": tighten}
             if plot_type == "iq":
-                kwargs.update({"plot_fit": plot_fit, "plot_guess": plot_guess, "label": label, "fit_type": fit_type})
+                kwargs.update({"plot_fit": plot_fit, "plot_guess": plot_guess, "label": label, "fit_type": fit_type,
+                               "calibrate": calibrate})
                 kwargs.update(plot_kwargs[index])
                 self.plot_iq(**kwargs)
             elif plot_type == "r_iq":
                 kwargs.update(plot_kwargs[index])
                 self.plot_iq_residual(**kwargs)
             elif plot_type == "magnitude":
-                kwargs.update({"plot_fit": plot_fit, "plot_guess": plot_guess, "label": label, "fit_type": fit_type})
+                kwargs.update({"plot_fit": plot_fit, "plot_guess": plot_guess, "label": label, "fit_type": fit_type,
+                               "calibrate": calibrate})
                 kwargs.update(plot_kwargs[index])
                 self.plot_magnitude(**kwargs)
             elif plot_type == "r_magnitude":
                 kwargs.update(plot_kwargs[index])
                 self.plot_magnitude_residual(**kwargs)
             elif plot_type == "phase":
-                kwargs.update({"plot_fit": plot_fit, "plot_guess": plot_guess, "label": label, "fit_type": fit_type})
+                kwargs.update({"plot_fit": plot_fit, "plot_guess": plot_guess, "label": label, "fit_type": fit_type,
+                               "calibrate": calibrate})
                 kwargs.update(plot_kwargs[index])
                 self.plot_phase(**kwargs)
             elif plot_type == "r_phase":
@@ -771,10 +777,10 @@ class Loop:
             figure.tight_layout()
         return axes_list
 
-    def plot_iq(self, data_kwargs=None, plot_fit=False, label="best", fit_type="lmfit", fit_kwargs=None,
-                fit_parameters=(), parameters_kwargs=None, plot_guess=None, guess_kwargs=None, x_label=None,
-                y_label=None, label_kwargs=None, legend=True, legend_kwargs=None, title=True, title_kwargs=None,
-                tighten=True, axes=None):
+    def plot_iq(self, data_kwargs=None, plot_fit=False, label="best", fit_type="lmfit", calibrate=False,
+                fit_kwargs=None, fit_parameters=(), parameters_kwargs=None, plot_guess=None, guess_kwargs=None,
+                x_label=None, y_label=None, label_kwargs=None, legend=True, legend_kwargs=None, title=True,
+                title_kwargs=None, tighten=True, axes=None):
         """
         Plot the IQ data.
         Args:
@@ -792,6 +798,9 @@ class Loop:
                 The type of fit to use. Allowed options are "lmfit", "emcee",
                 and "emcee_mle" where MLE estimates are used instead of the
                 medians. The default is "lmfit".
+            calibrate: boolean
+                Determines if the plotted data is calibrated by the model. The
+                default is False.
             fit_kwargs: dictionary
                 Keyword arguments for the fit in axes.plot(). The default is
                 None which uses default options. Keywords in this dictionary
@@ -870,7 +879,6 @@ class Loop:
         kwargs = {"marker": 'o', "markersize": 2, "linestyle": 'None', "label": "data"}
         if data_kwargs is not None:
             kwargs.update(data_kwargs)
-        axes.plot(self.z.real, self.z.imag, **kwargs)
         # plot fit
         if plot_fit:
             # get the model
@@ -879,9 +887,13 @@ class Loop:
                 raise ValueError("No fit of type '{}' with the label '{}' has been done".format(fit_type, label))
             result = result_dict['result']
             model = result_dict['model']
+            z = self.z if not calibrate else model.calibrate(result.params, self.z, self.f)
+            axes.plot(z.real, z.imag, **kwargs)
             # calculate the model values
             f = np.linspace(np.min(self.f), np.max(self.f), np.size(self.f) * 10)
             m = model.model(result.params, f)
+            if calibrate:
+                m = model.calibrate(result.params, m, f)
             # add the plot
             kwargs = {"linestyle": '--', "label": "fit"}
             if fit_kwargs is not None:
@@ -892,6 +904,7 @@ class Loop:
             if fit_parameters:
                 self._make_parameters_textbox(fit_parameters, result, axes, parameters_kwargs)
         else:
+            axes.plot(self.z.real, self.z.imag, **kwargs)
             string = "power: {:.0f} dBm, field: {:.2f} V, temperature: {:.2f} mK"
             title = string.format(self.power, self.field, self.temperature * 1000) if title is True else title
         # plot guess
@@ -1035,10 +1048,10 @@ class Loop:
             axes.figure.tight_layout()
         return axes
 
-    def plot_magnitude(self, data_kwargs=None, plot_fit=False, label="best", fit_type="lmfit", fit_kwargs=None,
-                       fit_parameters=(), parameters_kwargs=None, plot_guess=None, guess_kwargs=None, x_label=None,
-                       y_label=None, label_kwargs=None, legend=True, legend_kwargs=None, title=True, title_kwargs=None,
-                       tighten=True, axes=None):
+    def plot_magnitude(self, data_kwargs=None, plot_fit=False, label="best", fit_type="lmfit", calibrate=False,
+                       fit_kwargs=None, fit_parameters=(), parameters_kwargs=None, plot_guess=None, guess_kwargs=None,
+                       x_label=None, y_label=None, label_kwargs=None, legend=True, legend_kwargs=None, title=True,
+                       title_kwargs=None, tighten=True, axes=None):
         """
         Plot the magnitude data.
         Args:
@@ -1056,6 +1069,9 @@ class Loop:
                 The type of fit to use. Allowed options are "lmfit", "emcee",
                 and "emcee_mle" where MLE estimates are used instead of the
                 medians. The default is "lmfit".
+            calibrate: boolean
+                Determines if the plotted data is calibrated by the model. The
+                default is False.
             fit_kwargs: dictionary
                 Keyword arguments for the fit in axes.plot(). The default is
                 None which uses default options. Keywords in this dictionary
@@ -1132,7 +1148,6 @@ class Loop:
         kwargs = {"marker": 'o', "markersize": 2, "linestyle": 'None', "label": "data"}
         if data_kwargs is not None:
             kwargs.update(data_kwargs)
-        axes.plot(self.f, np.abs(self.z), **kwargs)
         # plot fit
         if plot_fit:
             # get the model
@@ -1141,9 +1156,13 @@ class Loop:
                 raise ValueError("No fit of type '{}' with the label '{}' has been done".format(fit_type, label))
             result = result_dict['result']
             model = result_dict['model']
+            z = self.z if not calibrate else model.calibrate(result.params, self.z, self.f)
+            axes.plot(self.f, np.abs(z), **kwargs)
             # calculate the model values
             f = np.linspace(np.min(self.f), np.max(self.f), np.size(self.f) * 10)
             m = model.model(result.params, f)
+            if calibrate:
+                m = model.calibrate(result.params, m, f)
             # add the plot
             kwargs = {"linestyle": '--', "label": "fit"}
             if fit_kwargs is not None:
@@ -1154,6 +1173,7 @@ class Loop:
             if fit_parameters:
                 self._make_parameters_textbox(fit_parameters, result, axes, parameters_kwargs)
         else:
+            axes.plot(self.f, np.abs(self.z), **kwargs)
             string = "power: {:.0f} dBm, field: {:.2f} V, temperature: {:.2f} mK"
             title = string.format(self.power, self.field, self.temperature * 1000) if title is True else title
         # plot guess
@@ -1295,10 +1315,10 @@ class Loop:
             axes.figure.tight_layout()
         return axes
 
-    def plot_phase(self, data_kwargs=None, plot_fit=False, label="best", fit_type="lmfit", fit_kwargs=None,
-                   fit_parameters=(), parameters_kwargs=None, plot_guess=None, guess_kwargs=None, x_label=None,
-                   y_label=None, label_kwargs=None, legend=True, legend_kwargs=None, title=True, title_kwargs=None,
-                   tighten=True, axes=None):
+    def plot_phase(self, data_kwargs=None, plot_fit=False, label="best", fit_type="lmfit", calibrate=False,
+                   fit_kwargs=None, fit_parameters=(), parameters_kwargs=None, plot_guess=None, guess_kwargs=None,
+                   x_label=None, y_label=None, label_kwargs=None, legend=True, legend_kwargs=None, title=True,
+                   title_kwargs=None, tighten=True, axes=None):
         """
         Plot the phase data.
         Args:
@@ -1316,6 +1336,9 @@ class Loop:
                 The type of fit to use. Allowed options are "lmfit", "emcee",
                 and "emcee_mle" where MLE estimates are used instead of the
                 medians. The default is "lmfit".
+            calibrate: boolean
+                Determines if the plotted data is calibrated by the model. The
+                default is False.
             fit_kwargs: dictionary
                 Keyword arguments for the fit in axes.plot(). The default is
                 None which uses default options. Keywords in this dictionary
@@ -1392,7 +1415,6 @@ class Loop:
         kwargs = {"marker": 'o', "markersize": 2, "linestyle": 'None', "label": "data"}
         if data_kwargs is not None:
             kwargs.update(data_kwargs)
-        axes.plot(self.f, np.unwrap(np.arctan2(self.z.imag, self.z.real)), **kwargs)
         # plot fit
         if plot_fit:
             # get the model
@@ -1401,9 +1423,13 @@ class Loop:
                 raise ValueError("No fit of type '{}' with the label '{}' has been done".format(fit_type, label))
             result = result_dict['result']
             model = result_dict['model']
+            z = self.z if not calibrate else model.calibrate(result.params, self.z, self.f)
+            axes.plot(self.f, np.unwrap(np.arctan2(z.imag, z.real)), **kwargs)
             # calculate the model values
             f = np.linspace(np.min(self.f), np.max(self.f), np.size(self.f) * 10)
             m = model.model(result.params, f)
+            if calibrate:
+                m = model.calibrate(result.params, m, f)
             # add the plot
             kwargs = {"linestyle": '--', "label": "fit"}
             if fit_kwargs is not None:
@@ -1414,6 +1440,7 @@ class Loop:
             if fit_parameters:
                 self._make_parameters_textbox(fit_parameters, result, axes, parameters_kwargs)
         else:
+            axes.plot(self.f, np.unwrap(np.arctan2(self.z.imag, self.z.real)), **kwargs)
             string = "power: {:.0f} dBm, field: {:.2f} V, temperature: {:.2f} mK"
             title = string.format(self.power, self.field, self.temperature * 1000) if title is True else title
         # plot guess
