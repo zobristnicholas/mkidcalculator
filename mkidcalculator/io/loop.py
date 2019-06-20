@@ -1145,7 +1145,10 @@ class Loop:
         if x_label is None:
             x_label = "frequency [GHz]"
         if y_label is None:
-            y_label = "|S₂₁| [V]" if not db else "|S₂₁| [dB]"
+            if not calibrate and not db:
+                y_label = "|S₂₁| [V]"
+            else:
+                y_label = "|S₂₁|" if not db else "|S₂₁| [dB]"
         # setup axes
         kwargs = {}
         if label_kwargs is not None:
