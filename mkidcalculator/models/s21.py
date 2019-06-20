@@ -158,7 +158,7 @@ class S21:
         return z
 
     @classmethod
-    def calibrate(cls, params, z, f, mixer_correction=True):
+    def calibrate(cls, params, z, f, mixer_correction=True, center=False):
         """
         Remove the baseline and mixer effects from the S21 data.
         Args:
@@ -168,9 +168,11 @@ class S21:
                 Complex resonator scattering parameter.
             f: numpy.ndarray, dtype=real
                 Frequency points corresponding to z.
-            mixer_correction: bool (optional)
+            mixer_correction: boolean (optional)
                 Remove the mixer correction specified in the params object. The
                 default is True.
+            center: boolean (optional)
+                Rotates and centers the loop if True. The default is False.
         Returns:
             z: numpy.ndarray
                 The S21 scattering parameter.
@@ -179,6 +181,10 @@ class S21:
             z = cls.mixer_inverse(params, z) / cls.baseline(params, f)
         else:
             z /= cls.baseline(params, f)
+        if center:
+            # TODO: replace with params.eval(center) when lmfit publishes new release
+            center = params._asteval.eval("1 - q0 / (2 * qc) - 1j * q0**2 / qc * df / f0")
+            z = center - z
         return z
 
     @classmethod

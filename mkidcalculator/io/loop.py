@@ -1435,13 +1435,13 @@ class Loop:
                 raise ValueError("No fit of type '{}' with the label '{}' has been done".format(fit_type, label))
             result = result_dict['result']
             model = result_dict['model']
-            z = self.z if not calibrate else model.calibrate(result.params, self.z, self.f)
+            z = self.z if not calibrate else model.calibrate(result.params, self.z, self.f, center=True)
             axes.plot(self.f, np.unwrap(np.angle(z)) if unwrap else np.angle(z), **kwargs)
             # calculate the model values
             f = np.linspace(np.min(self.f), np.max(self.f), np.size(self.f) * 10)
             m = model.model(result.params, f)
             if calibrate:
-                m = model.calibrate(result.params, m, f)
+                m = model.calibrate(result.params, m, f, center=True)
             # add the plot
             kwargs = {"linestyle": '--', "label": "fit"}
             if fit_kwargs is not None:

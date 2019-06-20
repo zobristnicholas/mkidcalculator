@@ -59,7 +59,7 @@ class NpzHolder:
 _loaded_npz_files = NpzHolder()  # cache of already loaded files
 
 
-def compute_phase_and_amplitude(cls, label="best", fit_type="lmfit", fr=None, center=None, unwrap=True):
+def compute_phase_and_amplitude(cls, label="best", fit_type="lmfit", fr="fr", unwrap=True):
     """
     Compute the phase and amplitude traces stored in pulse.p_trace and
     pulse.a_trace.
@@ -79,13 +79,9 @@ def compute_phase_and_amplitude(cls, label="best", fit_type="lmfit", fr=None, ce
             medians. The default is "lmfit".
         fr: string
             The parameter name that corresponds to the resonance frequency.
-            The default is None which gives the resonance frequency for the
+            The default is "fr" which gives the resonance frequency for the
             mkidcalculator.S21 model. This parameter determines the zero
             point for the traces.
-        center: string
-            An expression of parameters corresponding to the calibrated
-            loop center. The default is None which gives the loop center
-            for the mkidcalculator.S21 model.
         unwrap: boolean
             Determines whether or not to unwrap the phase data. The default
             is True.
@@ -97,21 +93,15 @@ def compute_phase_and_amplitude(cls, label="best", fit_type="lmfit", fr=None, ce
     model = result_dict["model"]
     params = result_dict["result"].params
     # get the resonance frequency and loop center
-    fr = params["fr"].value if fr is None else params[fr].value
-    if center is None:
-        center = "1 - q0 / (2 * qc) - 1j * q0**2 / qc * df / f0"
-    center = params._asteval.eval(center)  # TODO: replace with params.eval(center) when lmfit publishes new release
+    fr = params[fr].value
     # get complex IQ data for the traces and loop at the resonance frequency
     traces = cls.i_trace + 1j * cls.q_trace
     z_fr = model.model(params, fr)
     f = np.empty(traces.shape)
     f.fill(cls.f_bias)
     # calibrate the IQ data
-    traces = model.calibrate(params, traces, f)
-    z_fr = model.calibrate(params, z_fr, fr)
-    # center and rotate the IQ data
-    traces = (center - traces)
-    z_fr = (center - z_fr)  # should be real if no loop asymmetry
+    traces = model.calibrate(params, traces, f, center=True)
+    z_fr = model.calibrate(params, z_fr, fr, center=True)  # should be real if no loop asymmetry
     # compute the phase and amplitude traces from the centered traces
     cls.p_trace = np.unwrap(np.angle(traces) - np.angle(z_fr)) if unwrap else np.angle(traces) - np.angle(z_fr)
     cls.a_trace = np.abs(traces) / np.abs(z_fr) - 1
