@@ -1200,7 +1200,7 @@ class Loop:
             kwargs = {"linestyle": '-.', "label": "guess", "color": "k"}
             if guess_kwargs is not None:
                 kwargs.update(guess_kwargs)
-            axes.plot(f, np.abs(m), **kwargs)
+            axes.plot(f, np.abs(m) if not db else 20 * np.log10(np.abs(m)), **kwargs)
         if legend:
             kwargs = {}
             if legend_kwargs is not None:
