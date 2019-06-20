@@ -683,7 +683,7 @@ class Loop:
             unwrap: boolean
                 Determines if the phase plots are unwrapped. The default is
                 True.
-            plot_kwargs: an iterable of dictionaries
+            plot_kwargs: an iterable of dictionaries or a single dictionary
                 A list of keyword arguments for each plot type. The default is
                 None which uses default options. Keywords in this dictionary
                 override the default options. Valid keyword arguments can be
@@ -713,6 +713,8 @@ class Loop:
             figure = axes_list[0].figure
         if plot_kwargs is None:
             plot_kwargs = [{}] * n_plots
+        if isinstance(plot_kwargs, dict):
+            plot_kwargs = [plot_kwargs] * n_plots
         # make main plots
         index = 0  # if plot_types = ()
         for index, plot_type in enumerate(plot_types):
