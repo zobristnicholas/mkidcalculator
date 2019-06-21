@@ -310,7 +310,7 @@ class Noise:
         noise._data = data(noise_file_name, **kwargs)
         return noise
 
-    def compute_phase_and_amplitude(self, label="best", fit_type="lmfit", fr=None, center=None, unwrap=True):
+    def compute_phase_and_amplitude(self, label="best", fit_type="lmfit", fr=None, unwrap=True):
         """
         Compute the phase and amplitude traces stored in noise.p_trace and
         noise.a_trace.
@@ -330,15 +330,11 @@ class Noise:
                 The default is None which gives the resonance frequency for the
                 mkidcalculator.S21 model. This parameter determines the zero
                 point for the traces.
-            center: string
-                An expression of parameters corresponding to the calibrated
-                loop center. The default is None which gives the loop center
-                for the mkidcalculator.S21 model.
             unwrap: boolean
                 Determines whether or not to unwrap the phase data. The default
                 is True.
         """
-        compute_phase_and_amplitude(self, label=label, fit_type=fit_type, fr=fr, center=center, unwrap=unwrap)
+        compute_phase_and_amplitude(self, label=label, fit_type=fit_type, fr=fr, unwrap=unwrap)
 
     def compute_psd(self, **kwargs):
         """

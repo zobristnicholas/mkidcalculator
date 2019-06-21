@@ -446,8 +446,7 @@ class Pulse:
             except AttributeError:
                 pass
 
-    def compute_phase_and_amplitude(self, label="best", fit_type="lmfit", fr=None, center=None, unwrap=True,
-                                    noise=False):
+    def compute_phase_and_amplitude(self, label="best", fit_type="lmfit", fr=None, unwrap=True, noise=False):
         """
         Compute the phase and amplitude traces stored in pulse.p_trace and
         pulse.a_trace.
@@ -467,10 +466,6 @@ class Pulse:
                 The default is None which gives the resonance frequency for the
                 mkidcalculator.S21 model. This parameter determines the zero
                 point for the traces.
-            center: string
-                An expression of parameters corresponding to the calibrated
-                loop center. The default is None which gives the loop center
-                for the mkidcalculator.S21 model.
             unwrap: boolean
                 Determines whether or not to unwrap the phase data. The default
                 is True.
@@ -478,9 +473,9 @@ class Pulse:
                 Determines whether or not to also compute the phase and
                 amplitude for the noise. The default is false.
         """
-        compute_phase_and_amplitude(self, label=label, fit_type=fit_type, fr=fr, center=center, unwrap=unwrap)
+        compute_phase_and_amplitude(self, label=label, fit_type=fit_type, fr=fr, unwrap=unwrap)
         if noise:
-            compute_phase_and_amplitude(self.noise, label=label, fit_type=fit_type, fr=fr, center=center, unwrap=unwrap)
+            compute_phase_and_amplitude(self.noise, label=label, fit_type=fit_type, fr=fr, unwrap=unwrap)
 
     def to_pickle(self, file_name):
         """Pickle and save the class as the file 'file_name'."""
