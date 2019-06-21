@@ -446,7 +446,7 @@ class Pulse:
             except AttributeError:
                 pass
 
-    def compute_phase_and_amplitude(self, label="best", fit_type="lmfit", fr=None, unwrap=True, noise=False):
+    def compute_phase_and_amplitude(self, label="best", fit_type="lmfit", fr="fr", unwrap=True, noise=False):
         """
         Compute the phase and amplitude traces stored in pulse.p_trace and
         pulse.a_trace.
@@ -463,7 +463,7 @@ class Pulse:
                 medians. The default is "lmfit".
             fr: string
                 The parameter name that corresponds to the resonance frequency.
-                The default is None which gives the resonance frequency for the
+                The default is "fr" which gives the resonance frequency for the
                 mkidcalculator.S21 model. This parameter determines the zero
                 point for the traces.
             unwrap: boolean

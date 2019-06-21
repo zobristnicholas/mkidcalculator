@@ -310,7 +310,7 @@ class Noise:
         noise._data = data(noise_file_name, **kwargs)
         return noise
 
-    def compute_phase_and_amplitude(self, label="best", fit_type="lmfit", fr=None, unwrap=True):
+    def compute_phase_and_amplitude(self, label="best", fit_type="lmfit", fr="fr", unwrap=True):
         """
         Compute the phase and amplitude traces stored in noise.p_trace and
         noise.a_trace.
@@ -327,7 +327,7 @@ class Noise:
                 medians. The default is "lmfit".
             fr: string
                 The parameter name that corresponds to the resonance frequency.
-                The default is None which gives the resonance frequency for the
+                The default is "fr" which gives the resonance frequency for the
                 mkidcalculator.S21 model. This parameter determines the zero
                 point for the traces.
             unwrap: boolean
