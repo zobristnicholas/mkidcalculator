@@ -9,6 +9,7 @@ from matplotlib import pyplot as plt
 from scipy.cluster.vq import kmeans2, ClusterError
 
 from mkidcalculator.io.loop import Loop
+from mkidcalculator.io.utils import lmfit
 from mkidcalculator.io.data import analogreadout_sweep
 
 log = logging.getLogger(__name__)
@@ -23,6 +24,7 @@ class Sweep:
         self.temperatures = []
         self.temperature_groups = []
         # analysis results
+        self.lmfit_results = {}
         self.loop_parameters = {}
         # directory of the data
         self._directory = None
@@ -240,8 +242,23 @@ class Sweep:
         sweep.add_loops(loops, sort=sort)
         return sweep
 
-    def lmfit(self):
-        raise NotImplementedError
+    def lmfit(self, model, guess, label='default', data_label="best", residual_args=(), residual_kwargs=None, **kwargs):
+        # get the data to fit
+        table = self.loop_parameters[data_label]
+        residual_args = (table['fr'].to_numpy(), *residual_args)
+        if 'temperature' in table.columns:
+            temperatures = table['temperatures'].to_numpy()
+        else:
+            temperatures = table.index.get_level_values('temperature')
+        powers = table.index.get_level_values("power")
+        sigmas = table['fr_sigma'].to_numpy()
+        kws = {"temperatures": temperatures, "powers": powers, "sigmas": sigmas}
+        if residual_kwargs is not None:
+            kws.update(residual_kwargs)
+        # do the fit
+        lmfit(self.lmfit_results, model, guess, label=label, residual_args=residual_args, residual_kwargs=kws, **kwargs)
+        result = self.lmfit_results[label]['result']
+        return result
 
     def emcee(self):
         raise NotImplementedError
