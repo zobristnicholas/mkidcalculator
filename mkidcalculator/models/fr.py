@@ -124,7 +124,7 @@ class Fr:
         return fr
 
     @classmethod
-    def residual(cls, params, data, temperatures=None, powers=None, sigma=None):
+    def residual(cls, params, data, temperatures=None, powers=None, sigmas=None):
         """
         Return the normalized residual between the fr data and model.
         Args:
@@ -140,7 +140,7 @@ class Fr:
                 The powers at which the fractional frequency shifts are
                 evaluated. The default is None and fractional shifts due to
                 power are ignored.
-            sigma: numpy.ndarray (optional)
+            sigmas: numpy.ndarray (optional)
                 The error associated with each data point. The default is None
                 and the residual is not normalized.
         Returns:
@@ -148,7 +148,7 @@ class Fr:
                 the normalized residuals.
         """
         fr = cls.model(params, temperatures=temperatures, powers=powers)
-        residual = (fr - data) / sigma if sigma is not None else (fr - data)
+        residual = (fr - data) / sigmas if sigmas is not None else (fr - data)
         return residual
 
     @classmethod
