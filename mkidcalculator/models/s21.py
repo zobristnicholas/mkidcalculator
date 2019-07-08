@@ -263,8 +263,8 @@ class S21:
               nonlinear_resonance=False, fit_gain=True, quadratic_gain=True, fit_phase=True, quadratic_phase=False,
               fit_imbalance=False, fit_offset=False, alpha=1, gamma=0):
         """
-        Guess the model parameters based on the data. Returns a lmfit.Parameters()
-        object.
+        Guess the model parameters based on the data. Returns a
+        lmfit.Parameters() object.
         Args:
             z: numpy.ndarray, dtype=complex, shape=(N,)
                 Complex resonator scattering parameter.
