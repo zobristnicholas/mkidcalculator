@@ -232,3 +232,20 @@ def structured_to_complex(array):
         return array
     else:
         return array["I"] + 1j * array["Q"]
+
+
+def lmfit(lmfit_results, model, guess, label='default', residual_args=(), residual_kwargs=None, **kwargs):
+    if label == 'best':
+        raise ValueError("'best' is a reserved label and cannot be used")
+    # set up and do minimization
+    minimizer = lm.Minimizer(model.residual, guess, fcn_args=residual_args, fcn_kws=residual_kwargs)
+    result = minimizer.minimize(**kwargs)
+    # save the results
+    lmfit_results[label] = {'result': result, 'model': model}
+    # if the result is better than has been previously computed, add it to the 'best' key
+    if 'best' not in self.lmfit_results.keys():
+        lmfit_results['best'] = self.lmfit_results[label]
+        lmfit_results['best']['label'] = label
+    elif result.aic < self.lmfit_results['best']['result'].aic:
+        lmfit_results['best'] = self.lmfit_results[label]
+        lmfit_results['best']['label'] = label

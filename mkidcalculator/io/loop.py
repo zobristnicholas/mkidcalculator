@@ -12,7 +12,7 @@ from scipy.interpolate import make_interp_spline
 
 from mkidcalculator.io.noise import Noise
 from mkidcalculator.io.pulse import Pulse
-from mkidcalculator.io.utils import ev_nm_convert
+from mkidcalculator.io.utils import ev_nm_convert, lmfit
 from mkidcalculator.io.data import AnalogReadoutLoop, AnalogReadoutNoise, AnalogReadoutPulse
 
 log = logging.getLogger(__name__)
@@ -365,21 +365,10 @@ class Loop:
                 An object containing the results of the minimization. It is
                 also stored in self.lmfit_results[label]['result'].
         """
-        if label == 'best':
-            raise ValueError("'best' is a reserved label and cannot be used")
-        # set up and do minimization
         residual_args = (self.z, self.f, *residual_args)
-        minimizer = lm.Minimizer(model.residual, guess, fcn_args=residual_args, fcn_kws=residual_kwargs)
-        result = minimizer.minimize(**kwargs)
-        # save the results
-        self.lmfit_results[label] = {'result': result, 'model': model}
-        # if the result is better than has been previously computed, add it to the 'best' key
-        if 'best' not in self.lmfit_results.keys():
-            self.lmfit_results['best'] = self.lmfit_results[label]
-            self.lmfit_results['best']['label'] = label
-        elif result.aic < self.lmfit_results['best']['result'].aic:
-            self.lmfit_results['best'] = self.lmfit_results[label]
-            self.lmfit_results['best']['label'] = label
+        lmfit(self.lmfit_results, model, guess, label=label, residual_args=residual_args,
+              residual_kwargs=residual_kwargs, **kwargs)
+        result = self.lmfit_results[label]['result']
         return result
 
     def emcee(self, model, label='default', residual_args=(), residual_kwargs=None, **kwargs):
