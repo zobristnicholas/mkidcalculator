@@ -2,6 +2,7 @@ import os
 import logging
 import tempfile
 import numpy as np
+import lmfit as lm
 import scipy.constants as c
 
 log = logging.getLogger(__name__)
@@ -228,7 +229,7 @@ def load_legacy_binary_data(binary_file, channel, n_points, noise=True):
 
 
 def structured_to_complex(array):
-    if array.dtype == np.complex:
+    if array.dtype == np.complex or array.dtype == np.complex64:
         return array
     else:
         return array["I"] + 1j * array["Q"]
@@ -243,9 +244,9 @@ def lmfit(lmfit_results, model, guess, label='default', residual_args=(), residu
     # save the results
     lmfit_results[label] = {'result': result, 'model': model}
     # if the result is better than has been previously computed, add it to the 'best' key
-    if 'best' not in self.lmfit_results.keys():
-        lmfit_results['best'] = self.lmfit_results[label]
+    if 'best' not in lmfit_results.keys():
+        lmfit_results['best'] = lmfit_results[label]
         lmfit_results['best']['label'] = label
-    elif result.aic < self.lmfit_results['best']['result'].aic:
-        lmfit_results['best'] = self.lmfit_results[label]
+    elif result.aic < lmfit_results['best']['result'].aic:
+        lmfit_results['best'] = lmfit_results[label]
         lmfit_results['best']['label'] = label
