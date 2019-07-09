@@ -1,7 +1,8 @@
+import numpy as np
 import lmfit as lm
 import scipy.constants as sc
 import scipy.special as spec
-from mkidcalculator.models.utils import scaled_alpha_inv
+from mkidcalculator.models.utils import scaled_alpha, scaled_alpha_inv
 try:
     from superconductivity import complex_conductivity as cc
     HAS_SUPERCONDUCTIVITY = True
@@ -16,6 +17,7 @@ BCS = pi / np.exp(np.euler_gamma)  # bcs constant
 
 # special functions
 log = np.log
+sqrt = np.sqrt
 real = np.real
 imag = np.imag
 digamma = spec.digamma
@@ -24,7 +26,7 @@ digamma = spec.digamma
 class Fr:
     """Basic fr model."""
     @classmethod
-    def mattis_bardeen(cls, params, temperatures):
+    def mattis_bardeen(cls, params, temperatures, low_energy=False):
         """
         Returns the fractional frequency shift of the resonator with the
         specified model parameters for Mattis Bardeen effects.
@@ -34,6 +36,9 @@ class Fr:
             temperatures: numpy.ndarray
                 The temperatures at which the fractional frequency shift is
                 evaluated. If None, a fractional shift of zero is returned.
+            low_energy: boolean (optional)
+                Use the low energy approximation to evaluate the complex
+                conductivity. The default is False.
         Returns:
             dx: numpy.ndarray
                 The fractional frequency shift.
@@ -48,10 +53,11 @@ class Fr:
         bcs = params['bcs'].value
         gamma = params['gamma'].value
         limit = params['limit'].value
+        f0 = params['f0'].value
         # calculate dx
-        sigma0 = cc.value(0, f0, tc, gamma=gamma, bcs=bcs, low_energy=False)
-        sigma1 = cc.value(temperatures, f0, tc, gamma=gamma, bcs=bcs, low_energy=False)
-        dx = -0.5 * alpha * limit * imag((sigma1 - sigma0) / sigma0)  # take imaginary part after in case gamma != 0
+        sigma0 = cc.value(0, f0, tc, gamma=gamma, bcs=bcs, low_energy=low_energy)
+        sigma1 = cc.value(temperatures, f0, tc, gamma=gamma, bcs=bcs, low_energy=low_energy)
+        dx = 0.5 * alpha * limit * imag((sigma1 - sigma0) / sigma0)  # take imaginary part after in case gamma != 0
         return dx
 
     @classmethod
@@ -99,7 +105,7 @@ class Fr:
         return params['f0'].value
 
     @classmethod
-    def model(cls, params, temperatures=None, powers=None):
+    def model(cls, params, temperatures=None, powers=None, low_energy=False):
         """
         Returns the model of fr for the specified model parameters.
         Args:
@@ -113,18 +119,21 @@ class Fr:
                 The powers at which the fractional frequency shifts are
                 evaluated. The default is None and fractional shifts due to
                 power are ignored.
+            low_energy: boolean (optional)
+                Use the low energy approximation to evaluate the complex
+                conductivity. The default is False.
         Returns:
             fr: numpy.ndarray
                 The resonance frequency.
         """
         f0 = cls.constant_offset(params)
-        dx = cls.mattis_bardeen(params, temperatures)
+        dx = cls.mattis_bardeen(params, temperatures, low_energy=low_energy)
         dx += cls.two_level_systems(params, temperatures, powers)
         fr = f0 * dx + f0
         return fr
 
     @classmethod
-    def residual(cls, params, data, temperatures=None, powers=None, sigmas=None):
+    def residual(cls, params, data, temperatures=None, powers=None, sigmas=None, low_energy=False):
         """
         Return the normalized residual between the fr data and model.
         Args:
@@ -143,23 +152,26 @@ class Fr:
             sigmas: numpy.ndarray (optional)
                 The error associated with each data point. The default is None
                 and the residual is not normalized.
+            low_energy: boolean (optional)
+                Use the low energy approximation to evaluate the complex
+                conductivity. The default is False.
         Returns:
             residual: numpy.ndarray
                 the normalized residuals.
         """
-        fr = cls.model(params, temperatures=temperatures, powers=powers)
+        fr = cls.model(params, temperatures=temperatures, powers=powers, low_energy=low_energy)
         residual = (fr - data) / sigmas if sigmas is not None else (fr - data)
         return residual
 
     @classmethod
     def guess(cls, data, tc, alpha=0.5, bcs=BCS, fd=1e-5, powers=None, limit=-1, fit_resonance=True, fit_mbd=True,
-              fix_tc=True, fit_alpha=False, fit_dynes=False, fit_tls=True, fit_fd=True, fit_pc=True):
+              fix_tc=True, fit_alpha=True, fit_dynes=False, fit_tls=True, fit_fd=True, fit_pc=True):
         """
         Guess the model parameters based on the data. Returns a
         lmfit.Parameters() object.
         Args:
             data: numpy.ndarray
-                The fr data.
+                The fr data in Hz.
             tc: float
                 The transition temperature for the resonator in Kelvin.
             alpha: float (optional)
@@ -217,19 +229,18 @@ class Fr:
         # make the parameters object (coerce all values to float to avoid ints and numpy types)
         params = lm.Parameters(usersyms={'scaled_alpha_inv': scaled_alpha_inv})
         # resonator params
-        params.add("f0", value=float(f0), vary=fit_resonance)
+        params.add("f0", value=float(f0), vary=fit_resonance, min=0)
         params.add("limit", value=float(limit), vary=False)
         # Mattis-Bardeen params
         params.add("tc", value=float(tc), vary=fit_mbd and not fix_tc)
-        params.add("bcs", value=float(bcs), vary=fit_mbd and fix_tc)
+        params.add("bcs", value=float(bcs), vary=fit_mbd and fix_tc, min=0.5, max=2.5)
         params.add("scaled_alpha", value=float(scaled_alpha(alpha)), vary=fit_mbd and fit_alpha)
         # Dynes params
         params.add("gamma_sqrt", value=float(gamma_sqrt), vary=bool(fit_dynes))
         # two level system params
-        params.add("fd_sqrt", value=float(sqrt(fd) if fit_tls else 0.), vary=fit_tls and fit_fd)
+        params.add("fd", value=float(fd) if fit_tls else 0., vary=fit_tls and fit_fd)
         params.add("pc", value=float(pc), vary=fit_tls and fit_pc)
         # derived params
         params.add("alpha", expr='scaled_alpha_inv(scaled_alpha)')
-        params.add("fd", expr='fd_sqrt**2')
         params.add("gamma", expr="gamma_sqrt**2")
         return params
