@@ -242,22 +242,30 @@ class Sweep:
         sweep.add_loops(loops, sort=sort)
         return sweep
 
-    def lmfit(self, model, guess, label='default', data_label="best", residual_args=(), residual_kwargs=None, **kwargs):
+    def lmfit(self, parameter, model, guess, index=None, label='default', data_label="best", residual_args=(),
+              residual_kwargs=None, **kwargs):
         # get the data to fit
-        table = self.loop_parameters[data_label]
-        residual_args = (table['fr'].to_numpy(), *residual_args)
+        table = self.loop_parameters[data_label] if index is None else self.loop_parameters[data_label].loc[index]
+        data = table[parameter].to_numpy()
+        if parameter == 'fr':
+            data = data * 1e9  # convert to Hz for model
+        residual_args = (data, *residual_args)
         if 'temperature' in table.columns:
-            temperatures = table['temperatures'].to_numpy()
+            temperatures = table['temperature'].to_numpy()
         else:
             temperatures = table.index.get_level_values('temperature')
         powers = table.index.get_level_values("power")
-        sigmas = table['fr_sigma'].to_numpy()
+        sigmas = table[parameter + '_sigma'].to_numpy()
         kws = {"temperatures": temperatures, "powers": powers, "sigmas": sigmas}
         if residual_kwargs is not None:
             kws.update(residual_kwargs)
+        if parameter not in self.lmfit_results.keys():
+            self.lmfit_results[parameter] = {}
+
         # do the fit
-        lmfit(self.lmfit_results, model, guess, label=label, residual_args=residual_args, residual_kwargs=kws, **kwargs)
-        result = self.lmfit_results[label]['result']
+        lmfit(self.lmfit_results[parameter], model, guess, label=label, residual_args=residual_args,
+              residual_kwargs=kws, **kwargs)
+        result = self.lmfit_results[parameter][label]['result']
         return result
 
     def emcee(self):
