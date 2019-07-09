@@ -604,9 +604,9 @@ class Loop:
         return template
 
     def plot(self, plot_types=("iq", "magnitude", "phase"), plot_fit=False, label="best", fit_type="lmfit",
-             calibrate=False, plot_guess=None, n_rows=2, title=True, title_kwargs=None, legend=True, legend_kwargs=None,
-             fit_parameters=(), parameters_kwargs=None, tighten=True, db=False, unwrap=True, plot_kwargs=None,
-             axes_list=None):
+             calibrate=False, plot_guess=None, n_rows=2, title=True, title_kwargs=None, legend=True, legend_index=0,
+             legend_kwargs=None, fit_parameters=(), parameters_kwargs=None, tighten=True, db=False, unwrap=True,
+             plot_kwargs=None, axes_list=None):
         """
         Plot a variety of data representations in a matplotlib pyplot.subplots
         grid.
@@ -649,6 +649,10 @@ class Loop:
                 Determines whether the legend is used or not. The default is
                 True, and a legend is plotted in the first axes. If False,
                 legend_kwargs is ignored.
+            legend_index: integer
+                An integer corresponding to the plot number on which to put the
+                legend. The default is 0. It must be less than the number of
+                plot_types.
             legend_kwargs: dictionary
                 Keyword arguments for the legend in axes.legend(). The default
                 is None which uses default options. Keywords in this
@@ -761,7 +765,7 @@ class Loop:
             kwargs = {}
             if legend_kwargs is not None:
                 kwargs.update(legend_kwargs)
-            axes_list[0].legend(**kwargs)
+            axes_list[legend_index].legend(**kwargs)
         if title:
             title = string if title is True else title
             kwargs = {"fontsize": 11}
