@@ -232,7 +232,7 @@ class Fr:
         params.add("f0", value=float(f0), vary=fit_resonance, min=0)
         params.add("limit", value=float(limit), vary=False)
         # Mattis-Bardeen params
-        params.add("tc", value=float(tc), vary=fit_mbd and not fix_tc)
+        params.add("tc", value=float(tc), vary=fit_mbd and not fix_tc, min=0)
         params.add("bcs", value=float(bcs), vary=fit_mbd and fix_tc, min=0.5, max=2.5)
         params.add("scaled_alpha", value=float(scaled_alpha(alpha)), vary=fit_mbd and fit_alpha)
         # Dynes params
