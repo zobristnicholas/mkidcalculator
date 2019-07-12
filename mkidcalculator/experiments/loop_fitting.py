@@ -53,6 +53,9 @@ def basic_fit(loop, label="basic_fit", model=S21, **load_kwargs):
         load_kwargs: optional keyword arguments
             Keyword arguments to send to Loop.load(). Loop.from_pickle() will
             not be attempted if kwargs are given.
+    Returns:
+        loop: mkidcalculator.Loop
+            The loop object that was fit.
     """
     # convert file name to loop if needed
     loop = _load_loop(loop, **load_kwargs)
@@ -60,6 +63,7 @@ def basic_fit(loop, label="basic_fit", model=S21, **load_kwargs):
     guess = model.guess(loop.z, loop.f, loop.imbalance_calibration, loop.offset_calibration)
     # do fit
     loop.lmfit(model, guess, label=label)
+    return loop
 
 
 def temperature_fit(loop, label="temperature_fit", model=S21, **load_kwargs):
@@ -80,6 +84,9 @@ def temperature_fit(loop, label="temperature_fit", model=S21, **load_kwargs):
         load_kwargs: optional keyword arguments
             Keyword arguments to send to Loop.load(). Loop.from_pickle() will
             not be attempted if kwargs are given.
+    Returns:
+        loop: mkidcalculator.Loop
+            The loop object that was fit.
     """
     # convert file name to loop if needed
     loop = _load_loop(loop, **load_kwargs)
@@ -104,6 +111,7 @@ def temperature_fit(loop, label="temperature_fit", model=S21, **load_kwargs):
             guess = good_guesses[indices[iteration]]
             # do fit
             loop.lmfit(model, guess, label=label + "_" + str(iteration))
+    return loop
 
 
 def linear_fit(loop, label="linear_fit", model=S21, parameter="a_sqrt", **load_kwargs):
@@ -124,8 +132,12 @@ def linear_fit(loop, label="linear_fit", model=S21, parameter="a_sqrt", **load_k
         load_kwargs: optional keyword arguments
             Keyword arguments to send to Loop.load(). Loop.from_pickle() will
             not be attempted if kwargs are given.
+    Returns:
+        loop: mkidcalculator.Loop
+            The loop object that was fit.
     """
-    nonlinear_fit(loop, label=label, model=model, parameter=(parameter, 0.), vary=False, **load_kwargs)
+    loop = nonlinear_fit(loop, label=label, model=model, parameter=(parameter, 0.), vary=False, **load_kwargs)
+    return loop
 
 
 def nonlinear_fit(loop, label="nonlinear_fit", model=S21, parameter=("a_sqrt", 0.05), vary=True, **load_kwargs):
@@ -149,6 +161,9 @@ def nonlinear_fit(loop, label="nonlinear_fit", model=S21, parameter=("a_sqrt", 0
         load_kwargs: optional keyword arguments
             Keyword arguments to send to Loop.load(). Loop.from_pickle() will
             not be attempted if kwargs are given.
+    Returns:
+        loop: mkidcalculator.Loop
+            The loop object that was fit.
     """
     # convert file name to loop if needed
     loop = _load_loop(loop, **load_kwargs)
@@ -161,6 +176,7 @@ def nonlinear_fit(loop, label="nonlinear_fit", model=S21, parameter=("a_sqrt", 0
         loop.lmfit(model, guess, label=label)
     else:
         raise AttributeError("loop does not have a previous fit on which to base the nonlinear fit.")
+    return loop
 
 
 def sweep_fit(sweep, model=S21, extra_fits=(temperature_fit, nonlinear_fit, linear_fit), fit_kwargs=(), iterations=2,
@@ -188,6 +204,9 @@ def sweep_fit(sweep, model=S21, extra_fits=(temperature_fit, nonlinear_fit, line
         load_kwargs: optional keyword arguments
             Keyword arguments to send to Sweep.from_config().
             Sweep.from_pickle() will not be attempted if kwargs are given.
+    Returns:
+        sweep: mkidcalculator.Sweep
+            The sweep object that was fit.
     """
     # parse inputs
     if not fit_kwargs:
@@ -214,3 +233,4 @@ def sweep_fit(sweep, model=S21, extra_fits=(temperature_fit, nonlinear_fit, line
         redchi = loop.lmfit_results['best']['result'].redchi
         if redchi > MAX_REDCHI:
             log.warning("loop {} failed to fit with redchi of {}".format(index, redchi))
+    return sweep
