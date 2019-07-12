@@ -422,7 +422,7 @@ class S21:
         params.add('f0', value=float(f0_guess), min=f_min, max=f_max, vary=fit_resonance)
         params.add('qc', value=float(qc_guess), min=1, max=10**8, vary=fit_resonance)
         params.add('qi', value=float(qi_guess), min=1, max=10**8, vary=fit_resonance)
-        a_sqrt = sqrt(0.0025) if nonlinear_resonance is True else nonlinear_resonance  # bifurcation at a=0.7698
+        a_sqrt = np.sqrt(0.0025) if nonlinear_resonance is True else nonlinear_resonance  # bifurcation at a=0.7698
         params.add('a_sqrt', value=float(a_sqrt), vary=bool(nonlinear_resonance) and fit_resonance)
         # polynomial gain parameters
         params.add('gain0', value=float(gain_poly[2]), min=0, vary=fit_gain)
