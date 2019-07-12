@@ -248,7 +248,7 @@ class LegacyABC:
         self._do_not_clear = ['metadata']
         # load in data to the configuration file
         self._data = {'metadata': {}}
-        config = loadmat(config_file, squeeze_me=True)
+        config = loadmat(config_file, squeeze_me=True)  # TODO: errors on noise
         for key in config.keys():
             if not key.startswith("_"):
                 for name in config[key].dtype.names:
@@ -425,7 +425,7 @@ class LegacyPulse(LegacyABC):
         self._data.update({"i_trace": i_trace, "q_trace": q_trace})
 
 
-def legacy_sweep(config_file, channel=None):
+def legacy_sweep(config_file, channel=None, noise=True):
     """
     Class for loading in legacy matlab sweep data.
     Args:
@@ -433,38 +433,46 @@ def legacy_sweep(config_file, channel=None):
             The sweep configuration file name.
         channel: integer
             The resonator channel for the data.
+        noise: boolean
+            If False, ignore the noise data. The default is True.
     Returns:
         loop_kwargs: list of dictionaries
             A list of keyword arguments to send to Loop.load().
     """
     directory = os.path.dirname(config_file)
     config = loadmat(config_file, squeeze_me=True)['curr_config']
-
-    temperatures = np.arange(config['starttemp'], config['stoptemp'], config['steptemp'])
-    attenuations = np.arange(config['startatten'], config['stopatten'], config['stepatten'])
+    temperatures = np.arange(config['starttemp'].astype(float),
+                             config['stoptemp'].astype(float) + config['steptemp'].astype(float) / 2,
+                             config['steptemp'].astype(float))
+    attenuations = np.arange(config['startatten'].astype(float),
+                             config['stopatten'].astype(float) + config['stepatten'].astype(float) / 2,
+                             config['stepatten'].astype(float))
 
     loop_kwargs = []
     for t_index, temp in enumerate(temperatures):
         for a_index, atten in enumerate(attenuations):
             loop_kwargs.append({"loop_file_name": config_file, "index": (t_index, a_index), "data": LegacyLoop,
                                 "channel": channel})
-            if config['donoise']:
+            if config['donoise'] and noise:
                 group = channel // 2 + 1
                 # on resonance file names
                 on_res = glob.glob(os.path.join(directory, "{:g}-{:d}a*-{:g}.ns".format(temp, group, atten)))
                 noise_kwargs = []
                 for file_name in on_res:
                     # collect the index for the file name
-                    index2 = file_name.split("a")[1].split("-")[0]
+                    base_name = os.path.basename(file_name)
+                    index2 = int(base_name.split("a")[0].split("-")[1])
                     index = (t_index, a_index, index2) if index2 else (t_index, a_index)
                     noise_kwargs.append({"index": index, "on_res": True, "data": LegacyNoise, "channel": channel})
                 # off resonance file names
                 off_res_names = glob.glob(os.path.join(directory, "{:g}-{:d}b*-{:g}.ns".format(temp, group, atten)))
                 for file_name in off_res_names:
                     # collect the index for the file name
-                    index2 = file_name.split("b")[1].split("-")[0]
+                    base_name = os.path.basename(file_name)
+                    index2 = int(base_name.split("b")[0].split("-")[1])  # TODO: check this
                     index = (t_index, a_index, index2) if index2 else (t_index, a_index)
                     noise_kwargs.append({"index": index, "on_res": False, "data": LegacyNoise, "channel": channel})
-                loop_kwargs.update({"noise_file_names": on_res + off_res_names, "noise_kwargs": noise_kwargs})
+                loop_kwargs[-1].update({"noise_file_names": on_res + off_res_names, "noise_kwargs": noise_kwargs})
                 if not noise_kwargs:
                     log.warning("Could not find noise files for '{}'".format(config_file))
+    return loop_kwargs
