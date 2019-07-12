@@ -432,6 +432,32 @@ class Loop:
             self.emcee_results['best']['label'] = label
         return result
 
+    def fit_report(self, label='best', fit_type='lmfit', return_string=False):
+        """
+        Print a string summarizing a loop fit.
+        Args:
+            label: string
+                The label used to store the fit. The default is "best".
+            fit_type: string
+                The type of fit to use. Allowed options are "lmfit", "emcee",
+                and "emcee_mle" where MLE estimates are used instead of the
+                medians. The default is "lmfit".
+            return_string: boolean
+                Return a string with the fit report instead of printing. The
+                default is False.
+
+        Returns:
+            string: string
+                A string containing the fit report. None is output if
+                return_string is False.
+        """
+        _, result_dict = self._get_model(fit_type, label)
+        string = lm.fit_report(result_dict['result'])
+        if return_string:
+            return string
+        else:
+            print(string)
+
     def compute_energy_calibration(self, pulse_indices=None, use_mask=True, fix_zero=True, k=2, bc_type='not-a-knot'):
         """
         Compute the response to energy calibration from data in the pulse
