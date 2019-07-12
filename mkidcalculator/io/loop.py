@@ -1466,11 +1466,12 @@ class Loop:
             m = model.model(result.params, f)
             if calibrate:
                 m = model.calibrate(result.params, m, f, center=True)
+            offset = 2 * np.pi if np.angle(z[0]) - np.angle(m[0]) > np.pi else 0
             # add the plot
             kwargs = {"linestyle": '--', "label": "fit"}
             if fit_kwargs is not None:
                 kwargs.update(fit_kwargs)
-            axes.plot(f, np.unwrap(np.angle(m)) if unwrap else np.angle(m), **kwargs)
+            axes.plot(f, np.unwrap(np.angle(m) + offset) if unwrap else np.angle(m), **kwargs)
             string = "power: {:.0f} dBm, field: {:.2f} V, temperature: {:.2f} mK, '{}' fit"
             title = string.format(self.power, self.field, self.temperature * 1000, fit_name) if title is True else title
             if fit_parameters:
