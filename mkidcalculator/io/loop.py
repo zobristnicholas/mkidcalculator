@@ -248,9 +248,8 @@ class Loop:
             pass
 
     @classmethod
-    def load(cls, loop_file_name, noise_file_names=(), pulse_file_names=(), data=AnalogReadoutLoop,
-             noise_data=AnalogReadoutNoise, pulse_data=AnalogReadoutPulse, sort=True, channel=None, noise_kwargs=None,
-             pulse_kwargs=None, **kwargs):
+    def load(cls, loop_file_name, noise_file_names=(), pulse_file_names=(), data=AnalogReadoutLoop, sort=True,
+             noise_data=None, pulse_data=None,channel=None, noise_kwargs=None, pulse_kwargs=None, **kwargs):
         """
         Loop class factory method that returns a Loop() with the loop, noise
         and pulse data loaded.
@@ -268,20 +267,20 @@ class Loop:
                 queries of the attributes required by the Loop class. The
                 default is the AnalogReadoutLoop class, which interfaces
                 with the data products from the analogreadout module.
-            noise_data: object (optional)
-                Class or function whose return value allows dictionary-like
-                queries of the attributes required by the Noise class. The
-                default is the AnalogReadoutNoise class, which interfaces
-                with the data products from the analogreadout module.
-            pulse_data: object (optional)
-                Class or function whose return value allows dictionary-like
-                queries of the attributes required by the Pulse class. The
-                default is the AnalogReadoutPulse class, which interfaces
-                with the data products from the analogreadout module.
             sort: boolean (optional)
                 Sort the noise data and pulse data lists by their bias
                 frequency. The default is True. If False, the order of the
                 noise and pulse file names is preserved.
+            noise_data: object (optional)
+                Class or function whose return value allows dictionary-like
+                queries of the attributes required by the Noise class. The
+                default is the None. If not None, this value overloads any
+                'data' keyword in noise_kwargs.
+            pulse_data: object (optional)
+                Class or function whose return value allows dictionary-like
+                queries of the attributes required by the Pulse class. The
+                default is the None. If not None, this value overloads any
+                'data' keyword in pulse_kwargs.
             channel: integer (optional)
                 Optional channel index which gets added to all of the kwarg
                 dictionaries under the key 'channel'. When the default, None,
@@ -290,12 +289,14 @@ class Loop:
                 Tuple of dictionaries for extra keyword arguments to send to
                 noise_data. The order and length correspond to
                 noise_file_names. The default is None, which is equivalent to
-                a tuple of empty dictionaries.
+                a tuple of {'data': AnalogReadoutNoise}. The data keyword is
+                always set to this value unless specified.
             pulse_kwargs: tuple (optional)
                 Tuple of dictionaries for extra keyword arguments to send to
                 pulse_data. The order and length correspond to
                 pulse_file_names. The default is None, which is equivalent to
-                a tuple of empty dictionaries.
+                a tuple of {'data': AnalogReadoutPulse}. The data keyword is
+                always set to this value unless specified.
             kwargs: optional keyword arguments
                 Extra keyword arguments to send to loop_data.
         Returns:
@@ -309,6 +310,12 @@ class Loop:
             noise_kwargs = [{} for _ in range(len(noise_file_names))]
         if pulse_kwargs is None:
             pulse_kwargs = [{} for _ in range(len(pulse_file_names))]
+        if noise_data is not None:
+            for kws in noise_kwargs:
+                kws.update({'data': noise_data})
+        if pulse_data is not None:
+            for kws in pulse_kwargs:
+                kws.update({'data': pulse_data})
         if channel is not None:
             kwargs.update({"channel": channel})
             for kws in noise_kwargs:
@@ -320,12 +327,12 @@ class Loop:
         # load noise
         noise = []
         for index, noise_file_name in enumerate(noise_file_names):
-            noise.append(Noise.load(noise_file_name, data=noise_data, **noise_kwargs[index]))
+            noise.append(Noise.load(noise_file_name, **noise_kwargs[index]))
         loop.add_noise(noise, sort=sort)
         # load pulses
         pulses = []
         for index, pulse_file_name in enumerate(pulse_file_names):
-            pulses.append(Pulse.load(pulse_file_name, data=pulse_data, **pulse_kwargs[index]))
+            pulses.append(Pulse.load(pulse_file_name, **pulse_kwargs[index]))
         loop.add_pulses(pulses, sort=sort)
         return loop
 
