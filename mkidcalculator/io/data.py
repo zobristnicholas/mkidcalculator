@@ -248,7 +248,7 @@ class LegacyABC:
         self._do_not_clear = ['metadata']
         # load in data to the configuration file
         self._data = {'metadata': {}}
-        config = loadmat(config_file, squeeze_me=True)  # TODO: errors on noise
+        config = loadmat(config_file, squeeze_me=True)
         for key in config.keys():
             if not key.startswith("_"):
                 for name in config[key].dtype.names:
@@ -350,13 +350,16 @@ class LegacyNoise(LegacyABC):
         if self._sweep_gui:
             if self.index is None:
                 raise ValueError("The index (temperature, attenuation) must be specified for Sweep GUI data.")
-            temps = np.arange(self._data['metadata']['starttemp'], self._data['metadata']['stoptemp'],
+            temps = np.arange(self._data['metadata']['starttemp'],
+                              self._data['metadata']['stoptemp'] + self._data['metadata']['steptemp'] / 2,
                               self._data['metadata']['steptemp'])
-            attens = np.arange(self._data['metadata']['startatten'], self._data['metadata']['stopatten'],
+            attens = np.arange(self._data['metadata']['startatten'],
+                               self._data['metadata']['stopatten'] + self._data['metadata']['stepatten'] / 2,
                                self._data['metadata']['stepatten'])
             label = "a" if on_res else "b"
-            label += str(index[2]) + "-" if len(index) > 2 and index[2] != 0 else "-"
-            file_name = str(temps[index[0]]) + "-" + str(channel // 2 + 1) + label + str(attens[index[1]]) + ".ns"
+            label += "{:g}".format(index[2]) + "-" if len(index) > 2 and index[2] != 0 else "-"
+            file_name = ("{:g}".format(temps[index[0]]) + "-" + "{:g}".format(channel // 2 + 1) + label +
+                         "{:g}".format(attens[index[1]]) + ".ns")
             n_points = (self._data['metadata']['adtime'] * self._data['metadata']['noiserate'] /
                         self._data['metadata']['decfac'])
             self._data['attenuation'] = attens[index[1]]
@@ -406,7 +409,7 @@ class LegacyPulse(LegacyABC):
         else:
             self._data["energies"] = ()
         # get the important parameters from the metadata
-        self._data["f_bias"] = self._data['metadata']["f0" + str(channel + 1)]
+        self._data["f_bias"] = self._data['metadata']["f0" + "{:g}".format(channel + 1)]
         self._data["offset"] = None
         self._data["attenuation"] = self._data['metadata']['atten1'] + self._data['metadata']['atten2']
         self._data['sample_rate'] = self._data['metadata']["samprate"]
@@ -461,18 +464,19 @@ def legacy_sweep(config_file, channel=None, noise=True):
                 for file_name in on_res:
                     # collect the index for the file name
                     base_name = os.path.basename(file_name)
-                    index2 = int(base_name.split("a")[0].split("-")[1])
-                    index = (t_index, a_index, index2) if index2 else (t_index, a_index)
+                    index2 = base_name.split("a")[1].split("-")[0]
+                    index = (t_index, a_index, int(index2)) if index2 else (t_index, a_index)
                     noise_kwargs.append({"index": index, "on_res": True, "data": LegacyNoise, "channel": channel})
                 # off resonance file names
                 off_res_names = glob.glob(os.path.join(directory, "{:g}-{:d}b*-{:g}.ns".format(temp, group, atten)))
                 for file_name in off_res_names:
                     # collect the index for the file name
                     base_name = os.path.basename(file_name)
-                    index2 = int(base_name.split("b")[0].split("-")[1])  # TODO: check this
-                    index = (t_index, a_index, index2) if index2 else (t_index, a_index)
+                    index2 = base_name.split("b")[1].split("-")[0]
+                    index = (t_index, a_index, int(index2)) if index2 else (t_index, a_index)
                     noise_kwargs.append({"index": index, "on_res": False, "data": LegacyNoise, "channel": channel})
-                loop_kwargs[-1].update({"noise_file_names": on_res + off_res_names, "noise_kwargs": noise_kwargs})
+                loop_kwargs[-1].update({"noise_file_names": [config_file] * len(on_res + off_res_names),
+                                        "noise_kwargs": noise_kwargs})
                 if not noise_kwargs:
                     log.warning("Could not find noise files for '{}'".format(config_file))
     return loop_kwargs
