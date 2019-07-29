@@ -3,6 +3,7 @@ import numpy as np
 import lmfit as lm
 import scipy.signal as sps
 
+from mkidcalculator.models.utils import bandpass
 from mkidcalculator.models.nonlinearity import swenson
 
 log = logging.getLogger(__name__)
@@ -335,20 +336,10 @@ class S21:
         # undo the mixer calibration for more accurate guess if known ahead of time
         offset = np.mean(offset)
         if imbalance is not None:
+            # bandpass filter the I and Q signals
             i, q = imbalance.real, imbalance.imag
-            # bandpass filter the I signal
-            fft_i = np.fft.rfft(i)
-            fft_i[:, 0] = 0
-            indices = np.array([np.arange(fft_i[0, :].size)] * 3)
-            f_i_ind = np.argmax(np.abs(fft_i), axis=-1)[:, np.newaxis]
-            fft_i[np.logical_or(indices < f_i_ind - 1, indices > f_i_ind + 1)] = 0
-            ip = np.fft.irfft(fft_i, i[0, :].size)
-            # bandpass filter the Q signal
-            fft_q = np.fft.rfft(q)
-            fft_q[:, 0] = 0
-            f_q_ind = np.argmax(np.abs(fft_q), axis=-1)[:, np.newaxis]
-            fft_q[np.logical_or(indices < f_q_ind - 1, indices > f_q_ind + 1)] = 0
-            qp = np.fft.irfft(fft_q, q[0, :].size)
+            ip = bandpass(i)
+            qp = bandpass(q)
             # compute alpha and gamma
             amp = np.sqrt(2 * np.mean(qp**2, axis=-1))
             alpha = np.sqrt(2 * np.mean(ip**2, axis=-1)) / amp
