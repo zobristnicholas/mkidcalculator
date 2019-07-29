@@ -12,8 +12,8 @@ from scipy.interpolate import make_interp_spline
 
 from mkidcalculator.io.noise import Noise
 from mkidcalculator.io.pulse import Pulse
-from mkidcalculator.io.utils import ev_nm_convert, lmfit
 from mkidcalculator.io.data import AnalogReadoutLoop, AnalogReadoutNoise, AnalogReadoutPulse
+from mkidcalculator.io.utils import ev_nm_convert, lmfit, sort_and_fix, setup_axes, finalize_axes, get_plot_model
 
 log = logging.getLogger(__name__)
 log.addHandler(logging.NullHandler())
@@ -249,7 +249,7 @@ class Loop:
 
     @classmethod
     def load(cls, loop_file_name, noise_file_names=(), pulse_file_names=(), data=AnalogReadoutLoop, sort=True,
-             noise_data=None, pulse_data=None,channel=None, noise_kwargs=None, pulse_kwargs=None, **kwargs):
+             noise_data=None, pulse_data=None, channel=None, noise_kwargs=None, pulse_kwargs=None, **kwargs):
         """
         Loop class factory method that returns a Loop() with the loop, noise
         and pulse data loaded.
@@ -528,11 +528,8 @@ class Loop:
         for pulse in itemgetter(*indices)(self.pulses):
             data = pulse.p_trace[pulse.mask] if use_mask else pulse.p_trace
             phase.append(np.median(pulse.compute_responses("phase_filter", data=data)[0]))
-        phase = [0] + phase if fix_zero else phase
         # sort them by increasing energy
-        phase, energies = np.array(phase), np.array(energies)
-        energies, indices = np.unique(energies, return_index=True)
-        phase = phase[indices]
+        phase, energies = sort_and_fix(phase, energies, fix_zero)
         # store for future plotting
         self._phase_avg = phase
         self._phase_energies = energies
@@ -568,11 +565,8 @@ class Loop:
         for pulse in itemgetter(*indices)(self.pulses):
             data = pulse.a_trace[pulse.mask] if use_mask else pulse.a_trace
             amplitude.append(np.median(pulse.compute_responses("amplitude_filter", data=data)[0]))
-        amplitude = [0] + amplitude if fix_zero else amplitude
         # sort them by increasing energy
-        amplitude, energies = np.array(amplitude), np.array(energies)
-        energies, indices = np.unique(energies, return_index=True)
-        amplitude = amplitude[indices]
+        amplitude, energies = sort_and_fix(amplitude, energies, fix_zero)
         # store for future plotting
         self._amplitude_avg = amplitude
         self._amplitude_energies = energies
@@ -638,7 +632,7 @@ class Loop:
 
     def plot(self, plot_types=("iq", "magnitude", "phase"), plot_fit=False, label="best", fit_type="lmfit",
              calibrate=False, plot_guess=None, n_rows=2, title=True, title_kwargs=None, legend=True, legend_index=0,
-             legend_kwargs=None, fit_parameters=(), parameters_kwargs=None, tighten=True, db=False, unwrap=True,
+             legend_kwargs=None, fit_parameters=(), parameters_kwargs=None, tighten=True, db=True, unwrap=True,
              plot_kwargs=None, axes_list=None):
         """
         Plot a variety of data representations in a matplotlib pyplot.subplots
@@ -705,7 +699,7 @@ class Loop:
                 is True.
             db: boolean
                 Determines if magnitude plots are shown in dB. The default is
-                False.
+                True.
             unwrap: boolean
                 Determines if the phase plots are unwrapped. The default is
                 True.
@@ -895,21 +889,8 @@ class Loop:
                 An Axes class with the plotted loop.
         """
         # parse inputs
-        if axes is None:
-            _, axes = plt.subplots()
-        if x_label is None:
-            x_label = "I [V]" if not calibrate else "I"
-        if y_label is None:
-            y_label = "Q [V]" if not calibrate else "Q"
-        # setup axes
-        axes.axis('equal')
-        kwargs = {}
-        if label_kwargs is not None:
-            kwargs.update(label_kwargs)
-        if x_label:
-            axes.set_xlabel(x_label, **kwargs)
-        if y_label:
-            axes.set_ylabel(y_label, **kwargs)
+        _, axes = setup_axes(axes, x_label, y_label, label_kwargs, "I [V]" if not calibrate else "I",
+                             "Q [V]" if not calibrate else "Q", equal=True)
         # plot data
         kwargs = {"marker": 'o', "markersize": 2, "linestyle": 'None', "label": "data"}
         if data_kwargs is not None:
@@ -925,14 +906,8 @@ class Loop:
             z = self.z if not calibrate else model.calibrate(result.params, self.z, self.f)
             axes.plot(z.real, z.imag, **kwargs)
             # calculate the model values
-            f = np.linspace(np.min(self.f), np.max(self.f), np.size(self.f) * 10)
-            m = model.model(result.params, f)
-            if calibrate:
-                m = model.calibrate(result.params, m, f)
-            # add the plot
-            kwargs = {"linestyle": '--', "label": "fit"}
-            if fit_kwargs is not None:
-                kwargs.update(fit_kwargs)
+            f, m, kwargs = get_plot_model(self, fit_type, label, calibrate=calibrate, plot_kwargs=fit_kwargs,
+                                          default_kwargs={"linestyle": '--', "label": "fit"})
             axes.plot(m.real, m.imag, **kwargs)
             string = "power: {:.0f} dBm, field: {:.2f} V, temperature: {:.2f} mK, '{}' fit"
             title = string.format(self.power, self.field, self.temperature * 1000, fit_name) if title is True else title
@@ -944,31 +919,13 @@ class Loop:
             title = string.format(self.power, self.field, self.temperature * 1000) if title is True else title
         # plot guess
         if plot_guess is not None:
-            # get the model
-            fit_name, result_dict = self._get_model(fit_type, label)
-            if fit_name is None:
-                raise ValueError("No fit of type '{}' with the label '{}' has been done".format(fit_type, label))
-            model = result_dict['model']
-            # calculate the model values
-            f = np.linspace(np.min(self.f), np.max(self.f), np.size(self.f) * 10)
-            m = model.model(plot_guess, f)
-            # add the plot
-            kwargs = {"linestyle": '-.', "label": "guess", "color": "k"}
-            if guess_kwargs is not None:
-                kwargs.update(guess_kwargs)
+            default_kwargs = {"linestyle": '-.', "label": "guess", "color": "k"}
+            f, m, kwargs = get_plot_model(self, fit_type, label, calibrate=calibrate, params=plot_guess,
+                                          plot_kwargs=guess_kwargs, default_kwargs=default_kwargs)
             axes.plot(m.real, m.imag, **kwargs)
-        if legend:
-            kwargs = {}
-            if legend_kwargs is not None:
-                kwargs.update(legend_kwargs)
-            axes.legend(**kwargs)
-        if title:
-            kwargs = {"fontsize": 11}
-            if title_kwargs is not None:
-                kwargs.update(title_kwargs)
-            axes.set_title(title, **kwargs)
-        if tighten:
-            axes.figure.tight_layout()
+        # finalize the plot
+        finalize_axes(axes, title=title, title_kwargs=title_kwargs, legend=legend, legend_kwargs=legend_kwargs,
+                      tighten=tighten)
         return axes
 
     def plot_iq_residual(self, label="best", fit_type="lmfit", plot_kwargs=None, fit_parameters=(),
@@ -1035,58 +992,26 @@ class Loop:
                 An Axes class with the plotted residuals.
         """
         # parse inputs
-        if axes is None:
-            _, axes = plt.subplots()
-        if x_label is None:
-            x_label = "I [V]"
-        if y_label is None:
-            y_label = "Q [V]"
-        # setup axes
-        axes.axis('equal')
-        kwargs = {}
-        if label_kwargs is not None:
-            kwargs.update(label_kwargs)
-        if x_label:
-            axes.set_xlabel(x_label, **kwargs)
-        if y_label:
-            axes.set_ylabel(y_label, **kwargs)
+        _, axes = setup_axes(axes, x_label, y_label, label_kwargs, "I [V]", "Q [V]", equal=True)
         # get the model
-        fit_name, result_dict = self._get_model(fit_type, label)
-        if fit_name is None:
-            raise ValueError("No fit of type '{}' with the label '{}' has been done".format(fit_type, label))
-        result = result_dict['result']
-        model = result_dict['model']
-        m = model.model(result.params, self.f)
-        # plot data
-        kwargs = {"marker": 'o', "markersize": 2, "linestyle": '--', "linewidth": 0.2, "label": "residual"}
-        if plot_kwargs is not None:
-            kwargs.update(plot_kwargs)
+        default_kwargs = {"marker": 'o', "markersize": 2, "linestyle": 'None', "label": "residual"}
+        f, m, kwargs = get_plot_model(self, fit_type, label, plot_kwargs=plot_kwargs, default_kwargs=default_kwargs,
+                                      n_factor=1)
         axes.plot(self.z.real - m.real, self.z.imag - m.imag, **kwargs)
-        # make the legend
-        if legend:
-            kwargs = {}
-            if legend_kwargs is not None:
-                kwargs.update(legend_kwargs)
-            axes.legend(**kwargs)
-        # make the title
-        if title:
-            string = "power: {:.0f} dBm, field: {:.2f} V, temperature: {:.2f} mK, '{}' fit"
-            text = string.format(self.power, self.field, self.temperature * 1000, fit_name) if title is True else title
-            kwargs = {"fontsize": 11}
-            if title_kwargs is not None:
-                kwargs.update(title_kwargs)
-            axes.set_title(text, **kwargs)
         # add fit parameters
         if fit_parameters:
             self._make_parameters_textbox(fit_parameters, result, axes, parameters_kwargs)
-        if tighten:
-            axes.figure.tight_layout()
+        # finalize the plot
+        string = "power: {:.0f} dBm, field: {:.2f} V, temperature: {:.2f} mK, '{}' fit"
+        title = string.format(self.power, self.field, self.temperature * 1000, fit_name) if title is True else title
+        finalize_axes(axes, title=title, title_kwargs=title_kwargs, legend=legend, legend_kwargs=legend_kwargs,
+                      tighten=tighten)
         return axes
 
     def plot_magnitude(self, data_kwargs=None, plot_fit=False, label="best", fit_type="lmfit", calibrate=False,
                        fit_kwargs=None, fit_parameters=(), parameters_kwargs=None, plot_guess=None, guess_kwargs=None,
                        x_label=None, y_label=None, label_kwargs=None, legend=True, legend_kwargs=None, title=True,
-                       title_kwargs=None, tighten=True, db=False, axes=None):
+                       title_kwargs=None, tighten=True, db=True, axes=None):
         """
         Plot the magnitude data.
         Args:
@@ -1156,7 +1081,7 @@ class Loop:
                 dictionary override the default options.
             db: boolean
                 Determines if magnitude plots are shown in dB. The default is
-                False.
+                True.
             tighten: boolean
                 Determines whether figure.tight_layout() is called. The default
                 is True.
@@ -1168,23 +1093,8 @@ class Loop:
                 An Axes class with the plotted magnitude.
         """
         # parse inputs
-        if axes is None:
-            _, axes = plt.subplots()
-        if x_label is None:
-            x_label = "frequency [GHz]"
-        if y_label is None:
-            if not calibrate and not db:
-                y_label = "|S₂₁| [V]"
-            else:
-                y_label = "|S₂₁|" if not db else "|S₂₁| [dB]"
-        # setup axes
-        kwargs = {}
-        if label_kwargs is not None:
-            kwargs.update(label_kwargs)
-        if x_label:
-            axes.set_xlabel(x_label, **kwargs)
-        if y_label:
-            axes.set_ylabel(y_label, **kwargs)
+        _, axes = setup_axes(axes, x_label, y_label, label_kwargs, "frequency [GHz]",
+                             "|S₂₁|" if not db else "|S₂₁| [dB]")
         # plot data
         kwargs = {"marker": 'o', "markersize": 2, "linestyle": 'None', "label": "data"}
         if data_kwargs is not None:
@@ -1200,14 +1110,8 @@ class Loop:
             z = self.z if not calibrate else model.calibrate(result.params, self.z, self.f)
             axes.plot(self.f, np.abs(z) if not db else 20 * np.log10(np.abs(z)), **kwargs)
             # calculate the model values
-            f = np.linspace(np.min(self.f), np.max(self.f), np.size(self.f) * 10)
-            m = model.model(result.params, f)
-            if calibrate:
-                m = model.calibrate(result.params, m, f)
-            # add the plot
-            kwargs = {"linestyle": '--', "label": "fit"}
-            if fit_kwargs is not None:
-                kwargs.update(fit_kwargs)
+            f, m, kwargs = get_plot_model(self, fit_type, label, calibrate=calibrate, plot_kwargs=fit_kwargs,
+                                          default_kwargs={"linestyle": '--', "label": "fit"})
             axes.plot(f, np.abs(m) if not db else 20 * np.log10(np.abs(m)), **kwargs)
             string = "power: {:.0f} dBm, field: {:.2f} V, temperature: {:.2f} mK, '{}' fit"
             title = string.format(self.power, self.field, self.temperature * 1000, fit_name) if title is True else title
@@ -1219,31 +1123,13 @@ class Loop:
             title = string.format(self.power, self.field, self.temperature * 1000) if title is True else title
         # plot guess
         if plot_guess is not None:
-            # get the model
-            fit_name, result_dict = self._get_model(fit_type, label)
-            if fit_name is None:
-                raise ValueError("No fit of type '{}' with the label '{}' has been done".format(fit_type, label))
-            model = result_dict['model']
-            # calculate the model values
-            f = np.linspace(np.min(self.f), np.max(self.f), np.size(self.f) * 10)
-            m = model.model(plot_guess, f)
-            # add the plot
-            kwargs = {"linestyle": '-.', "label": "guess", "color": "k"}
-            if guess_kwargs is not None:
-                kwargs.update(guess_kwargs)
+            default_kwargs = {"linestyle": '-.', "label": "guess", "color": "k"}
+            f, m, kwargs = get_plot_model(self, fit_type, label, calibrate=calibrate, params=plot_guess,
+                                          plot_kwargs=guess_kwargs, default_kwargs=default_kwargs)
             axes.plot(f, np.abs(m) if not db else 20 * np.log10(np.abs(m)), **kwargs)
-        if legend:
-            kwargs = {}
-            if legend_kwargs is not None:
-                kwargs.update(legend_kwargs)
-            axes.legend(**kwargs)
-        if title:
-            kwargs = {"fontsize": 11}
-            if title_kwargs is not None:
-                kwargs.update(title_kwargs)
-            axes.set_title(title, **kwargs)
-        if tighten:
-            axes.figure.tight_layout()
+        # finalize the plot
+        finalize_axes(axes, title=title, title_kwargs=title_kwargs, legend=legend, legend_kwargs=legend_kwargs,
+                      tighten=tighten)
         return axes
 
     def plot_magnitude_residual(self, label="best", fit_type="lmfit", plot_kwargs=None, fit_parameters=(),
@@ -1309,51 +1195,20 @@ class Loop:
                 An Axes class with the plotted residuals.
         """
         # parse inputs
-        if axes is None:
-            _, axes = plt.subplots()
-        if x_label is None:
-            x_label = "frequency [GHz]"
-        if y_label is None:
-            y_label = "|S₂₁| [V]"
-        # setup axes
-        kwargs = {}
-        if label_kwargs is not None:
-            kwargs.update(label_kwargs)
-        if x_label:
-            axes.set_xlabel(x_label, **kwargs)
-        if y_label:
-            axes.set_ylabel(y_label, **kwargs)
+        _, axes = setup_axes(axes, x_label, y_label, label_kwargs, "frequency [GHz]", "|S₂₁| [V]")
         # get the model
-        fit_name, result_dict = self._get_model(fit_type, label)
-        if fit_name is None:
-            raise ValueError("No fit of type '{}' with the label '{}' has been done".format(fit_type, label))
-        result = result_dict['result']
-        model = result_dict['model']
-        m = model.model(result.params, self.f)
-        # plot data
-        kwargs = {"marker": 'o', "markersize": 2, "linestyle": 'None', "label": "residual"}
-        if plot_kwargs is not None:
-            kwargs.update(plot_kwargs)
+        default_kwargs = {"marker": 'o', "markersize": 2, "linestyle": 'None', "label": "residual"}
+        f, m, kwargs = get_plot_model(self, fit_type, label, plot_kwargs=plot_kwargs, default_kwargs=default_kwargs,
+                                      n_factor=1)
         axes.plot(self.f, np.abs(self.z) - np.abs(m), **kwargs)
-        # make the legend
-        if legend:
-            kwargs = {}
-            if legend_kwargs is not None:
-                kwargs.update(legend_kwargs)
-            axes.legend(**kwargs)
-        # make the title
-        if title:
-            string = "power: {:.0f} dBm, field: {:.2f} V, temperature: {:.2f} mK, '{}' fit"
-            text = string.format(self.power, self.field, self.temperature * 1000, fit_name) if title is True else title
-            kwargs = {"fontsize": 11}
-            if title_kwargs is not None:
-                kwargs.update(title_kwargs)
-            axes.set_title(text, **kwargs)
         # add fit parameters
         if fit_parameters:
             self._make_parameters_textbox(fit_parameters, result, axes, parameters_kwargs)
-        if tighten:
-            axes.figure.tight_layout()
+        # finalize the plot
+        string = "power: {:.0f} dBm, field: {:.2f} V, temperature: {:.2f} mK, '{}' fit"
+        title = string.format(self.power, self.field, self.temperature * 1000, fit_name) if title is True else title
+        finalize_axes(axes, title=title, title_kwargs=title_kwargs, legend=legend, legend_kwargs=legend_kwargs,
+                      tighten=tighten)
         return axes
 
     def plot_phase(self, data_kwargs=None, plot_fit=False, label="best", fit_type="lmfit", calibrate=False,
@@ -1440,20 +1295,7 @@ class Loop:
                 An Axes class with the plotted phase.
         """
         # parse inputs
-        if axes is None:
-            _, axes = plt.subplots()
-        if x_label is None:
-            x_label = "frequency [GHz]"
-        if y_label is None:
-            y_label = "phase [radians]"
-        # setup axes
-        kwargs = {}
-        if label_kwargs is not None:
-            kwargs.update(label_kwargs)
-        if x_label:
-            axes.set_xlabel(x_label, **kwargs)
-        if y_label:
-            axes.set_ylabel(y_label, **kwargs)
+        _, axes = setup_axes(axes, x_label, y_label, label_kwargs, "frequency [GHz]", "phase [radians]")
         # plot data
         kwargs = {"marker": 'o', "markersize": 2, "linestyle": 'None', "label": "data"}
         if data_kwargs is not None:
@@ -1469,15 +1311,9 @@ class Loop:
             z = self.z if not calibrate else model.calibrate(result.params, self.z, self.f, center=True)
             axes.plot(self.f, np.unwrap(np.angle(z)) if unwrap else np.angle(z), **kwargs)
             # calculate the model values
-            f = np.linspace(np.min(self.f), np.max(self.f), np.size(self.f) * 10)
-            m = model.model(result.params, f)
-            if calibrate:
-                m = model.calibrate(result.params, m, f, center=True)
+            f, m, kwargs = get_plot_model(self, fit_type, label, calibrate=calibrate, plot_kwargs=fit_kwargs,
+                                          default_kwargs={"linestyle": '--', "label": "fit"}, center=True)
             offset = 2 * np.pi if np.angle(z[0]) - np.angle(m[0]) > np.pi else 0
-            # add the plot
-            kwargs = {"linestyle": '--', "label": "fit"}
-            if fit_kwargs is not None:
-                kwargs.update(fit_kwargs)
             axes.plot(f, np.unwrap(np.angle(m) + offset) if unwrap else np.angle(m), **kwargs)
             string = "power: {:.0f} dBm, field: {:.2f} V, temperature: {:.2f} mK, '{}' fit"
             title = string.format(self.power, self.field, self.temperature * 1000, fit_name) if title is True else title
@@ -1489,31 +1325,13 @@ class Loop:
             title = string.format(self.power, self.field, self.temperature * 1000) if title is True else title
         # plot guess
         if plot_guess is not None:
-            # get the model
-            fit_name, result_dict = self._get_model(fit_type, label)
-            if fit_name is None:
-                raise ValueError("No fit of type '{}' with the label '{}' has been done".format(fit_type, label))
-            model = result_dict['model']
-            # calculate the model values
-            f = np.linspace(np.min(self.f), np.max(self.f), np.size(self.f) * 10)
-            m = model.model(plot_guess, f)
-            # add the plot
-            kwargs = {"linestyle": '-.', "label": "guess", "color": "k"}
-            if guess_kwargs is not None:
-                kwargs.update(guess_kwargs)
+            default_kwargs = {"linestyle": '-.', "label": "guess", "color": "k"}
+            f, m, kwargs = get_plot_model(self, fit_type, label, calibrate=calibrate, params=plot_guess,
+                                          plot_kwargs=guess_kwargs, default_kwargs=default_kwargs)
             axes.plot(f, np.unwrap(np.angle(m)) if unwrap else np.angle(m), **kwargs)
-        if legend:
-            kwargs = {}
-            if legend_kwargs is not None:
-                kwargs.update(legend_kwargs)
-            axes.legend(**kwargs)
-        if title:
-            kwargs = {"fontsize": 11}
-            if title_kwargs is not None:
-                kwargs.update(title_kwargs)
-            axes.set_title(title, **kwargs)
-        if tighten:
-            axes.figure.tight_layout()
+        # finalize the plot
+        finalize_axes(axes, title=title, title_kwargs=title_kwargs, legend=legend, legend_kwargs=legend_kwargs,
+                      tighten=tighten)
         return axes
 
     def plot_phase_residual(self, label="best", fit_type="lmfit", plot_kwargs=None, fit_parameters=(),
@@ -1579,51 +1397,20 @@ class Loop:
                 An Axes class with the plotted residuals.
         """
         # parse inputs
-        if axes is None:
-            _, axes = plt.subplots()
-        if x_label is None:
-            x_label = "frequency [GHz]"
-        if y_label is None:
-            y_label = "phase [radians]"
-        # setup axes
-        kwargs = {}
-        if label_kwargs is not None:
-            kwargs.update(label_kwargs)
-        if x_label:
-            axes.set_xlabel(x_label, **kwargs)
-        if y_label:
-            axes.set_ylabel(y_label, **kwargs)
+        _, axes = setup_axes(axes, x_label, y_label, label_kwargs, "frequency [GHz]", "phase [radians]")
         # get the model
-        fit_name, result_dict = self._get_model(fit_type, label)
-        if fit_name is None:
-            raise ValueError("No fit of type '{}' with the label '{}' has been done".format(fit_type, label))
-        result = result_dict['result']
-        model = result_dict['model']
-        m = model.model(result.params, self.f)
-        # plot data
-        kwargs = {"marker": 'o', "markersize": 2, "linestyle": 'None', "label": "residual"}
-        if plot_kwargs is not None:
-            kwargs.update(plot_kwargs)
+        default_kwargs = {"marker": 'o', "markersize": 2, "linestyle": 'None', "label": "residual"}
+        f, m, kwargs = get_plot_model(self, fit_type, label, plot_kwargs=plot_kwargs, default_kwargs=default_kwargs,
+                                      n_factor=1)
         axes.plot(self.f, np.unwrap(np.angle(self.z)) - np.unwrap(np.angle(m)), **kwargs)
-        # make the legend
-        if legend:
-            kwargs = {}
-            if legend_kwargs is not None:
-                kwargs.update(legend_kwargs)
-            axes.legend(**kwargs)
-        # make the title
-        if title:
-            string = "power: {:.0f} dBm, field: {:.2f} V, temperature: {:.2f} mK, '{}' fit"
-            text = string.format(self.power, self.field, self.temperature * 1000, fit_name) if title is True else title
-            kwargs = {"fontsize": 11}
-            if title_kwargs is not None:
-                kwargs.update(title_kwargs)
-            axes.set_title(text, **kwargs)
         # add fit parameters
         if fit_parameters:
             self._make_parameters_textbox(fit_parameters, result, axes, parameters_kwargs)
-        if tighten:
-            axes.figure.tight_layout()
+        # finalize the plot
+        string = "power: {:.0f} dBm, field: {:.2f} V, temperature: {:.2f} mK, '{}' fit"
+        title = string.format(self.power, self.field, self.temperature * 1000, fit_name) if title is True else title
+        finalize_axes(axes, title=title, title_kwargs=title_kwargs, legend=legend, legend_kwargs=legend_kwargs,
+                      tighten=tighten)
         return axes
 
     def plot_energy_calibration(self, axes=None):
@@ -1661,17 +1448,11 @@ class Loop:
             axes: matplotlib.axes.Axes class
                 An Axes class with the plotted calibration.
         """
-        if axes is None:
-            figure, axes = plt.subplots()
-        else:
-            figure = axes.figure
+        figure, axes = setup_axes(axes, 'energy [eV]', 'phase [radians]')
         xx = np.linspace(np.min(self._phase_energies) * 0.8, np.max(self._phase_energies) * 1.2, 1000)
         axes.plot(xx, self.phase_calibration(xx), label='calibration')
         axes.plot(self._phase_energies, self._phase_avg, 'o', label='true')
-        axes.set_xlabel('energy [eV]')
-        axes.set_ylabel('phase [radians]')
-        axes.legend()
-        figure.tight_layout()
+        finalize_axes(axes, legend=True, tighten=True)
         return axes
 
     def plot_amplitude_calibration(self, axes=None):
@@ -1685,17 +1466,11 @@ class Loop:
             axes: matplotlib.axes.Axes class
                 An Axes class with the plotted calibration.
         """
-        if axes is None:
-            figure, axes = plt.subplots()
-        else:
-            figure = axes.figure
+        figure, axes = setup_axes(axes, 'energy [eV]', 'amplitude [radians]')
         xx = np.linspace(np.min(self._amplitude_energies) * 0.8, np.max(self._amplitude_energies) * 1.2, 1000)
         axes.plot(xx, self.amplitude_calibration(xx), label='calibration')
         axes.plot(self._amplitude_energies, self._amplitude_avg, 'o', label='true')
-        axes.set_xlabel('energy [eV]')
-        axes.set_ylabel('amplitude [radians]')
-        axes.legend()
-        figure.tight_layout()
+        finalize_axes(axes, legend=True, tighten=True)
         return axes
 
     def plot_spectra(self, pulse_indices=None, x_limits=None, second_x_axis=False, n_bins=None, axes=None):

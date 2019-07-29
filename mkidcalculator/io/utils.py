@@ -265,3 +265,70 @@ def create_ranges(power, field, temperature):
     field = create_range(field)
     temperature = create_range(temperature)
     return power, field, temperature
+
+
+def sort_and_fix(data, energies, fix_zero):
+    data = [0] + data if fix_zero else phase
+    data, energies = np.array(data), np.array(energies)
+    energies, indices = np.unique(energies, return_index=True)
+    data = data[indices]
+    return data, energies
+
+
+def setup_axes(axes, x_label, y_label, label_kwargs=None, x_label_default="", y_label_default="", equal=False):
+    if axes is None:
+        figure, axes = plt.subplots()
+    else:
+        figure = axes.figure
+    if x_label is None:
+        x_label = x_label_default
+    if y_label is None:
+        y_label = y_label_default
+    # setup axes
+    kwargs = {}
+    if label_kwargs is not None:
+        kwargs.update(label_kwargs)
+    if x_label:
+        axes.set_xlabel(x_label, **kwargs)
+    if y_label:
+        axes.set_ylabel(y_label, **kwargs)
+    if equal:
+        axes.axis('equal')
+    return figure, axes
+
+
+def finalize_axes(axes, title=False, title_kwargs=None, legend=False, legend_kwargs=None, tighten=False):
+    if legend:
+        kwargs = {}
+        if legend_kwargs is not None:
+            kwargs.update(legend_kwargs)
+        axes.legend(**kwargs)
+    # make the title
+    if title:
+        kwargs = {"fontsize": 11}
+        if title_kwargs is not None:
+            kwargs.update(title_kwargs)
+        axes.set_title(text, **kwargs)
+    if tighten:
+        axes.figure.tight_layout()
+
+
+def get_plot_model(self, fit_type, label, params=None, calibrate=False, default_kwargs=None, plot_kwargs=None,
+                   center=False, n_factor=10):
+    # get the model
+    fit_name, result_dict = self._get_model(fit_type, label)
+    if fit_name is None:
+        raise ValueError("No fit of type '{}' with the label '{}' has been done".format(fit_type, label))
+    model = result_dict['model']
+    # calculate the model values
+    f = np.linspace(np.min(self.f), np.max(self.f), np.size(self.f) * n_factor)
+    if params is None:
+        params = result_dict['result'].params
+    m = model.model(params, f)
+    if calibrate:
+        m = model.calibrate(params, m, f, center=center)
+    # add the plot
+    kwargs = {} if default_kwargs is None else default_kwargs
+    if plot_kwargs is not None:
+        kwargs.update(plot_kwargs)
+    return f, m, kwargs
