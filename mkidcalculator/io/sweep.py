@@ -1,6 +1,7 @@
 import os
 import pickle
 import logging
+import lmfit as lm
 import numpy as np
 import pandas as pd
 from operator import itemgetter
@@ -245,6 +246,50 @@ class Sweep:
 
     def lmfit(self, parameter, model, guess, index=None, label='default', data_label="best", residual_args=(),
               residual_kwargs=None, **kwargs):
+        """
+        Compute a least squares fit using the supplied residual function and
+        guess. The result and other useful information is stored in
+        self.lmfit_results[parameter][label].
+        Args:
+            parameter: string
+                The loop parameter to fit. It must be one of the columns of the
+                loop parameters table.
+            model: object-like
+                model.residual should give the objective function to minimize.
+                It must output a 1D real vector. The first two arguments must
+                be a lmfit.Parameters object, and the parameter data. Other
+                arguments can be passed in through the residual_args and
+                residual_kwargs arguments.
+            guess: lmfit.Parameters object
+                A parameters object containing starting values (and bounds if
+                desired) for all of the parameters needed for the residual
+                function.
+            index: pandas.IndexSlice (optional)
+                A pandas index which specifies which data from the loop
+                parameters table should be fit. The default is None and all
+                data is fit.
+            label: string (optional)
+                A label describing the fit, used for storing the results in the
+                self.lmfit_results dictionary. The default is 'default'.
+            data_label: string (optional)
+                The loop parameters table label to use for the fit. The default
+                is 'best'.
+            residual_args: tuple (optional)
+                A tuple of arguments to be passed to the residual function.
+                Note: these arguments are the non-mandatory ones after the
+                first two. The default is an empty tuple.
+            residual_kwargs: dictionary (optional)
+                A dictionary of arguments to be passed to the residual
+                function. The default is None, which corresponds to an empty
+                dictionary.
+            kwargs: optional keyword arguments
+                Additional keyword arguments are sent to the
+                lmfit.Minimizer.minimize() method.
+        Returns:
+            result: lmfit.MinimizerResult
+                An object containing the results of the minimization. It is
+                also stored in self.lmfit_results[label]['result'].
+        """
         # get the data to fit
         table = self.loop_parameters[data_label] if index is None else self.loop_parameters[data_label].loc[index]
         data = table[parameter].to_numpy()
@@ -272,10 +317,57 @@ class Sweep:
     def emcee(self):
         raise NotImplementedError
 
+    def fit_report(self, parameter, label='best', fit_type='lmfit', return_string=False):
+        """
+        Print a string summarizing a sweep fit.
+        Args:
+            parameter: string
+                The parameter on which the fit was done.
+            label: string
+                The label used to store the fit. The default is "best".
+            fit_type: string
+                The type of fit to use. Allowed options are "lmfit", "emcee",
+                and "emcee_mle" where MLE estimates are used instead of the
+                medians. The default is "lmfit".
+            return_string: boolean
+                Return a string with the fit report instead of printing. The
+                default is False.
+
+        Returns:
+            string: string
+                A string containing the fit report. None is output if
+                return_string is False.
+        """
+        _, result_dict = self._get_model(parameter, fit_type, label)
+        string = lm.fit_report(result_dict['result'])
+        if return_string:
+            return string
+        else:
+            print(string)
+
     def _set_directory(self, directory):
         self._directory = directory
         for loop in self.loops:
             loop._set_directory(self._directory)
+
+    def _get_model(self, parameter, fit_type, label):
+        if fit_type not in ['lmfit', 'emcee', 'emcee_mle']:
+            raise ValueError("'fit_type' must be either 'lmfit', 'emcee', or 'emcee_mle'")
+        if fit_type == "lmfit" and label in self.lmfit_results[parameter].keys():
+            result_dict = self.lmfit_results[parameter][label]
+            original_label = self.lmfit_results[parameter][label]["label"] if label == "best" else label
+        elif fit_type == "emcee" and label in self.emcee_results[parameter].keys():
+            result_dict = self.emcee_results[parameter][label]
+            original_label = self.lmfit_results[parameter][label]["label"] if label == "best" else label
+        elif fit_type == "emcee_mle" and label in self.emcee_results[parameter].keys():
+            result_dict = copy.deepcopy(self.emcee_results[parameter][label])
+            for name in result_dict['result'].params.keys():
+                result_dict['result'].params[name].set(value=self.emcee_results[parameter][label]["mle"][name])
+            original_label = self.lmfit_results[parameter][label]["label"] if label == "best" else label
+        else:
+            result_dict = None
+            original_label = None
+        return original_label, result_dict
 
     def plot_loops(self, power=None, field=None, temperature=None, color_data='temperature', colormap=None,
                    colorbar=True, colorbar_kwargs=None, colorbar_label=True, colorbar_label_kwargs=None, **loop_kwargs):
