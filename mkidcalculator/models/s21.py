@@ -197,7 +197,7 @@ class S21:
                 The parameters for the model function.
             f: numpy.ndarray, dtype=real
                 Frequency points corresponding to z.
-            mixer_correction: bool (optional)
+            mixer_correction: boolean (optional)
                 Apply the mixer correction specified in the params object. The
                 default is True.
         Returns:
@@ -225,7 +225,7 @@ class S21:
                 std(z.real) + i std(z.imag). The default is None. If None is
                 provided, the standard deviation is calculated from the first
                 10 points after being detrended.
-            return_real: bool (optional)
+            return_real: boolean (optional)
                 Concatenate the real and imaginary parts of the residual into a
                 real 1D array of shape (2N,).
         Returns:
@@ -282,7 +282,7 @@ class S21:
                 A complex number corresponding to the I + iQ mixer offset. The
                 default is 0, corresponding to no offset. If the input is
                 iterable, a mean is taken to determine the mixer_offset value.
-            use_filter: bool (optional)
+            use_filter: boolean (optional)
                 Filter the phase and magnitude data of z before trying to guess
                 the parameters. This can be helpful for noisy data, but can
                 also result in poor guesses for clean data. The default is
@@ -292,32 +292,32 @@ class S21:
                 odd numbers greater or equal to three are allowed. If None, a
                 filter length is computed as roughly 1% of the number of points
                 in z. The default is None.
-            fit_resonance: bool (optional)
+            fit_resonance: boolean (optional)
                 Allow the resonance parameters to vary in the fit. The default
                 is True.
-            nonlinear_resonance: float, bool (optional)
+            nonlinear_resonance: float, boolean (optional)
                 Allow the resonance model to fit for nonlinear behavior. The
                 default is False. If a float, this value is used for 'a'.
                 If True, the 'a' is set to 0.0025, since the fit has trouble
                 if 'a' is initialized to 0.
-            fit_gain: bool (optional)
+            fit_gain: boolean (optional)
                 Allow the gain parameters to vary in the fit. The default is
                 True.
-            quadratic_gain: bool (optional)
+            quadratic_gain: boolean (optional)
                 Allow for a quadratic gain component in the model. The default
                 is True.
-            fit_phase: bool (optional)
+            fit_phase: boolean (optional)
                 Allow the phase parameters to vary in the fit. The default is
                 True.
-            quadratic_phase: bool (optional)
+            quadratic_phase: boolean (optional)
                 Allow for a quadratic phase component in the model. The default
                 is False since there isn't an obvious physical reason why there
                 should be a quadratic term.
-            fit_imbalance: bool (optional)
+            fit_imbalance: boolean (optional)
                 Allow the IQ mixer amplitude and phase imbalance to vary in the
                 fit. The default is False. The imbalance is typically
                 calibrated and not fit.
-            fit_offset: bool (optional)
+            fit_offset: boolean (optional)
                 Allow the IQ mixer offset to vary in the fit. The default is
                 False. The offset is highly correlated with the gain parameters
                 and typically should not be allowed to vary unless the gain is
