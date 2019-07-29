@@ -204,9 +204,11 @@ class Fr:
                 A boolean specifying whether to vary alpha during the fit. The
                 default is True. alpha may still be not fit if fit_mbd is
                 False.
-            fit_dynes: boolean (optional)
+            fit_dynes: float, boolean (optional)
                 A boolean specifying whether to vary the dynes parameter in the
-                fit. The default is False.
+                fit. The default is False. If a float, this value is used for
+                'gamma'. If True, the 'gamma' is set to 0.1, since the fit has
+                trouble if 'gamma' is initialized to 0.
             fit_tls: boolean (optional)
                 A boolean specifying whether to vary the TLS parameters during
                 the fit. The default is True.
