@@ -250,3 +250,18 @@ def lmfit(lmfit_results, model, guess, label='default', residual_args=(), residu
     elif result.aic < lmfit_results['best']['result'].aic:
         lmfit_results['best'] = lmfit_results[label]
         lmfit_results['best']['label'] = label
+
+
+def create_range(value):
+    if value is None:
+        value = (-np.inf, np.inf)
+    elif not isinstance(value, (tuple, list, np.ndarray)):
+        value = (value, value)
+    return value
+
+
+def create_ranges(power, field, temperature):
+    power = create_range(power)
+    field = create_range(field)
+    temperature = create_range(temperature)
+    return power, field, temperature

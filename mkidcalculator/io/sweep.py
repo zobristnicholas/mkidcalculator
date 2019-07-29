@@ -10,8 +10,8 @@ from matplotlib import pyplot as plt
 from scipy.cluster.vq import kmeans2, ClusterError
 
 from mkidcalculator.io.loop import Loop
-from mkidcalculator.io.utils import lmfit
 from mkidcalculator.io.data import analogreadout_sweep
+from mkidcalculator.io.utils import lmfit, create_ranges
 
 log = logging.getLogger(__name__)
 log.addHandler(logging.NullHandler())
@@ -422,18 +422,7 @@ class Sweep:
             raise TypeError("'fit_parameters' is not a valid keyword argument")
         if "parameters_kwargs" in loop_kwargs.keys():
             raise TypeError("'parameters_kwargs' is not a valid keyword argument")
-        if power is None:
-            power = (-np.inf, np.inf)
-        elif not isinstance(power, (tuple, list, np.ndarray)):
-            power = (power, power)
-        if field is None:
-            field = (-np.inf, np.inf)
-        elif not isinstance(field, (tuple, list, np.ndarray)):
-            field = (field, field)
-        if temperature is None:
-            temperature = (-np.inf, np.inf)
-        elif not isinstance(temperature, (tuple, list, np.ndarray)):
-            temperature = (temperature, temperature)
+        power, field, temperature = create_ranges(power, field, temperature)
         if color_data == 'temperature':
             cmap = matplotlib.cm.get_cmap('coolwarm') if colormap is None else colormap
             cdata = np.array(self.temperatures) * 1000
