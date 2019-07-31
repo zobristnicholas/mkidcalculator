@@ -3,6 +3,7 @@ import lmfit as lm
 import scipy.constants as sc
 import scipy.special as spec
 from mkidcalculator.models.utils import scaled_alpha, scaled_alpha_inv
+
 try:
     from superconductivity import complex_conductivity as cc
     HAS_SUPERCONDUCTIVITY = True
@@ -85,12 +86,12 @@ class Fr:
         fd = params['fd'].value
         pc = params['pc'].value
         # calculate dx
-        dx = 0
+        dx = fd
         if temperatures is not None:
             xi = h * f0 / (2 * kb * temperatures)
-            dx += fd / pi * (np.real(digamma(0.5 + xi / (1j * pi))) - np.log(2 * xi))
+            dx *= (np.real(digamma(0.5 + xi / (1j * pi))) - np.log(2 * xi)) / pi
         if powers is not None:
-            dx /= np.sqrt(1. + 10 ** ((powers - pc) / 10.))
+            dx /= np.sqrt(1. + 10**((powers - pc) / 10.))
         return dx
 
     @classmethod
@@ -178,7 +179,7 @@ class Fr:
         return residual
 
     @classmethod
-    def guess(cls, data, tc, alpha=0.5, bcs=BCS, fd=1e-5, powers=None, limit=-1, fit_resonance=True, fit_mbd=True,
+    def guess(cls, data, tc, alpha=0.5, bcs=BCS, fd=0, powers=None, limit=-1, fit_resonance=True, fit_mbd=True,
               fix_tc=True, fit_alpha=True, fit_dynes=False, fit_tls=True, fit_fd=True, fit_pc=True):
         """
         Guess the model parameters based on the data. Returns a
@@ -193,8 +194,7 @@ class Fr:
             bcs: float (optional)
                 ∆ = bcs * kB * tc. The default is the usual BCS value.
             fd: float (optional)
-                The TLS fraction and loss tangent factor. The default is
-                1e-5.
+                The TLS fraction and loss tangent factor. The default is 0.
             powers: numpy.ndarray (optional)
                 The powers at which the fr data is taken. The default is None.
                 If specified, this helps set the pc parameter to a reasonable
@@ -249,14 +249,15 @@ class Fr:
         params.add("limit", value=float(limit), vary=False)
         # Mattis-Bardeen params
         params.add("tc", value=float(tc), vary=fit_mbd and not fix_tc, min=0)
-        params.add("bcs", value=float(bcs), vary=fit_mbd and fix_tc, min=0.5, max=2.5)
+        params.add("bcs", value=float(bcs), vary=fit_mbd and fix_tc, min=0)
         params.add("scaled_alpha", value=float(scaled_alpha(alpha)), vary=fit_mbd and fit_alpha)
         # Dynes params
         params.add("gamma_sqrt", value=float(gamma_sqrt), vary=bool(fit_dynes))
         # two level system params
-        params.add("fd", value=float(fd) if fit_tls else 0., vary=fit_tls and fit_fd)
+        params.add("fd_scaled", value=np.sqrt(float(fd) * 1e6), vary=fit_tls and fit_fd)
         params.add("pc", value=float(pc), vary=fit_tls and fit_pc)
         # derived params
+        params.add("fd", expr='fd_scaled**2 * 1e-6')
         params.add("alpha", expr='scaled_alpha_inv(scaled_alpha)')
         params.add("gamma", expr="gamma_sqrt**2")
         return params
