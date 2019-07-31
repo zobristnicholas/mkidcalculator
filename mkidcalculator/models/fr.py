@@ -58,7 +58,7 @@ class Fr:
         # calculate dx
         sigma0 = cc.value(0, f0, tc, gamma=gamma, bcs=bcs, low_energy=low_energy, parallel=parallel)
         sigma1 = cc.value(temperatures, f0, tc, gamma=gamma, bcs=bcs, low_energy=low_energy, parallel=parallel)
-        # use full expression relating dZs / Xs to dsigma
+        # use full expression relating dZs / Xs to dsigma for Zs proportional to sigma**limit
         dx = -0.5 * alpha * limit * np.imag((sigma1 - sigma0) * sigma0**(limit - 1)) / np.imag(sigma0**limit)
         return dx
 
