@@ -26,7 +26,7 @@ digamma = spec.digamma
 class Fr:
     """Basic fr model."""
     @classmethod
-    def mattis_bardeen(cls, params, temperatures, low_energy=False):
+    def mattis_bardeen(cls, params, temperatures, low_energy=False, parallel=False):
         """
         Returns the fractional frequency shift of the resonator with the
         specified model parameters for Mattis Bardeen effects.
@@ -39,6 +39,11 @@ class Fr:
             low_energy: boolean (optional)
                 Use the low energy approximation to evaluate the complex
                 conductivity. The default is False.
+            parallel: multiprocessing.Pool or boolean (optional)
+                A multiprocessing pool object to use for the computation. The
+                default is False, and the computation is done in serial. If
+                True, a Pool object is created with multiprocessing.cpu_count()
+                CPUs. Only used if low_energy is False.
         Returns:
             dx: numpy.ndarray
                 The fractional frequency shift.
@@ -55,9 +60,9 @@ class Fr:
         limit = params['limit'].value
         f0 = params['f0'].value
         # calculate dx
-        sigma0 = cc.value(0, f0, tc, gamma=gamma, bcs=bcs, low_energy=low_energy)
-        sigma1 = cc.value(temperatures, f0, tc, gamma=gamma, bcs=bcs, low_energy=low_energy)
         dx = 0.5 * alpha * limit * imag((sigma1 - sigma0) / sigma0)  # take imaginary part after in case gamma != 0
+        sigma0 = cc.value(0, f0, tc, gamma=gamma, bcs=bcs, low_energy=low_energy, parallel=parallel)
+        sigma1 = cc.value(temperatures, f0, tc, gamma=gamma, bcs=bcs, low_energy=low_energy, parallel=parallel)
         return dx
 
     @classmethod
@@ -105,7 +110,7 @@ class Fr:
         return params['f0'].value
 
     @classmethod
-    def model(cls, params, temperatures=None, powers=None, low_energy=False):
+    def model(cls, params, temperatures=None, powers=None, low_energy=False, parallel=False):
         """
         Returns the model of fr for the specified model parameters.
         Args:
@@ -122,18 +127,24 @@ class Fr:
             low_energy: boolean (optional)
                 Use the low energy approximation to evaluate the complex
                 conductivity. The default is False.
+            parallel: multiprocessing.Pool or boolean (optional)
+                A multiprocessing pool object to use for the Mattis-Bardeen
+                computation. The default is False, and the computation is done
+                in serial. If True, a Pool object is created with
+                multiprocessing.cpu_count() CPUs. Only used if low_energy is
+                False.
         Returns:
             fr: numpy.ndarray
                 The resonance frequency.
         """
         f0 = cls.constant_offset(params)
-        dx = cls.mattis_bardeen(params, temperatures, low_energy=low_energy)
+        dx = cls.mattis_bardeen(params, temperatures, low_energy=low_energy, parallel=parallel)
         dx += cls.two_level_systems(params, temperatures, powers)
         fr = f0 * dx + f0
         return fr
 
     @classmethod
-    def residual(cls, params, data, temperatures=None, powers=None, sigmas=None, low_energy=False):
+    def residual(cls, params, data, temperatures=None, powers=None, sigmas=None, low_energy=False, parallel=False):
         """
         Return the normalized residual between the fr data and model.
         Args:
@@ -155,11 +166,17 @@ class Fr:
             low_energy: boolean (optional)
                 Use the low energy approximation to evaluate the complex
                 conductivity. The default is False.
+            parallel: multiprocessing.Pool or boolean (optional)
+                A multiprocessing pool object to use for the Mattis-Bardeen
+                computation. The default is False, and the computation is done
+                in serial. If True, a Pool object is created with
+                multiprocessing.cpu_count() CPUs. Only used if low_energy is
+                False.
         Returns:
             residual: numpy.ndarray
                 the normalized residuals.
         """
-        fr = cls.model(params, temperatures=temperatures, powers=powers, low_energy=low_energy)
+        fr = cls.model(params, temperatures=temperatures, powers=powers, low_energy=low_energy, parallel=parallel)
         residual = (fr - data) / sigmas if sigmas is not None else (fr - data)
         return residual
 
