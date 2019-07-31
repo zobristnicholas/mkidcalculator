@@ -16,10 +16,6 @@ h = sc.h  # [J * s] Plank constant
 BCS = pi / np.exp(np.euler_gamma)  # bcs constant
 
 # special functions
-log = np.log
-sqrt = np.sqrt
-real = np.real
-imag = np.imag
 digamma = spec.digamma
 
 
@@ -60,9 +56,10 @@ class Fr:
         limit = params['limit'].value
         f0 = params['f0'].value
         # calculate dx
-        dx = 0.5 * alpha * limit * imag((sigma1 - sigma0) / sigma0)  # take imaginary part after in case gamma != 0
         sigma0 = cc.value(0, f0, tc, gamma=gamma, bcs=bcs, low_energy=low_energy, parallel=parallel)
         sigma1 = cc.value(temperatures, f0, tc, gamma=gamma, bcs=bcs, low_energy=low_energy, parallel=parallel)
+        # use full expression relating dZs / Xs to dsigma
+        dx = -0.5 * alpha * limit * np.imag((sigma1 - sigma0) * sigma0**(limit - 1)) / np.imag(sigma0**limit)
         return dx
 
     @classmethod
@@ -91,9 +88,9 @@ class Fr:
         dx = 0
         if temperatures is not None:
             xi = h * f0 / (2 * kb * temperatures)
-            dx += fd / pi * (real(digamma(0.5 + xi / (1j * pi))) - log(2 * xi))
+            dx += fd / pi * (np.real(digamma(0.5 + xi / (1j * pi))) - np.log(2 * xi))
         if powers is not None:
-            dx /= sqrt(1. + 10 ** ((powers - pc) / 10.))
+            dx /= np.sqrt(1. + 10 ** ((powers - pc) / 10.))
         return dx
 
     @classmethod
