@@ -239,7 +239,7 @@ class Fr:
                 An object with guesses and bounds for each parameter.
         """
         pc = np.mean(powers) if powers is not None else 0
-        gamma_sqrt = 0.1 if fit_dynes is True else fit_dynes
+        gamma_sqrt = 0.1 if fit_dynes is True else np.sqrt(fit_dynes)
         f0 = np.max(data)
 
         # make the parameters object (coerce all values to float to avoid ints and numpy types)
