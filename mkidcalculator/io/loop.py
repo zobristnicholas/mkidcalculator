@@ -4,7 +4,6 @@ import pickle
 import logging
 import lmfit as lm
 import numpy as np
-import matplotlib.pyplot as plt
 from operator import itemgetter
 import scipy.stats as stats
 from scipy.interpolate import make_interp_spline
@@ -725,6 +724,7 @@ class Loop:
         n_plots = len(plot_types)
         n_columns = int(np.ceil(n_plots / n_rows))
         if axes_list is None:
+            import matplotlib.pyplot as plt
             figure, axes_list = plt.subplots(n_rows, n_columns, figsize=(4.3 * n_columns, 4.0 * n_rows))
             axes_list = list(axes_list.flatten())
         else:
@@ -1425,6 +1425,7 @@ class Loop:
                 An Axes class with the plotted calibration.
         """
         if axes is None:
+            import matplotlib.pyplot as plt
             figure, axes = plt.subplots()
         else:
             figure = axes.figure
@@ -1496,6 +1497,7 @@ class Loop:
         """
         # get the figure axes
         if axes is None:
+            import matplotlib.pyplot as plt
             figure, axes = plt.subplots()
         else:
             figure = axes.figure

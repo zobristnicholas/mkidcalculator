@@ -7,7 +7,6 @@ import numpy as np
 import lmfit as lm
 import numpy.fft as fft
 import numpy.linalg as la
-from matplotlib import pyplot as plt
 from matplotlib.widgets import Button, Slider
 import scipy.stats as stats
 from scipy.signal import fftconvolve
@@ -1324,6 +1323,7 @@ class Pulse:
         """
         Plot the template.
         """
+        import matplotlib.pyplot as plt
         time = np.linspace(0, self.i_trace.shape[1] / self.sample_rate, self.i_trace.shape[1]) * 1e6
         figure = plt.figure(figsize=(12, 4))
         ax0 = plt.subplot2grid((2, 2), (0, 0), rowspan=2)
@@ -1365,6 +1365,7 @@ class Pulse:
                 Note: this variable must stay in the current namespace for the
                 plot to remain interactive.
         """
+        import matplotlib.pyplot as plt
         # get the time, loop, and traces in complex form for potential calibration
         time = np.linspace(0, self.i_trace.shape[1] / self.sample_rate, self.i_trace.shape[1]) * 1e6  # in µs
         z = self.loop.z
@@ -1524,6 +1525,7 @@ class Pulse:
 
         # get the figure axes
         if not axes:
+            import matplotlib.pyplot as plt
             figure, axes = plt.subplots()
         else:
             figure = axes.figure

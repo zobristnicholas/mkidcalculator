@@ -3,7 +3,6 @@ import pickle
 import logging
 import numpy as np
 from scipy.signal import welch, csd
-from matplotlib import pyplot as plt
 
 from mkidcalculator.io.data import AnalogReadoutNoise
 from mkidcalculator.io.utils import compute_phase_and_amplitude, offload_data, _loaded_npz_files
@@ -458,6 +457,7 @@ class Noise:
             raise ValueError("Noise type must be one of 'iq' or 'pa'.")
         # get the figure axes
         if not axes:
+            import matplotlib.pyplot as plt
             figure, axes = plt.subplots()
         else:
             figure = axes.figure

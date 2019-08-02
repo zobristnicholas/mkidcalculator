@@ -279,6 +279,7 @@ def sort_and_fix(data, energies, fix_zero):
 
 def setup_axes(axes, x_label, y_label, label_kwargs=None, x_label_default="", y_label_default="", equal=False):
     if axes is None:
+        import matplotlib.pyplot as plt
         figure, axes = plt.subplots()
     else:
         figure = axes.figure
