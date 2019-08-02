@@ -244,7 +244,7 @@ def lmfit(lmfit_results, model, guess, label='default', residual_args=(), residu
     # save the results
     if label in lmfit_results:
         log.warning("'{}' has already been used as an lmfit label. The old data has been overwritten.")
-    lmfit_results[label] = {'result': result, 'model': model}
+    lmfit_results[label] = {'result': result, 'model': model, 'kwargs': residual_kwargs, 'args': residual_args}
     # if the result is better than has been previously computed, add it to the 'best' key
     if 'best' not in lmfit_results.keys():
         lmfit_results['best'] = lmfit_results[label]
