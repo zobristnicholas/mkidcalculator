@@ -338,8 +338,8 @@ class S21:
         if imbalance is not None:
             # bandpass filter the I and Q signals
             i, q = imbalance.real, imbalance.imag
-            ip = bandpass(i)
-            qp = bandpass(q)
+            ip, f_i_ind = bandpass(i)
+            qp, f_q_ind = bandpass(q)
             # compute alpha and gamma
             amp = np.sqrt(2 * np.mean(qp**2, axis=-1))
             alpha = np.sqrt(2 * np.mean(ip**2, axis=-1)) / amp

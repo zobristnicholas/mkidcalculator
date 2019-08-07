@@ -16,4 +16,4 @@ def bandpass(data):
     f_data_ind = np.argmax(np.abs(fft_data), axis=-1)[:, np.newaxis]
     fft_data[np.logical_or(indices < f_data_ind - 1, indices > f_data_ind + 1)] = 0
     data_new = np.fft.irfft(fft_data, data[0, :].size)
-    return data_new
+    return data_new, f_data_ind
