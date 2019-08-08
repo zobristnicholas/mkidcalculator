@@ -1,4 +1,5 @@
 import os
+import numbers
 import logging
 import tempfile
 import numpy as np
@@ -266,9 +267,11 @@ def lmfit(lmfit_results, model, guess, label='default', residual_args=(), residu
 
 def create_range(value):
     if value is None:
-        value = (-np.inf, np.inf)
+        value = ((-np.inf, np.inf),)
     elif not isinstance(value, (tuple, list, np.ndarray)):
-        value = (value, value)
+        value = ((value, value),)
+    elif len(value) == 2 and (isinstance(value[0], numbers.Number) and isinstance(value[1], numbers.Number)):
+        value = (value,)
     return value
 
 

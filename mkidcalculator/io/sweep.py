@@ -374,18 +374,18 @@ class Sweep:
         Plot a subset of the loops in the sweep by combining multiple
         loop.plot() calls.
         Args:
-            power: number or tuple of two numbers
-                Inclusive range of powers to plot. A single number will cause
-                only that value to be plotted. The default is to include all of
-                the powers.
-            field: number or tuple of two numbers
-                Inclusive range of fields to plot. A single number will cause
-                only that value to be plotted. The default is to include all of
-                the fields.
-            temperature: number or tuple of two numbers
-                Inclusive range of temperatures to plot. A single number will
-                cause only that value to be plotted. The default is to include
-                all of the temperatures.
+            power: tuple of two numbers or tuple of two number tuples
+                Inclusive range or ranges of powers to plot. A single number
+                will cause only that value to be plotted. The default is to
+                include all of the powers.
+            field: tuple of two numbers or tuple of two number tuples
+                Inclusive range or ranges of fields to plot. A single number
+                will cause only that value to be plotted. The default is to
+                include all of the fields.
+            temperature: tuple of two numbers or tuple of two number tuples
+                Inclusive range or ranges of temperatures to plot. A single
+                number will cause only that value to be plotted. The default is
+                to include all of the temperatures.
             color_data: string
                 Either 'temperature', 'field', or 'power' indicating off what
                 type of data to base the colormap. The default is
@@ -424,13 +424,13 @@ class Sweep:
         power, field, temperature = create_ranges(power, field, temperature)
         if color_data == 'temperature':
             cmap = matplotlib.cm.get_cmap('coolwarm') if colormap is None else colormap
-            cdata = np.array(self.temperatures) * 1000
+            cdata = np.array(self.temperatures[::-1]) * 1000
         elif color_data == 'field':
             cmap = matplotlib.cm.get_cmap('viridis') if colormap is None else colormap
-            cdata = self.fields
+            cdata = self.fields[::-1]
         elif color_data == 'power':
             cmap = matplotlib.cm.get_cmap('plasma') if colormap is None else colormap
-            cdata = self.powers
+            cdata = self.powers[::-1]
         else:
             raise ValueError("'{}' is not a valid value of color_data.".format(color_data))
         norm = matplotlib.colors.Normalize(vmin=min(cdata), vmax=max(cdata))
@@ -440,26 +440,26 @@ class Sweep:
         title = loop_kwargs.get("title", True)
         if title is True:
             # power
-            if power[0] == power[1]:
-                title = "{:.0f} dBm, ".format(power[0])
-            elif np.isinf(power[0]) and np.isinf(power[1]):
+            if len(power) == 1 and np.isinf(power[0]).all():
                 title = "All Powers, "
+            elif all(x == power[0] for x in power) and power[0][0] == power[0][1]:
+                title = "{:.0f} dBm, ".format(power[0][0])
             else:
-                title = "({:.0f}, {:.0f}) dBm, ".format(power[0], power[1])
+                title = "({:.0f}, {:.0f}) dBm, ".format(np.min(power[0]), np.max(power[-1]))
             # field
-            if field[0] == field[1]:
-                title += "{:.0f} V, ".format(field[0])
-            elif np.isinf(field[0]) and np.isinf(field[1]):
+            if len(field) == 1 and np.isinf(field[0]).all():
                 title += "All Fields, "
+            elif all(x == field[0] for x in field) and field[0][0] == field[0][1]:
+                title += "{:.0f} V, ".format(field[0][0])
             else:
-                title += "({:.0f}, {:.0f}) V, ".format(field[0], field[1])
+                title += "({:.0f}, {:.0f}) V, ".format(np.min(field[0]), np.max(field[-1]))
             # temperature
-            if temperature[0] == temperature[1]:
-                title += "{:.0f} mK".format(temperature[0] * 1000)
-            elif np.isinf(temperature[0]) and np.isinf(temperature[1]):
+            if len(temperature) == 1 and np.isinf(temperature[0]).all():
                 title += "All Temperatures"
+            elif all(x == temperature[0] for x in temperature) and temperature[0][0] == temperature[0][1]:
+                title += "{:.0f} mK".format(temperature[0][0] * 1000)
             else:
-                title += "({:.0f}, {:.0f}) mK".format(temperature[0] * 1000, temperature[1] * 1000)
+                title += "({:.0f}, {:.0f}) mK".format(np.min(temperature[0]) * 1000, np.max(temperature[-1]) * 1000)
         # store key word options
         user_plot_kwargs = loop_kwargs.get('plot_kwargs', [])
         user_data_kwargs = []
@@ -470,10 +470,11 @@ class Sweep:
             user_fit_kwargs.append(kw.get("fit_kwargs", {}))
         # make a plot for each loop
         plot_index = 0
-        for index, loop in enumerate(self.loops):
-            condition = (power[0] <= loop.power <= power[1] and
-                         field[0] <= loop.field <= field[1] and
-                         temperature[0] <= loop.temperature <= temperature[1])
+        for index, loop in enumerate(self.loops[::-1]):
+            condition = (any(power[i][0] <= loop.power <= power[i][1] for i in range(len(power))) and
+                         any(field[i][0] <= loop.field <= field[i][1] for i in range(len(field))) and
+                         any(temperature[i][0] <= loop.temperature <= temperature[i][1]
+                             for i in range(len(temperature))))
             if condition:
                 # default plot key words
                 if plot_index == 0:
