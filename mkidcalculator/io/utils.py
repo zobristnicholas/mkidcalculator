@@ -313,7 +313,8 @@ def setup_axes(axes, x_label, y_label, label_kwargs=None, x_label_default="", y_
     return figure, axes
 
 
-def finalize_axes(axes, title=False, title_kwargs=None, legend=False, legend_kwargs=None, tighten=False):
+def finalize_axes(axes, title=False, title_kwargs=None, legend=False, legend_kwargs=None, tick_kwargs=None,
+                  tighten=False):
     if legend:
         kwargs = {}
         if legend_kwargs is not None:
@@ -325,6 +326,8 @@ def finalize_axes(axes, title=False, title_kwargs=None, legend=False, legend_kwa
         if title_kwargs is not None:
             kwargs.update(title_kwargs)
         axes.set_title(text, **kwargs)
+    if tick_kwargs is not None:
+        axes.tick_params(**tick_kwargs)
     if tighten:
         axes.figure.tight_layout()
 

@@ -809,7 +809,7 @@ class Loop:
     def plot_iq(self, data_kwargs=None, plot_fit=False, label="best", fit_type="lmfit", calibrate=False,
                 fit_kwargs=None, fit_parameters=(), parameters_kwargs=None, plot_guess=None, guess_kwargs=None,
                 x_label=None, y_label=None, label_kwargs=None, legend=True, legend_kwargs=None, title=True,
-                title_kwargs=None, tighten=True, axes=None):
+                title_kwargs=None, tick_kwargs=None, tighten=True, axes=None):
         """
         Plot the IQ data.
         Args:
@@ -878,6 +878,10 @@ class Loop:
                 Keyword arguments for the axes title in axes.set_title(). The
                 default is None which uses default options. Keywords in this
                 dictionary override the default options.
+            tick_kwargs: dictionary
+                Keyword arguments for the ticks using axes.tick_params(). The
+                default is None which uses the default options. Keywords in
+                this dictionary override the default options.
             tighten: boolean
                 Determines whether figure.tight_layout() is called. The default
                 is True.
@@ -925,12 +929,12 @@ class Loop:
             axes.plot(m.real, m.imag, **kwargs)
         # finalize the plot
         finalize_axes(axes, title=title, title_kwargs=title_kwargs, legend=legend, legend_kwargs=legend_kwargs,
-                      tighten=tighten)
+                      tick_kwargs=tick_kwargs, tighten=tighten)
         return axes
 
     def plot_iq_residual(self, label="best", fit_type="lmfit", plot_kwargs=None, fit_parameters=(),
                          parameters_kwargs=None, x_label=None, y_label=None, label_kwargs=None, legend=False,
-                         legend_kwargs=None, title=True, title_kwargs=None, tighten=True, axes=None):
+                         legend_kwargs=None, title=True, title_kwargs=None, tick_kwargs=None, tighten=True, axes=None):
         """
         Plot the residual of the IQ data (data - model).
         Args:
@@ -981,6 +985,10 @@ class Loop:
                 Keyword arguments for the axes title in axes.set_title(). The
                 default is None which uses default options. Keywords in this
                 dictionary override the default options.
+            tick_kwargs: dictionary
+                Keyword arguments for the ticks using axes.tick_params(). The
+                default is None which uses the default options. Keywords in
+                this dictionary override the default options.
             tighten: boolean
                 Determines whether figure.tight_layout() is called. The default
                 is True.
@@ -1005,13 +1013,13 @@ class Loop:
         string = "power: {:.0f} dBm, field: {:.2f} V, temperature: {:.2f} mK, '{}' fit"
         title = string.format(self.power, self.field, self.temperature * 1000, fit_name) if title is True else title
         finalize_axes(axes, title=title, title_kwargs=title_kwargs, legend=legend, legend_kwargs=legend_kwargs,
-                      tighten=tighten)
+                      tick_kwargs=tick_kwargs, tighten=tighten)
         return axes
 
     def plot_magnitude(self, data_kwargs=None, plot_fit=False, label="best", fit_type="lmfit", calibrate=False,
                        fit_kwargs=None, fit_parameters=(), parameters_kwargs=None, plot_guess=None, guess_kwargs=None,
                        x_label=None, y_label=None, label_kwargs=None, legend=True, legend_kwargs=None, title=True,
-                       title_kwargs=None, tighten=True, db=True, axes=None):
+                       title_kwargs=None, tick_kwargs=None, tighten=True, db=True, axes=None):
         """
         Plot the magnitude data.
         Args:
@@ -1079,6 +1087,10 @@ class Loop:
                 Keyword arguments for the axes title in axes.set_title(). The
                 default is None which uses default options. Keywords in this
                 dictionary override the default options.
+            tick_kwargs: dictionary
+                Keyword arguments for the ticks using axes.tick_params(). The
+                default is None which uses the default options. Keywords in
+                this dictionary override the default options.
             db: boolean
                 Determines if magnitude plots are shown in dB. The default is
                 True.
@@ -1129,12 +1141,13 @@ class Loop:
             axes.plot(f, np.abs(m) if not db else 20 * np.log10(np.abs(m)), **kwargs)
         # finalize the plot
         finalize_axes(axes, title=title, title_kwargs=title_kwargs, legend=legend, legend_kwargs=legend_kwargs,
-                      tighten=tighten)
+                      tick_kwargs=tick_kwargs, tighten=tighten)
         return axes
 
     def plot_magnitude_residual(self, label="best", fit_type="lmfit", plot_kwargs=None, fit_parameters=(),
                                 parameters_kwargs=None, x_label=None, y_label=None, label_kwargs=None, legend=False,
-                                legend_kwargs=None, title=True, title_kwargs=None, tighten=True, axes=None):
+                                legend_kwargs=None, title=True, title_kwargs=None, tick_kwargs=None, tighten=True,
+                                axes=None):
         """
         Plot the residual of the magnitude data (data - model).
         Args:
@@ -1184,6 +1197,10 @@ class Loop:
                 Keyword arguments for the axes title in axes.set_title(). The
                 default is None which uses default options. Keywords in this
                 dictionary override the default options.
+            tick_kwargs: dictionary
+                Keyword arguments for the ticks using axes.tick_params(). The
+                default is None which uses the default options. Keywords in
+                this dictionary override the default options.
             tighten: boolean
                 Determines whether figure.tight_layout() is called. The default
                 is True.
@@ -1208,13 +1225,13 @@ class Loop:
         string = "power: {:.0f} dBm, field: {:.2f} V, temperature: {:.2f} mK, '{}' fit"
         title = string.format(self.power, self.field, self.temperature * 1000, fit_name) if title is True else title
         finalize_axes(axes, title=title, title_kwargs=title_kwargs, legend=legend, legend_kwargs=legend_kwargs,
-                      tighten=tighten)
+                      tick_kwargs=tick_kwargs, tighten=tighten)
         return axes
 
     def plot_phase(self, data_kwargs=None, plot_fit=False, label="best", fit_type="lmfit", calibrate=False,
                    fit_kwargs=None, fit_parameters=(), parameters_kwargs=None, plot_guess=None, guess_kwargs=None,
                    x_label=None, y_label=None, label_kwargs=None, legend=True, legend_kwargs=None, title=True,
-                   title_kwargs=None, tighten=True, unwrap=True, axes=None):
+                   title_kwargs=None, tick_kwargs=None, tighten=True, unwrap=True, axes=None):
         """
         Plot the phase data.
         Args:
@@ -1282,6 +1299,10 @@ class Loop:
                 Keyword arguments for the axes title in axes.set_title(). The
                 default is None which uses default options. Keywords in this
                 dictionary override the default options.
+            tick_kwargs: dictionary
+                Keyword arguments for the ticks using axes.tick_params(). The
+                default is None which uses the default options. Keywords in
+                this dictionary override the default options.
             tighten: boolean
                 Determines whether figure.tight_layout() is called. The default
                 is True.
@@ -1331,12 +1352,13 @@ class Loop:
             axes.plot(f, np.unwrap(np.angle(m)) if unwrap else np.angle(m), **kwargs)
         # finalize the plot
         finalize_axes(axes, title=title, title_kwargs=title_kwargs, legend=legend, legend_kwargs=legend_kwargs,
-                      tighten=tighten)
+                      tick_kwargs=tick_kwargs, tighten=tighten)
         return axes
 
     def plot_phase_residual(self, label="best", fit_type="lmfit", plot_kwargs=None, fit_parameters=(),
                             parameters_kwargs=None, x_label=None, y_label=None, label_kwargs=None, legend=False,
-                            legend_kwargs=None, title=True, title_kwargs=None, tighten=True, axes=None):
+                            legend_kwargs=None, title=True, title_kwargs=None, tick_kwargs=None, tighten=True,
+                            axes=None):
         """
         Plot the residual of the phase data (data - model).
         Args:
@@ -1386,6 +1408,10 @@ class Loop:
                 Keyword arguments for the axes title in axes.set_title(). The
                 default is None which uses default options. Keywords in this
                 dictionary override the default options.
+            tick_kwargs: dictionary
+                Keyword arguments for the ticks using axes.tick_params(). The
+                default is None which uses the default options. Keywords in
+                this dictionary override the default options.
             tighten: boolean
                 Determines whether figure.tight_layout() is called. The default
                 is True.
@@ -1410,7 +1436,7 @@ class Loop:
         string = "power: {:.0f} dBm, field: {:.2f} V, temperature: {:.2f} mK, '{}' fit"
         title = string.format(self.power, self.field, self.temperature * 1000, fit_name) if title is True else title
         finalize_axes(axes, title=title, title_kwargs=title_kwargs, legend=legend, legend_kwargs=legend_kwargs,
-                      tighten=tighten)
+                      tick_kwargs=tick_kwargs, tighten=tighten)
         return axes
 
     def plot_energy_calibration(self, axes=None):
