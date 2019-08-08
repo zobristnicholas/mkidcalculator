@@ -4,6 +4,7 @@ import tempfile
 import numpy as np
 import lmfit as lm
 import scipy.constants as c
+from collections import OrderedDict
 
 log = logging.getLogger(__name__)
 log.addHandler(logging.NullHandler())
@@ -11,8 +12,10 @@ log.addHandler(logging.NullHandler())
 
 class NpzHolder:
     """Loads npz file when requested and saves them."""
+    MAX_SIZE = 200
+
     def __init__(self):
-        self._files = {}
+        self._files = OrderedDict()
 
     def __getitem__(self, item):
         # if string load and save to cache
@@ -23,6 +26,7 @@ class NpzHolder:
                 log.debug("loaded from cache: {}".format(item))
                 return self._files[item]
             else:
+                self._check_size()
                 npz = np.load(item)
                 log.debug("loaded: {}".format(item))
                 self._files[item] = npz
@@ -32,6 +36,7 @@ class NpzHolder:
         elif isinstance(item, np.lib.npyio.NpzFile):
             file_name = os.path.abspath(item.fid.name)
             if file_name not in _loaded_npz_files.keys():
+                self._check_size()
                 log.debug("loaded: {}".format(file_name))
                 self._files[file_name] = item
                 log.debug("saved to cache: {}".format(file_name))
@@ -55,6 +60,11 @@ class NpzHolder:
         for file_name in file_names:
             npz = self._files.pop(file_name, None)
             del npz
+
+    def _check_size(self):
+        for _ in range(max(len(self._files) - self.MAX_SIZE + 1, 0)):
+            item = self._files.popitem(last=False)
+            log.debug("Max cache size reached. Removed from cache: {}".format(item[0]))
 
 
 _loaded_npz_files = NpzHolder()  # cache of already loaded files

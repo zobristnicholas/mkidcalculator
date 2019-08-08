@@ -60,8 +60,12 @@ class AnalogReadoutABC:
     def __init__(self, npz_handle=None, channel=None, index=None):
         self.channel = channel
         self.index = index
-        npz = _loaded_npz_files[npz_handle]  # caches file
-        self._npz = None if npz is None else os.path.abspath(npz.fid.name)
+        if isinstance(npz_handle, str):
+            self._npz = npz_handle
+        elif isinstance(npz_handle, np.lib.npyio.NpzFile):
+            self._npz = os.path.abspath(npz_handle.fid.name)
+        else:
+            self._npz = None
 
     def __getstate__(self):
         return offload_data(self)
