@@ -462,6 +462,8 @@ class Sweep:
                 title += "({:.0f}, {:.0f}) mK".format(np.min(temperature[0]) * 1000, np.max(temperature[-1]) * 1000)
         # store key word options
         user_plot_kwargs = loop_kwargs.get('plot_kwargs', [])
+        if isinstance(user_plot_kwargs, dict):
+            user_plot_kwargs = [user_plot_kwargs] * n_plots
         user_data_kwargs = []
         for kw in user_plot_kwargs:
             user_data_kwargs.append(kw.get("data_kwargs", {}))
@@ -492,8 +494,8 @@ class Sweep:
                 # update plot key words with user defaults
                 for kw_index, kws in enumerate(user_plot_kwargs):
                     kws = kws.copy()
-                    kws.pop('data_kwargs')
-                    kws.pop('fit_kwargs')
+                    kws.pop('data_kwargs', None)
+                    kws.pop('fit_kwargs', None)
                     plot_kwargs[kw_index].update(kws)
                 # update loop kwargs
                 if plot_index == 0:
