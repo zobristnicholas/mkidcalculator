@@ -369,7 +369,8 @@ class Sweep:
         return original_label, result_dict
 
     def plot_loops(self, power=None, field=None, temperature=None, color_data='temperature', colormap=None,
-                   colorbar=True, colorbar_kwargs=None, colorbar_label=True, colorbar_label_kwargs=None, **loop_kwargs):
+                   colorbar=True, colorbar_kwargs=None, colorbar_label=True, colorbar_label_kwargs=None,
+                   colorbar_tick_kwargs=None, **loop_kwargs):
         """
         Plot a subset of the loops in the sweep by combining multiple
         loop.plot() calls.
@@ -410,6 +411,11 @@ class Sweep:
                 Keyword arguments for the colorbar in colorbar.set_label(). The
                 default is None which uses default options. Keywords in this
                 dictionary override the default options.
+            colorbar_tick_kwargs: dictionary
+                Keyword arguments for the colorbar ticks using
+                colorbar_axes.tick_params(). The default is None which uses the
+                default options. Keywords in this dictionary override the
+                default options.
             loop_kwargs: optional keyword arguments
                 Extra keyword arguments to send to loop.plot().
         Returns:
@@ -526,6 +532,8 @@ class Sweep:
                 if colorbar_label_kwargs is not None:
                     kwargs.update(colorbar_label_kwargs)
                 cbar.set_label(label, **kwargs)
+                if colorbar_tick_kwargs is not None:
+                    cbar.ax.tick_params(**colorbar_tick_kwargs)
             cbar_width = cbar.ax.get_window_extent().transformed(axes_list[0].figure.dpi_scale_trans.inverted()).width
             axes_list[0].figure.set_figwidth(axes_list[0].figure.get_figwidth() + cbar_width)
         return axes_list
