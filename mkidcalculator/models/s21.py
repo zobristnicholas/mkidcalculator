@@ -260,7 +260,7 @@ class S21:
         return res
 
     @classmethod
-    def guess(cls, z, f, imbalance=None, offset=0, use_filter=False, filter_length=None, fit_resonance=True,
+    def guess(cls, z, f, imbalance=None, offset=None, use_filter=False, filter_length=None, fit_resonance=True,
               nonlinear_resonance=False, fit_gain=True, quadratic_gain=True, fit_phase=True, quadratic_phase=False,
               fit_imbalance=False, fit_offset=False, alpha=1, gamma=0):
         """
@@ -334,7 +334,7 @@ class S21:
                 An object with guesses and bounds for each parameter.
         """
         # undo the mixer calibration for more accurate guess if known ahead of time
-        offset = np.mean(offset)
+        offset = np.mean(offset) if offset is not None else 0.
         if imbalance is not None:
             # bandpass filter the I and Q signals
             i, q = imbalance.real, imbalance.imag
