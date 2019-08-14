@@ -1500,7 +1500,9 @@ class Loop:
         finalize_axes(axes, legend=True, tighten=True)
         return axes
 
-    def plot_spectra(self, pulse_indices=None, x_limits=None, second_x_axis=False, n_bins=None, axes=None):
+    def plot_spectra(self, pulse_indices=None, x_limits=None, second_x_axis=False, n_bins=None, x_label=None,
+                     y_label=None, label_kwargs=None, legend=True, legend_kwargs=None, tick_kwargs=None,
+                     tighten=True, axes=None):
         """
         Plot the spectrum of the pulse responses in the loop.
         Args:
@@ -1515,19 +1517,38 @@ class Loop:
             n_bins: integer (optional)
                 The number of bins to use in the histogram. The default is
                 None, and the best number of bins is guessed.
+            x_label: string
+                The label for the x axis. The default is None which uses the
+                default label. If x_label evaluates to False, parameter_kwargs
+                is ignored.
+            y_label: string
+                The label for the y axis. The default is None which uses the
+                default label. If y_label evaluates to False, parameter_kwargs
+                is ignored.
+            label_kwargs: dictionary
+                Keyword arguments for the axes labels in axes.set_*label(). The
+                default is None which uses default options. Keywords in this
+                dictionary override the default options.
+            legend: boolean
+                Determines whether the legend is used or not. The default is
+                True. If False, legend_kwargs is ignored.
+            legend_kwargs: dictionary
+                Keyword arguments for the legend in axes.legend(). The default
+                is None which uses default options. Keywords in this
+                dictionary override the default options.
+            tick_kwargs: dictionary
+                Keyword arguments for the ticks using axes.tick_params(). The
+                default is None which uses the default options. Keywords in
+                this dictionary override the default options.
+            tighten: boolean
+                Determines whether figure.tight_layout() is called. The default
+                is True.
             axes: matplotlib.axes.Axes class (optional)
                 An axes class for plotting the data.
         Returns:
             axes: matplotlib.axes.Axes class
                 An axes class with the plotted data.
         """
-        # get the figure axes
-        if axes is None:
-            import matplotlib.pyplot as plt
-            figure, axes = plt.subplots()
-        else:
-            figure = axes.figure
-
         # mask the pulses
         if pulse_indices is None:
             pulses = self.pulses
@@ -1538,7 +1559,7 @@ class Loop:
                 pulses = itemgetter(pulse_indices)(self.pulses)
             if not isinstance(pulses, tuple):
                 pulses = [pulses]
-        # plot all of the energies
+        # get all of the energies
         energies = []
         norms = []
         min_bandwidth = np.inf
@@ -1554,16 +1575,22 @@ class Loop:
         max_energy, min_energy = energies.max(), energies.min()
         if n_bins is None:
             n_bins = 10 * int((max_energy - min_energy) / min_bandwidth)
+
+        # check if calibrated
+        calibrated = pulses[0].spectrum["calibrated"]
+
+        # setup axes and plot data
+        setup_axes(axes, x_label, y_label, label_kwargs=label_kwargs,
+                   x_label_default='energy [eV]' if calibrated else "response [radians]",
+                   y_label_default='probability density')
         axes.hist(energies, n_bins, density=True)
 
         # plot the PDFs
         label = ""
-        calibrated = False
         for index, pulse in enumerate(pulses):
             # get the needed data from the spectrum dictionary
             pdf = pulse.spectrum["pdf"]
             bandwidth = pulse.spectrum["bandwidth"]
-            calibrated = pulse.spectrum["calibrated"]
             # plot the data
             n_bins = 10 * int((max_energy - min_energy) / bandwidth)
             xx = np.linspace(min_energy, max_energy,  10 * n_bins)
@@ -1578,13 +1605,9 @@ class Loop:
             axes.set_xlim(x_limits)
         else:
             axes.set_xlim([min_energy, max_energy])
-
-        # format figure
-        axes.set_xlabel('energy [eV]') if calibrated else axes.set_xlabel("response [radians]")
-        axes.set_ylabel('probability density')
-        if label:
-            axes.legend()
-
+        # have to set tick parameters before making next axis or tick labels get messed up
+        if tick_kwargs is not None:
+            axes.tick_params(**tick_kwargs)
         # put twin axis on the bottom
         if second_x_axis:
             wvl_axes = axes.twiny()
@@ -1593,22 +1616,28 @@ class Loop:
             wvl_axes.xaxis.set_ticks_position('bottom')
             wvl_axes.xaxis.set_label_position('bottom')
             wvl_axes.spines['bottom'].set_position(('outward', 40))
-            wvl_axes.set_xlabel('wavelength [nm]')
+            kwargs = {}
+            if label_kwargs is not None:
+                kwargs.update(label_kwargs)
+            wvl_axes.set_xlabel('wavelength [nm]', **kwargs)
             if x_limits is not None:
                 wvl_axes.set_xlim(x_limits)
             else:
                 wvl_axes.set_xlim([min_energy, max_energy])
+            if tick_kwargs is not None:
+                wvl_axes.tick_params(**tick_kwargs)
 
             # redo ticks on bottom axis
             def tick_labels(x):
                 v = ev_nm_convert(x)
                 return ["%.0f" % z for z in v]
 
+            # set wavelength ticks
             x_locs = axes.xaxis.get_majorticklocs()
             wvl_axes.set_xticks(x_locs)
             wvl_axes.set_xticklabels(tick_labels(x_locs))
 
-        figure.tight_layout()
+        finalize_axes(axes, legend=legend and label, legend_kwargs=legend_kwargs, tighten=tighten)
         return axes
 
     def _calibration_points(self, pulse_indices=None, use_mask=True, fix_zero=True):
