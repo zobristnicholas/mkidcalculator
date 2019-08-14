@@ -153,6 +153,36 @@ class Loop:
         log.info("loaded loop from '{}'".format(file_name))
         return loop
 
+    @classmethod
+    def from_python(cls, z, f, attenuation, field, temperature, imbalance_calibration=None, offset=None, metadata=None):
+        """
+        Returns a Loop class from python data.
+        Args:
+            z: numpy.ndarray
+                The complex scattering parameter for the resonance loop.
+            f: numpy.ndarray
+                The frequencies corresponding to the complex scattering parameter.
+            attenuation: float
+                The DAC attenuation used for the data set.
+            field: float
+                The field value at the resonator.
+            temperature: float
+                The temperature at the resonator.
+            imbalance_calibration: numpy.ndarray (optional)
+                A MxN complex array containing beating IQ mixer data on the rows.
+            offset: numpy.ndarray (optional)
+                The mixer offsets corresponding to the complex scattering parameter.
+            metadata: dictionary (optional)
+                A dictionary containing metadata about the loop.
+        Returns:
+            loop: mkidcalculator.io.Loop object
+                A loop class with the python data loaded.
+        """
+        loop = cls()
+        loop._data = {"z": z, "f": f, "imbalance": imbalance_calibration, "offset": offset, "metadata": metadata,
+                      "attenuation": attenuation, "field": field, "temperature": temperature}
+        return loop
+
     def add_pulses(self, pulses, sort=True):
         """
         Add pulse data sets to the loop.
