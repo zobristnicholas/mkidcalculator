@@ -1,9 +1,14 @@
+import inspect
+import logging
 import numpy as np
 from scipy.signal import find_peaks, detrend
 
-from mkidcalculator.io import Loop
+from mkidcalculator.io.loop import Loop
 from mkidcalculator.models import S21
 from mkidcalculator.experiments.loop_fitting import basic_fit
+
+log = logging.getLogger(__name__)
+log.addHandler(logging.NullHandler())
 
 
 def _integer_bandwidth(f, df):
@@ -38,7 +43,7 @@ def find_resonators(f, magnitude, df, **kwargs):
     # find peaks
     kws = {"prominence": 1, "height": 5, "width": (None, int(dfii / 4))}
     kws.update(kwargs)
-    peaks, _ = find_peaks(-magnitude, **kwargs)
+    peaks, _ = find_peaks(-magnitude, **kws)
     # cut out resonators that are separated from neighbors by less than df / 2
     right = np.hstack((np.diff(f[peaks]) > df / 2, False))
     left = np.hstack((False, np.diff(f[peaks][::-1])[::-1] < -df / 2))
@@ -47,16 +52,14 @@ def find_resonators(f, magnitude, df, **kwargs):
     return peaks
 
 
-def collect_resonances(f, i, q, peaks, df):
+def collect_resonances(f, z, peaks, df):
     """
     Collect all of the resonances from a widesweep into an array.
     Args:
         f: numpy.ndarray
             The frequencies corresponding to i and q.
-        i: numpy.ndarray
-            The I component of S21.
-        q: numpy.ndarray
-            The Q component of S21.
+        z: numpy.ndarray
+            The S21 complex scattering data.
         peaks: numpy.ndarray, dtype=integer
             The indices corresponding to the resonator locations.
         df: float
@@ -65,11 +68,8 @@ def collect_resonances(f, i, q, peaks, df):
         f_array: numpy.ndarray
             A MxN array for the frequencies where M is the number of resonators
             and N is the number of frequencies.
-        i_array: numpy.ndarray
-            A MxN array for the I data where M is the number of resonators
-            and N is the number of frequencies.
-        q_array: numpy.ndarray
-            A MxN array for the Q data where M is the number of resonators
+        z_array: numpy.ndarray
+            A MxN array for the S21 data where M is the number of resonators
             and N is the number of frequencies.
         peaks: numpy.ndarray, dtype=integer
             The peak indices corresponding to resonator locations. Some indices
@@ -79,31 +79,27 @@ def collect_resonances(f, i, q, peaks, df):
     dfii = _integer_bandwidth(f, df)
     # collect resonance data into arrays
     f_array = np.empty((len(peaks), int(dfii / 2)))
-    i_array = np.empty(f_array.shape)
-    q_array = np.empty(f_array.shape)
+    z_array = np.empty(f_array.shape, dtype=np.complex)
     for ii in range(f_array.shape[0]):
         f_array[ii, :] = f[int(peaks[ii] - dfii / 4): int(peaks[ii] + dfii / 4)]
-        i_array[ii, :] = i[int(peaks[ii] - dfii / 4): int(peaks[ii] + dfii / 4)]
-        q_array[ii, :] = q[int(peaks[ii] - dfii / 4): int(peaks[ii] + dfii / 4)]
+        z_array[ii, :] = z[int(peaks[ii] - dfii / 4): int(peaks[ii] + dfii / 4)]
     # cut out resonators that aren't centered (large resonator tails on either side)
-    logic = np.argmin(i_array ** 2 + q_array ** 2, axis=-1) == dfii / 4
-    return f_array[logic, :], i_array[logic, :], q_array[logic, :], peaks[logic]
+    logic = np.argmin(np.abs(z_array), axis=-1) == dfii / 4
+    return f_array[logic, :], z_array[logic, :], peaks[logic]
 
 
-def widesweep_fit(f, i, q, df, fit_type=basic_fit, find_resonators_kwargs=None, loop_kwargs=None, **kwargs):
+def widesweep_fit(f, z, df, fit_type=basic_fit, find_resonators_kwargs=None, loop_kwargs=None, **kwargs):
     """
     Fits each resonator in the widesweep.
     Args:
         f: numpy.ndarray
             The frequencies corresponding to i and q.
-        i: numpy.ndarray
-            The I component of S21.
-        q: numpy.ndarray
-            The Q component of S21.
+        z: numpy.ndarray
+            The S21 complex scattering data.
         df: float
             The frequency bandwidth over which to perform the fit.
         fit_type: function (optional)
-            A function that takes a mkidcalculator.io.Loop as the first
+            A function that takes a mkidcalculator.Loop as the first
             argument and returns the fitted loop.
         find_resonators_kwargs: dictionary (optional)
             A dictionary of options for the find_resonators function.
@@ -117,15 +113,31 @@ def widesweep_fit(f, i, q, df, fit_type=basic_fit, find_resonators_kwargs=None, 
             The loop objects that were fit.
     """
     # prepare the data
-    peaks = find_resonators(f, 10 * np.log10(i**2 + q**2), df, **kwargs)
-    f_array, i_array, q_array, _ = collect_resonances(f, i, q, peaks, df)
+    ind = np.argsort(f)
+    f = f[ind]
+    z = z[ind]
+    kws = {}
+    if find_resonators_kwargs is not None:
+        kws.update(find_resonators_kwargs)
+    peaks = find_resonators(f, 20 * np.log10(np.abs(z)), df, **kws)
+    f_array, z_array, _ = collect_resonances(f, z, peaks, df)
     # set up the loop kwargs
     kws = {"attenuation": 0., "field": 0., "temperature": 0.}
     if loop_kwargs is not None:
         kws.update(loop_kwargs)
+    # get label for logging
+    params = inspect.signature(fit_type).parameters
+    if 'label' in kwargs.keys():
+        label = kwargs['label']
+    elif 'label' in params.keys() and isinstance(params['label'].default, str):
+        label = inspect.signature(fit_type).parameters['label'].default
+    else:
+        label = 'best'
     # fit the loops
     loops = []
     for ii in range(f_array.shape[0]):
-        loop = Loop.from_python(i + 1j * q, f, **kws)
+        loop = Loop.from_python(z_array[ii, :], f_array[ii, :], **kws)
         loops.append(fit_type(loop, **kwargs))
-
+        result = loops[-1].lmfit_results[label]['result']
+        log.info("'{}' fit {} completed with a reduced chi of {:g}".format(label, ii, result.redchi))
+    return loops

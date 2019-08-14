@@ -175,7 +175,7 @@ class Loop:
             metadata: dictionary (optional)
                 A dictionary containing metadata about the loop.
         Returns:
-            loop: mkidcalculator.io.Loop object
+            loop: mkidcalculator.Loop object
                 A loop class with the python data loaded.
         """
         loop = cls()
