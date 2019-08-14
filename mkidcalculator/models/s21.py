@@ -365,7 +365,7 @@ class S21:
 
         # calculate useful indices
         f_index_end = len(f) - 1  # last frequency index
-        f_index_5pc = int(len(f) * 0.05)  # end of first 5% of data
+        f_index_5pc = max(int(len(f) * 0.05), 2)  # end of first 5% of data
         # set up a unitless, reduced, midpoint frequency for baselines
         f_midpoint = np.median(f)  # frequency at the center of the data
 
@@ -400,11 +400,15 @@ class S21:
         fwhm_mask = magnitude < fwhm
         bandwidth = np.abs(f[fwhm_mask][-1] - f[fwhm_mask][0])
         # Q0 = f0 / fwhm bandwidth
-        q0_guess = f0_guess / bandwidth
+        q0_guess = f0_guess / bandwidth if bandwidth != 0 else 1e4
         # Q0 / Qi = min(mag) / max(mag)
-        qi_guess = q0_guess * mag_max / mag_min
+        qi_guess = q0_guess * mag_max / mag_min if mag_min != 0 else 1e5
+        if qi_guess == 0:
+            qi_guess = 1e5
+        if q0_guess == 0:
+            q0_guess = 1e4
         # 1 / Q0 = 1 / Qc + 1 / Qi
-        qc_guess = 1. / (1. / q0_guess - 1. / qi_guess)
+        qc_guess = 1. / (1. / q0_guess - 1. / qi_guess) if (1. / q0_guess - 1. / qi_guess) != 0 else 1e4
 
         # make the parameters object (coerce all values to float to avoid ints and numpy types)
         params = lm.Parameters()
