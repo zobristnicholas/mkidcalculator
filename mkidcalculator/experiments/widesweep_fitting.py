@@ -341,19 +341,19 @@ def plot_widesweep_summary(loops, qi_cutoff=np.inf, q0_cutoff=np.inf, chi2_cutof
     if isinstance(plot_kwargs, dict):
         plot_kwargs = [plot_kwargs] * len(axes_list)
     # add plots
-    kws = {"x_label": "Q$_i$"}
+    kws = {"x_label": "$Q_i$"}
     if plot_kwargs[0]:
         kws.update(plot_kwargs[0])
     plot_parameter_hist(qi, axes=axes_list[0], **kws)
-    kws = {"y_label": "median Q$_i$"}
+    kws = {"y_label": "median $Q_i$"}
     if plot_kwargs[1]:
         kws.update(plot_kwargs[1])
     plot_parameter_vs_f(qi, fr, axes=axes_list[1], **kws)
-    kws = {"x_label": "Q$_0$"}
+    kws = {"x_label": "$Q_0$"}
     if plot_kwargs[2]:
         kws.update(plot_kwargs[2])
     plot_parameter_hist(q0, axes=axes_list[2], **kws)
-    kws = {"y_label": "median Q$_0$"}
+    kws = {"y_label": "median $Q_0$"}
     if plot_kwargs[3]:
         kws.update(plot_kwargs[3])
     plot_parameter_vs_f(q0, fr, axes=axes_list[3], **kws)
