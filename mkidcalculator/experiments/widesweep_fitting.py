@@ -173,7 +173,8 @@ def get_loop_fit_info(loops, label='best', parameters=("fr", "qi", "q0", "chi2")
     return tuple(outputs)
 
 
-def plot_parameter_hist(parameter, title=None, x_label=True, y_label=True, tighten=True, axes=None, **kwargs):
+def plot_parameter_hist(parameter, title=None, x_label=True, y_label=True, label_kwargs=None, tick_kwargs=None,
+                        tighten=True, axes=None, **kwargs):
     """
     Plot a parameter histogram.
     Args:
@@ -187,6 +188,14 @@ def plot_parameter_hist(parameter, title=None, x_label=True, y_label=True, tight
         y_label: string, boolean (optional)
             The y label for the plot. The default is True and the default label
             is used. If False, no label is used.
+        label_kwargs: dictionary
+            Keyword arguments for the axes labels in axes.set_*label(). The
+            default is None which uses default options. Keywords in this
+            dictionary override the default options.
+        tick_kwargs: dictionary
+            Keyword arguments for the ticks using axes.tick_params(). The
+            default is None which uses the default options. Keywords in
+            this dictionary override the default options.
         tighten: boolean (optional)
             Whether or not to apply figure.tight_layout() at the end of the
             plot. The default is True.
@@ -209,10 +218,15 @@ def plot_parameter_hist(parameter, title=None, x_label=True, y_label=True, tight
         kws.update(kwargs)
     axes.hist(parameter, **kws)
     axes.set_xlim(left=0)
+    kws = {}
+    if label_kwargs is not None:
+        kws.update(label_kwargs)
     if x_label is not False:
-        axes.set_xlabel("parameter values" if x_label is True else x_label)
+        axes.set_xlabel("parameter values" if x_label is True else x_label, **kws)
     if y_label is not False:
-        axes.set_ylabel("counts per bin" if y_label is True else y_label)
+        axes.set_ylabel("counts per bin" if y_label is True else y_label, **kws)
+    if tick_kwargs is not None:
+        axes.tick_params(**tick_kwargs)
     if title is not False and title is not None:
         axes.set_title(title)
     if tighten:
@@ -220,8 +234,8 @@ def plot_parameter_hist(parameter, title=None, x_label=True, y_label=True, tight
     return axes
 
 
-def plot_parameter_vs_f(parameter, f, title=None, x_label=True, y_label=True, tighten=True, bins=30, axes=None,
-                        **kwargs):
+def plot_parameter_vs_f(parameter, f, title=None, x_label=True, y_label=True, label_kwargs=None, tick_kwargs=None,
+                        tighten=True, bins=30, axes=None, **kwargs):
     """
     Plot a parameter vs frequency.
     Args:
@@ -237,6 +251,14 @@ def plot_parameter_vs_f(parameter, f, title=None, x_label=True, y_label=True, ti
         y_label: string, boolean (optional)
             The y label for the plot. The default is True and the default label
             is used. If False, no label is used.
+        label_kwargs: dictionary
+            Keyword arguments for the axes labels in axes.set_*label(). The
+            default is None which uses default options. Keywords in this
+            dictionary override the default options.
+        tick_kwargs: dictionary
+            Keyword arguments for the ticks using axes.tick_params(). The
+            default is None which uses the default options. Keywords in
+            this dictionary override the default options.
         tighten: boolean (optional)
             Whether or not to apply figure.tight_layout() at the end of the
             plot. The default is True.
@@ -271,10 +293,15 @@ def plot_parameter_vs_f(parameter, f, title=None, x_label=True, y_label=True, ti
     axes.step(bin_centers, medians, **kws)
     axes.set_xlim(bin_centers.min(), bin_centers.max())
     axes.set_ylim(bottom=0)
+    kws = {}
+    if label_kwargs is not None:
+        kws.update(label_kwargs)
     if x_label is not False:
-        axes.set_xlabel("frequency [GHz]" if x_label is True else x_label)
+        axes.set_xlabel("frequency [GHz]" if x_label is True else x_label, **kws)
     if y_label is not False:
-        axes.set_ylabel("median parameter" if y_label is True else y_label)
+        axes.set_ylabel("median parameter" if y_label is True else y_label, **kws)
+    if tick_kwargs is not None:
+        axes.tick_params(**tick_kwargs)
     if title and title is not None:
         axes.set_title(title)
     if tighten:
