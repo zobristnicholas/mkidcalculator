@@ -235,7 +235,7 @@ def plot_parameter_hist(parameter, title=None, x_label=True, y_label=True, label
 
 
 def plot_parameter_vs_f(parameter, f, title=None, x_label=True, y_label=True, label_kwargs=None, tick_kwargs=None,
-                        tighten=True, bins=30, axes=None, **kwargs):
+                        tighten=True, bins=30, extend=True, axes=None, **kwargs):
     """
     Plot a parameter vs frequency.
     Args:
@@ -264,6 +264,10 @@ def plot_parameter_vs_f(parameter, f, title=None, x_label=True, y_label=True, la
             plot. The default is True.
         bins: integer (optional)
             The number of bins to use in the plot. The default is 30.
+        extend: boolean (optional)
+            Determines whether or not to extend the data so that there is a
+            bin with zero values on either side of the frequency range. The
+            default is True.
         axes: matplotlib.axes.Axes class
             An Axes class on which to put the plot. The default is None and
             a new figure is made.
@@ -290,6 +294,10 @@ def plot_parameter_vs_f(parameter, f, title=None, x_label=True, y_label=True, la
             medians[ii] = np.median(parameter[(f >= bin_edges[ii]) & (f < bin_edges[ii + 1])])
         medians[-1] = np.median(parameter[(f >= bin_edges[-2]) & (f <= bin_edges[-1])])  # last bin is fully closed
     medians[np.isnan(medians)] = 0
+    if extend:
+        dx = bin_centers[1] - bin_centers[0]
+        bin_centers = np.hstack([bin_centers[0] - dx, bin_centers, bin_centers[-1] + dx])
+        medians = np.hstack([0, medians, 0])
     axes.step(bin_centers, medians, **kws)
     axes.set_xlim(bin_centers.min(), bin_centers.max())
     axes.set_ylim(bottom=0)
