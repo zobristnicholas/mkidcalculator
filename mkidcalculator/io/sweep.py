@@ -534,8 +534,11 @@ class Sweep:
                 cbar.set_label(label, **kwargs)
                 if colorbar_tick_kwargs is not None:
                     cbar.ax.tick_params(**colorbar_tick_kwargs)
-            cbar_width = cbar.ax.get_window_extent().transformed(axes_list[0].figure.dpi_scale_trans.inverted()).width
-            axes_list[0].figure.set_figwidth(axes_list[0].figure.get_figwidth() + cbar_width)
+            # resize the figure if axes not given directly
+            if 'axes_list' not in loop_kwargs.keys():
+                extent = cbar.ax.get_window_extent()
+                cbar_width = extent.transformed(axes_list[0].figure.dpi_scale_trans.inverted()).width
+                axes_list[0].figure.set_figwidth(axes_list[0].figure.get_figwidth() + cbar_width)
         return axes_list
 
     def plot_parameters(self, parameters, x="power", label="best", axes=None):
