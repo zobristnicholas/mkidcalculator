@@ -427,6 +427,7 @@ class Sweep:
             raise TypeError("'fit_parameters' is not a valid keyword argument")
         if "parameters_kwargs" in loop_kwargs.keys():
             raise TypeError("'parameters_kwargs' is not a valid keyword argument")
+        expand_figure = True if 'axes_list' not in loop_kwargs.keys() else False
         power, field, temperature = create_ranges(power, field, temperature)
         if color_data == 'temperature':
             cmap = matplotlib.cm.get_cmap('coolwarm') if colormap is None else colormap
@@ -517,7 +518,7 @@ class Sweep:
         if colorbar:
             mappable = matplotlib.cm.ScalarMappable(norm, cmap)
             mappable.set_array([])
-            kwargs = {'aspect': 30}
+            kwargs = {'aspect': 30, "pad":-.05, "anchor": (0.5, 1)}
             if colorbar_kwargs is not None:
                 kwargs.update(colorbar_kwargs)
             cbar = axes_list[0].figure.colorbar(mappable, ax=axes_list, **kwargs)
@@ -535,7 +536,7 @@ class Sweep:
                 if colorbar_tick_kwargs is not None:
                     cbar.ax.tick_params(**colorbar_tick_kwargs)
             # resize the figure if axes not given directly
-            if 'axes_list' not in loop_kwargs.keys():
+            if expand_figure:
                 extent = cbar.ax.get_window_extent()
                 cbar_width = extent.transformed(axes_list[0].figure.dpi_scale_trans.inverted()).width
                 axes_list[0].figure.set_figwidth(axes_list[0].figure.get_figwidth() + cbar_width)
