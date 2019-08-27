@@ -453,6 +453,19 @@ class Noise:
         return noise
 
     def plot_psd(self, noise_type="iq", axes=None):
+        """
+        Plot the power spectral density of the trace data.
+        Args:
+            noise_type: string
+                Either "iq" or "pa" for I and Q data or phase and amplitude
+                data.
+            axes: matplotlib.axes.Axes class
+                An Axes class on which to put the plot. The default is None and
+                a new figure is made.
+        Returns:
+            axes: matplotlib.axes.Axes class
+                An Axes class with the plotted noise.
+        """
         if noise_type not in ["iq", "pa"]:
             raise ValueError("Noise type must be one of 'iq' or 'pa'.")
         # get the figure axes
