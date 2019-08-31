@@ -10,7 +10,7 @@ from scipy.cluster.vq import kmeans2, ClusterError
 
 from mkidcalculator.io.loop import Loop
 from mkidcalculator.io.data import analogreadout_sweep
-from mkidcalculator.io.utils import lmfit, create_ranges
+from mkidcalculator.io.utils import lmfit, create_ranges, save_lmfit
 
 log = logging.getLogger(__name__)
 log.addHandler(logging.NullHandler())
@@ -250,9 +250,11 @@ class Sweep:
         guess. The result and other useful information is stored in
         self.lmfit_results[parameter][label].
         Args:
-            parameter: string
-                The loop parameter to fit. It must be one of the columns of the
-                loop parameters table.
+            parameter: string or list of strings
+                The loop parameters to fit. They must be a columns in the loop
+                parameters table. If more than one parameter is specified a
+                joint fit will be performed and the mkidcalculator.models.Joint
+                class should be used.
             model: object-like
                 model.residual should give the objective function to minimize.
                 It must output a 1D real vector. The first two arguments must
@@ -291,26 +293,47 @@ class Sweep:
         """
         # get the data to fit
         table = self.loop_parameters[data_label] if index is None else self.loop_parameters[data_label].loc[index]
-        data = table[parameter].to_numpy()
-        if parameter == 'fr':
-            data = data * 1e9  # convert to Hz for model
-        residual_args = (data, *residual_args)
-        if 'temperature' in table.columns:
-            temperatures = table['temperature'].to_numpy()
+        if isinstance(parameter, str):
+            parameter = [parameter]
+        args_list = []
+        kws_list = []
+        # collect the arguments for each parameter
+        for p in parameter:
+            data = table[p].to_numpy()
+            if p == 'fr':
+                data = data * 1e9  # convert to Hz for model
+            args = (data, *residual_args)
+            args_list.append(args)
+            if 'temperature' in table.columns:
+                temperatures = table['temperature'].to_numpy()
+            else:
+                temperatures = table.index.get_level_values('temperature')
+            powers = table.index.get_level_values("power").to_numpy()
+            sigmas = table[p + '_sigma'].to_numpy()
+            kws = {"temperatures": temperatures, "powers": powers, "sigmas": sigmas}
+            if residual_kwargs is not None:
+                kws.update(residual_kwargs)
+            kws_list.append(kws)
+        # reformat the arguments to work with one or many parameters
+        if len(parameter) == 1:
+            args = args_list[0]
+            kws = kws_list[0]
         else:
-            temperatures = table.index.get_level_values('temperature')
-        powers = table.index.get_level_values("power")
-        sigmas = table[parameter + '_sigma'].to_numpy()
-        kws = {"temperatures": temperatures, "powers": powers, "sigmas": sigmas}
-        if residual_kwargs is not None:
-            kws.update(residual_kwargs)
-        if parameter not in self.lmfit_results.keys():
-            self.lmfit_results[parameter] = {}
-
-        # do the fit
-        lmfit(self.lmfit_results[parameter], model, guess, label=label, residual_args=residual_args,
-              residual_kwargs=kws, **kwargs)
-        result = self.lmfit_results[parameter][label]['result']
+            args = [tuple([args_list[ind][index] for ind, _ in enumerate(args_list)])
+                    for index, _ in enumerate(args_list[0])]
+            kws = {key: tuple(kws_list[ind][key] for ind, _ in enumerate(kws_list)) for key in kws_list[0].keys()}
+        # make sure the dictionary exists for each parameter
+        for p in parameter:
+            if p not in self.lmfit_results.keys():
+                self.lmfit_results[p] = {}
+        # do the fit for the first parameter
+        lmfit(self.lmfit_results[parameter[0]], model, guess, label=label, residual_args=args,
+              residual_kwargs=kws, model_index=0 if len(parameter) != 1 else None, **kwargs)
+        result = self.lmfit_results[parameter[0]][label]['result']
+        # copy the result to the other parameters
+        for ind, p in enumerate(parameter[1:]):
+            save_lmfit(self.lmfit_results[p], model.models[ind + 1], result, label=label,
+                       residual_args=args_list[ind + 1], residual_kwargs=kws_list[ind + 1])
         return result
 
     def emcee(self):
