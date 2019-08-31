@@ -246,13 +246,23 @@ def structured_to_complex(array):
         return array["I"] + 1j * array["Q"]
 
 
-def lmfit(lmfit_results, model, guess, label='default', residual_args=(), residual_kwargs=None, **kwargs):
+def lmfit(lmfit_results, model, guess, label='default', residual_args=(), residual_kwargs=None, model_index=None,
+          **kwargs):
     if label == 'best':
         raise ValueError("'best' is a reserved label and cannot be used")
     # set up and do minimization
     minimizer = lm.Minimizer(model.residual, guess, fcn_args=residual_args, fcn_kws=residual_kwargs)
     result = minimizer.minimize(**kwargs)
     # save the results
+    if model_index is not None:
+        model = model.models[model_index]  # if the fit was done with a joint model only save the relevant part
+        residual_args = tuple([arg[model_index] if isinstance(arg, tuple) else arg for arg in residual_args])
+        residual_kwargs = {key: value[model_index] if isinstance(value, tuple) else value
+                           for key, value in residual_kwargs.items()}
+    save_lmfit(lmfit_results, model, result, label=label, residual_args=residual_args, residual_kwargs=residual_kwargs)
+
+
+def save_lmfit(lmfit_results, model, result, label='default', residual_args=(), residual_kwargs=None):
     if label in lmfit_results:
         log.warning("'{}' has already been used as an lmfit label. The old data has been overwritten.".format(label))
     lmfit_results[label] = {'result': result, 'model': model, 'kwargs': residual_kwargs, 'args': residual_args}
