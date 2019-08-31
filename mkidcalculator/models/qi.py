@@ -27,18 +27,19 @@ class Qi:
         alpha = params['alpha'].value
         tc = params['tc'].value
         bcs = params['bcs'].value
+        dynes = params['dynes'].value
         gamma = params['gamma'].value
-        limit = params['limit'].value
         f0 = params['f0'].value
         # calculate Qinv
-        sigma0 = cc.value(0, f0, tc, gamma=gamma, bcs=bcs, low_energy=low_energy, parallel=parallel)
-        sigma1 = cc.value(temperatures, f0, tc, gamma=gamma, bcs=bcs, low_energy=low_energy, parallel=parallel)
-        q_inv = alpha * limit * np.real((sigma1 - sigma0) * sigma0**(limit - 1)) / np.imag(sigma0**limit)
+        sigma0 = cc.value(0, f0, tc, gamma=dynes, bcs=bcs, low_energy=low_energy, parallel=parallel)
+        sigma1 = cc.value(temperatures, f0, tc, gamma=dynes, bcs=bcs, low_energy=low_energy, parallel=parallel)
+        # TODO: check if dsigma1 or sigma1
+        q_inv = alpha * gamma * np.real((sigma1 - sigma0) * sigma0**(gamma - 1)) / np.imag(sigma0**gamma)
         return q_inv
 
     @classmethod
     def two_level_systems(cls, params, temperatures, powers):
-        if powers is None or temperatures is None:
+        if powers is None and temperatures is None:
             return 0.
         # unpack parameters
         f0 = params['f0'].value
@@ -72,8 +73,8 @@ class Qi:
 
     @classmethod
     def guess(cls, data, f0, tc, alpha=0.5, bcs=BCS, temperatures=None, powers=None, fit_resonance=False,
-              fit_mbd=True, fix_tc=True, fit_alpha=True, fit_tls=True, high_power=False, fit_loss=True,
-              fit_dynes=False, limit=-1):
+              fit_mb=True, fix_tc=True, fit_alpha=True, fit_tls=True, high_power=False, fit_loss=True,
+              fit_dynes=False, gamma=-1):
         scale = 2 if fit_tls and fit_loss else 1
         # guess constant loss
         qi_inv_min = np.min(1 / data)
@@ -85,27 +86,27 @@ class Qi:
         else:
             fd = 0
         pc = np.mean(powers) if powers is not None else 0
-        gamma_sqrt = 0.1 if fit_dynes is True else np.sqrt(fit_dynes)
+        dynes_sqrt = 0.1 if fit_dynes is True else np.sqrt(fit_dynes)
 
         # make the parameters object (coerce all values to float to avoid ints and numpy types)
         params = lm.Parameters(usersyms={'scaled_alpha_inv': scaled_alpha_inv})
         # resonator params
         params.add("f0", value=float(f0), vary=fit_resonance, min=0)
-        params.add("limit", value=float(limit), vary=False)
+        params.add("gamma", value=float(gamma), vary=False)
         # constant loss parameters
         params.add("q0_inv", value=float(q0_inv), vary=fit_loss)
         # two level system params
         params.add("fd_scaled", value=float(np.sqrt(fd * 1e6)), vary=fit_tls)
         params.add("pc", value=float(pc if high_power else np.inf), vary=fit_tls and high_power)
         # Mattis-Bardeen params
-        params.add("tc", value=float(tc), vary=fit_mbd and not fix_tc, min=0)
-        params.add("bcs", value=float(bcs), vary=fit_mbd and fix_tc, min=0)
-        params.add("scaled_alpha", value=float(scaled_alpha(alpha)), vary=fit_mbd and fit_alpha)
+        params.add("tc", value=float(tc), vary=fit_mb and not fix_tc, min=0)
+        params.add("bcs", value=float(bcs), vary=fit_mb and fix_tc, min=0)
+        params.add("scaled_alpha", value=float(scaled_alpha(alpha)), vary=fit_mb and fit_alpha)
         # Dynes params
-        params.add("gamma_sqrt", value=float(gamma_sqrt), vary=bool(fit_dynes))
+        params.add("dynes_sqrt", value=float(dynes_sqrt), vary=bool(fit_dynes))
         # derived params
         params.add("alpha", expr='scaled_alpha_inv(scaled_alpha)')
         params.add("fd", expr='fd_scaled**2 * 1e-6')
-        params.add("gamma", expr="gamma_sqrt**2")
+        params.add("dynes", expr="dynes_sqrt**2")
 
         return params

@@ -53,14 +53,14 @@ class Fr:
         alpha = params['alpha'].value
         tc = params['tc'].value
         bcs = params['bcs'].value
+        dynes = params['dynes'].value
         gamma = params['gamma'].value
-        limit = params['limit'].value
         f0 = params['f0'].value
         # calculate dx
-        sigma0 = cc.value(0, f0, tc, gamma=gamma, bcs=bcs, low_energy=low_energy, parallel=parallel)
-        sigma1 = cc.value(temperatures, f0, tc, gamma=gamma, bcs=bcs, low_energy=low_energy, parallel=parallel)
-        # use full expression relating dZs / Xs to dsigma for Zs proportional to sigma**limit
-        dx = -0.5 * alpha * limit * np.imag((sigma1 - sigma0) * sigma0**(limit - 1)) / np.imag(sigma0**limit)
+        sigma0 = cc.value(0, f0, tc, gamma=dynes, bcs=bcs, low_energy=low_energy, parallel=parallel)
+        sigma1 = cc.value(temperatures, f0, tc, gamma=dynes, bcs=bcs, low_energy=low_energy, parallel=parallel)
+        # use full expression relating dZs / Xs to dsigma for Zs proportional to sigma**gamma
+        dx = -0.5 * alpha * gamma * np.imag((sigma1 - sigma0) * sigma0**(gamma - 1)) / np.imag(sigma0**gamma)
         return dx
 
     @classmethod
@@ -81,6 +81,8 @@ class Fr:
             dx: numpy.ndarray
                 The fractional frequency shift.
         """
+        if powers is None and temperatures is None:
+            return 0.
         # unpack parameters
         f0 = params['f0'].value
         fd = params['fd'].value
@@ -179,7 +181,7 @@ class Fr:
         return residual
 
     @classmethod
-    def guess(cls, data, tc, alpha=0.5, bcs=BCS, fd=0, powers=None, limit=-1, fit_resonance=True, fit_mbd=True,
+    def guess(cls, data, tc, alpha=0.5, bcs=BCS, fd=0, powers=None, gamma=-1, fit_resonance=True, fit_mb=True,
               fix_tc=True, fit_alpha=True, fit_dynes=False, fit_tls=True, fit_fd=True, fit_pc=True):
         """
         Guess the model parameters based on the data. Returns a
@@ -199,7 +201,7 @@ class Fr:
                 The powers at which the fr data is taken. The default is None.
                 If specified, this helps set the pc parameter to a reasonable
                 value.
-            limit: float (optional)
+            gamma: float (optional)
                 The float corresponding to the superconducting limit of the
                 resonator. The default is -1 which corresponds to the thin
                 film, local limit. -1/2 is the thick film, local limit. -1/3 is
@@ -207,7 +209,7 @@ class Fr:
             fit_resonance: boolean (optional)
                 A boolean specifying if the offset frequency should be varied
                 during the fit. The default is True.
-            fit_mbd: boolean (optional)
+            fit_mb: boolean (optional)
                 A boolean specifying whether the Mattis-Bardeen parameters
                 should be varied during the fit. The default is True.
             fix_tc: boolean (optional)
@@ -221,8 +223,8 @@ class Fr:
             fit_dynes: float, boolean (optional)
                 A boolean specifying whether to vary the dynes parameter in the
                 fit. The default is False. If a float, this value is used for
-                'gamma'. If True, the 'gamma' is set to 0.1, since the fit has
-                trouble if 'gamma' is initialized to 0.
+                'dynes'. If True, the 'dynes' is set to 0.1, since the fit has
+                trouble if 'dynes' is initialized to 0.
             fit_tls: boolean (optional)
                 A boolean specifying whether to vary the TLS parameters during
                 the fit. The default is True.
@@ -239,25 +241,25 @@ class Fr:
                 An object with guesses and bounds for each parameter.
         """
         pc = np.mean(powers) if powers is not None else 0
-        gamma_sqrt = 0.1 if fit_dynes is True else np.sqrt(fit_dynes)
+        dynes_sqrt = 0.1 if fit_dynes is True else np.sqrt(fit_dynes)
         f0 = np.max(data)
 
         # make the parameters object (coerce all values to float to avoid ints and numpy types)
         params = lm.Parameters(usersyms={'scaled_alpha_inv': scaled_alpha_inv})
         # resonator params
         params.add("f0", value=float(f0), vary=fit_resonance, min=0)
-        params.add("limit", value=float(limit), vary=False)
+        params.add("gamma", value=float(gamma), vary=False)
         # Mattis-Bardeen params
-        params.add("tc", value=float(tc), vary=fit_mbd and not fix_tc, min=0)
-        params.add("bcs", value=float(bcs), vary=fit_mbd and fix_tc, min=0)
-        params.add("scaled_alpha", value=float(scaled_alpha(alpha)), vary=fit_mbd and fit_alpha)
+        params.add("tc", value=float(tc), vary=fit_mb and not fix_tc, min=0)
+        params.add("bcs", value=float(bcs), vary=fit_mb and fix_tc, min=0)
+        params.add("scaled_alpha", value=float(scaled_alpha(alpha)), vary=fit_mb and fit_alpha)
         # Dynes params
-        params.add("gamma_sqrt", value=float(gamma_sqrt), vary=bool(fit_dynes))
+        params.add("dynes_sqrt", value=float(dynes_sqrt), vary=bool(fit_dynes))
         # two level system params
         params.add("fd_scaled", value=np.sqrt(float(fd) * 1e6), vary=fit_tls and fit_fd)
         params.add("pc", value=float(pc), vary=fit_tls and fit_pc)
         # derived params
         params.add("fd", expr='fd_scaled**2 * 1e-6')
         params.add("alpha", expr='scaled_alpha_inv(scaled_alpha)')
-        params.add("gamma", expr="gamma_sqrt**2")
+        params.add("dynes", expr="dynes_sqrt**2")
         return params
