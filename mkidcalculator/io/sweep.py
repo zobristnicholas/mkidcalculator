@@ -1,6 +1,7 @@
 import os
 import pickle
 import logging
+import inspect
 import matplotlib
 import lmfit as lm
 import numpy as np
@@ -565,28 +566,75 @@ class Sweep:
                 axes_list[0].figure.set_figwidth(axes_list[0].figure.get_figwidth() + cbar_width)
         return axes_list
 
-    def plot_parameters(self, parameters, x="power", label="best", axes=None):
+    def plot_parameters(self, parameters, x="power", data_label="best", n_rows=1, power=None, field=None,
+                        temperature=None, plot_fit=False, fit_label="best", axes=None):
+        power, field, temperature = create_ranges(power, field, temperature)
         if axes is None:
-            figure, axes = plt.subplots()
+            from matplotlib import pyplot as plt
+            n_columns = int(np.ceil(len(parameters) / n_rows))
+            figure, axes = plt.subplots(nrows=n_rows, ncols=n_columns, squeeze=False,
+                                        figsize=(4.3 * n_columns, 4.0 * n_rows))
+            axes = axes.ravel()
         else:
-            figure = axes.figure
+            if not isinstance(axes, np.ndarray):
+                axes = np.atleast_1d(axes)
+            figure = axes[0].figure
 
         levels = ["power", "field", "temperature"]
-        levels.pop(x)
-        values_dict = {"power": np.unique(self.powers), "field": np.unique(self.fields),
-                       "temperature": np.unique(self.temperature_groups)}
-        values_list = [values_dict[level] for level in levels]
+        if x not in levels:
+            raise ValueError("x must be in {}".format(levels))
+        levels.remove(x)
 
-        table = self.loop_parameters[label]
+        powers = np.unique(self.powers)
+        fields = np.unique(self.fields)
+        temperatures = np.unique(self.temperature_groups)
+        powers = powers[np.logical_and.reduce([(powers >= power[ii][0]) & (powers <= power[ii][1])
+                                               for ii in range(len(power))])]
+        fields = fields[np.logical_and.reduce([(fields >= field[ii][0]) & (fields <= field[ii][1])
+                                               for ii in range(len(field))])]
+        temperatures = temperatures[np.logical_and.reduce([(temperatures >= temperature[ii][0]) &
+                                                           (temperatures <= temperature[ii][1])
+                                                           for ii in range(len(temperature))])]
+        values_dict = {"power": powers, "field": fields, "temperature": temperatures}
+        table = self.loop_parameters[data_label]
 
-        def populate_index(data_list, current, index):
-            if current < len(data_list):
-                for d in data_list[current]:
-                    index.append(d)
-                    populate_index(data_list, current + 1, index)
+        for index, parameter in enumerate(parameters):
+            for ind1, value1 in enumerate(values_dict[levels[0]]):
+                for ind2, value2 in enumerate(values_dict[levels[1]]):
+                    data = table[parameter].xs((value1, value2), level=levels)
+                    if len(data.values):
+                        x_vals = data.index
+                        if x == "temperature":
+                            try:
+                                x_vals = table["temperature"].xs((value1, value2), level=levels) * 1000
+                            except KeyError:
+                                x_vals = data.index * 1000
+                        axes[index].plot(x_vals, data.values, 'o')
+                        sigma = parameter.split("_")[-1]
+                        if sigma == "sigma":
+                            axes[index].set_ylabel("_".join(parameter.split("_")[:-1]) + " sigma")
+                        else:
+                            axes[index].set_ylabel(parameter)
+                        x_label = {"power": "power [dBm]", "field": "field [V]", "temperature": "temperature [mK]"}
+                        axes[index].set_xlabel(x_label[x])
 
-        for parameter in parameters:
-            ind = []
-            populate_index(values_list, 0, ind)
-            data = table[parameter].xs(ind, level=levels)
-            axes.plot(data.index, data.values)
+                        if plot_fit and parameter in self.lmfit_results.keys():
+                            if fit_label in self.lmfit_results[parameter].keys():
+                                result_dict = self.lmfit_results[parameter][fit_label]
+                                result = result_dict['result']
+                                model = result_dict['model']
+                                parameters = inspect.signature(model.model).parameters
+                                residual_kwargs = result_dict['kwargs']
+                                kwargs = {}
+                                for key in parameters.keys():
+                                    if key in residual_kwargs.keys():
+                                        kwargs.update({key: residual_kwargs[key]})
+                                if 'parallel' in kwargs.keys():
+                                    kwargs['parallel'] = bool(kwargs['parallel'])
+                                args = result_dict['args'][1:]
+                                m = model.model(result.params, *args, **kwargs)
+                                x_m = kwargs[x + "s"] if x != "temperature" else 1000 * kwargs[x + "s"]
+                                if parameter == "fr":
+                                    m *= 1e-9  # Convert to GHz
+                                axes[index].plot(x_m, m)
+        figure.tight_layout()
