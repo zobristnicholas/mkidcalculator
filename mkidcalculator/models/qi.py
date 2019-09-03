@@ -51,7 +51,7 @@ class Qi:
             xi = h * f0 / (2 * kb * temperatures)
             q_inv *= np.tanh(xi)
         if powers is not None:
-            q_inv /= np.sqrt(1.0 + 10**((powers - pc) / 10.0))
+            q_inv /= np.sqrt(1. + 10**((powers - pc) / 10.))
         return q_inv
 
     @classmethod
@@ -72,9 +72,9 @@ class Qi:
         return residual
 
     @classmethod
-    def guess(cls, data, f0, tc, alpha=0.5, bcs=BCS, temperatures=None, powers=None, fit_resonance=False,
-              fit_mb=True, fix_tc=True, fit_alpha=True, fit_tls=True, high_power=False, fit_loss=True,
-              fit_dynes=False, gamma=-1):
+    def guess(cls, data, f0, tc, alpha=0.5, bcs=BCS, temperatures=None, powers=None, gamma=1., fit_resonance=False,
+              fit_mb=True, fit_tc=False, fit_alpha=True, fit_dynes=False, fit_tls=True, fit_fd=True, fit_pc=False,
+              fit_loss=False):
         scale = 2 if fit_tls and fit_loss else 1
         # guess constant loss
         qi_inv_min = np.min(1 / data)
@@ -86,7 +86,7 @@ class Qi:
         else:
             fd = 0
         pc = np.mean(powers) if powers is not None else 0
-        dynes_sqrt = 0.1 if fit_dynes is True else np.sqrt(fit_dynes)
+        dynes_sqrt = np.sqrt(0.01) if fit_dynes is True else np.sqrt(fit_dynes)
 
         # make the parameters object (coerce all values to float to avoid ints and numpy types)
         params = lm.Parameters(usersyms={'scaled_alpha_inv': scaled_alpha_inv})
@@ -96,11 +96,11 @@ class Qi:
         # constant loss parameters
         params.add("q0_inv", value=float(q0_inv), vary=fit_loss)
         # two level system params
-        params.add("fd_scaled", value=float(np.sqrt(fd * 1e6)), vary=fit_tls)
-        params.add("pc", value=float(pc if high_power else np.inf), vary=fit_tls and high_power)
+        params.add("fd_scaled", value=float(np.sqrt(fd * 1e6)), vary=fit_tls and fit_fd)
+        params.add("pc", value=float(pc) if fit_pc else np.inf, vary=fit_tls and fit_pc)
         # Mattis-Bardeen params
-        params.add("tc", value=float(tc), vary=fit_mb and not fix_tc, min=0)
-        params.add("bcs", value=float(bcs), vary=fit_mb and fix_tc, min=0)
+        params.add("tc", value=float(tc), vary=fit_mb and fit_tc, min=0)
+        params.add("bcs", value=float(bcs), vary=fit_mb and not fit_tc, min=0)
         params.add("scaled_alpha", value=float(scaled_alpha(alpha)), vary=fit_mb and fit_alpha)
         # Dynes params
         params.add("dynes_sqrt", value=float(dynes_sqrt), vary=bool(fit_dynes))
