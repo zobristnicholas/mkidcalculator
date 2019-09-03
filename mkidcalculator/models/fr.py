@@ -223,7 +223,7 @@ class Fr:
             fit_dynes: float, boolean (optional)
                 A boolean specifying whether to vary the dynes parameter in the
                 fit. The default is False. If a float, this value is used for
-                'dynes'. If True, the 'dynes' is set to 0.1, since the fit has
+                'dynes'. If True, the 'dynes' is set to 0.01, since the fit has
                 trouble if 'dynes' is initialized to 0.
             fit_tls: boolean (optional)
                 A boolean specifying whether to vary the TLS parameters during
@@ -241,7 +241,7 @@ class Fr:
                 An object with guesses and bounds for each parameter.
         """
         pc = np.mean(powers) if powers is not None else 0
-        dynes_sqrt = 0.1 if fit_dynes is True else np.sqrt(fit_dynes)
+        dynes_sqrt = np.sqrt(0.01) if fit_dynes is True else np.sqrt(fit_dynes)
         f0 = np.max(data)
         # make the parameters object (coerce all values to float to avoid ints and numpy types)
         params = lm.Parameters(usersyms={'scaled_alpha_inv': scaled_alpha_inv})
