@@ -182,7 +182,7 @@ class Fr:
 
     @classmethod
     def guess(cls, data, tc, alpha=0.5, bcs=BCS, fd=0, powers=None, gamma=1, fit_resonance=True, fit_mb=True,
-              fix_tc=True, fit_alpha=True, fit_dynes=False, fit_tls=True, fit_fd=True, fit_pc=True):
+              fit_tc=False, fit_alpha=True, fit_dynes=False, fit_tls=True, fit_fd=True, fit_pc=False):
         """
         Guess the model parameters based on the data. Returns a
         lmfit.Parameters() object.
@@ -212,9 +212,9 @@ class Fr:
             fit_mb: boolean (optional)
                 A boolean specifying whether the Mattis-Bardeen parameters
                 should be varied during the fit. The default is True.
-            fix_tc: boolean (optional)
-                A boolean specifying whether to fix Tc in the fit. bcs is
-                varied instead. The default is True. Tc and bcs may still be
+            fit_tc: boolean (optional)
+                A boolean specifying whether to fit Tc in the fit. The default
+                is False and bcs is varied instead. Tc and bcs may still be
                 fixed if fit_mbd is False.
             fit_alpha: boolean (optional)
                 A boolean specifying whether to vary alpha during the fit. The
@@ -234,8 +234,8 @@ class Fr:
                 still not be varied if fit_tls is False.
             fit_pc: boolean (optional)
                 A boolean specifying whether to vary the critical power during
-                the fit. The default is True. pc may still not be varied if
-                fit_tls is False.
+                the fit. The default is False and the low power limit is used.
+                If True, pc may still not be varied if fit_tls is False.
         Returns:
             params: lmfit.Parameters
                 An object with guesses and bounds for each parameter.
@@ -243,21 +243,20 @@ class Fr:
         pc = np.mean(powers) if powers is not None else 0
         dynes_sqrt = 0.1 if fit_dynes is True else np.sqrt(fit_dynes)
         f0 = np.max(data)
-
         # make the parameters object (coerce all values to float to avoid ints and numpy types)
         params = lm.Parameters(usersyms={'scaled_alpha_inv': scaled_alpha_inv})
         # resonator params
         params.add("f0", value=float(f0), vary=fit_resonance, min=0)
         params.add("gamma", value=float(gamma), vary=False)
         # Mattis-Bardeen params
-        params.add("tc", value=float(tc), vary=fit_mb and not fix_tc, min=0)
-        params.add("bcs", value=float(bcs), vary=fit_mb and fix_tc, min=0)
+        params.add("tc", value=float(tc), vary=fit_mb and fit_tc, min=0)
+        params.add("bcs", value=float(bcs), vary=fit_mb and not fit_tc, min=0)
         params.add("scaled_alpha", value=float(scaled_alpha(alpha)), vary=fit_mb and fit_alpha)
         # Dynes params
         params.add("dynes_sqrt", value=float(dynes_sqrt), vary=bool(fit_dynes))
         # two level system params
         params.add("fd_scaled", value=np.sqrt(float(fd) * 1e6), vary=fit_tls and fit_fd)
-        params.add("pc", value=float(pc), vary=fit_tls and fit_pc)
+        params.add("pc", value=float(pc) if fit_pc else np.inf, vary=fit_tls and fit_pc)
         # derived params
         params.add("fd", expr='fd_scaled**2 * 1e-6')
         params.add("alpha", expr='scaled_alpha_inv(scaled_alpha)')
