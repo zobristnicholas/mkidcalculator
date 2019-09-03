@@ -54,13 +54,13 @@ class Fr:
         tc = params['tc'].value
         bcs = params['bcs'].value
         dynes = params['dynes'].value
-        gamma = params['gamma'].value
+        gamma = np.abs(params['gamma'].value)
         f0 = params['f0'].value
         # calculate dx
         sigma0 = cc.value(0, f0, tc, gamma=dynes, bcs=bcs, low_energy=low_energy, parallel=parallel)
         sigma1 = cc.value(temperatures, f0, tc, gamma=dynes, bcs=bcs, low_energy=low_energy, parallel=parallel)
-        # use full expression relating dZs / Xs to dsigma for Zs proportional to sigma**gamma
-        dx = -0.5 * alpha * gamma * np.imag((sigma1 - sigma0) * sigma0**(gamma - 1)) / np.imag(sigma0**gamma)
+        # use full expression relating dZs / Xs to dsigma for Zs proportional to sigma**-gamma
+        dx = 0.5 * alpha * gamma * np.imag((sigma1 - sigma0) / sigma0**(gamma + 1)) / np.imag(sigma0**-gamma)
         return dx
 
     @classmethod
@@ -181,7 +181,7 @@ class Fr:
         return residual
 
     @classmethod
-    def guess(cls, data, tc, alpha=0.5, bcs=BCS, fd=0, powers=None, gamma=-1, fit_resonance=True, fit_mb=True,
+    def guess(cls, data, tc, alpha=0.5, bcs=BCS, fd=0, powers=None, gamma=1, fit_resonance=True, fit_mb=True,
               fix_tc=True, fit_alpha=True, fit_dynes=False, fit_tls=True, fit_fd=True, fit_pc=True):
         """
         Guess the model parameters based on the data. Returns a
@@ -203,8 +203,8 @@ class Fr:
                 value.
             gamma: float (optional)
                 The float corresponding to the superconducting limit of the
-                resonator. The default is -1 which corresponds to the thin
-                film, local limit. -1/2 is the thick film, local limit. -1/3 is
+                resonator. The default is 1 which corresponds to the thin
+                film, local limit. 1/2 is the thick film, local limit. 1/3 is
                 the thick film, extreme anomalous limit.
             fit_resonance: boolean (optional)
                 A boolean specifying if the offset frequency should be varied
