@@ -311,6 +311,8 @@ class Sweep:
                 temperatures = table.index.get_level_values('temperature')
             powers = table.index.get_level_values("power").to_numpy()
             sigmas = table[p + '_sigma'].to_numpy()
+            if p == 'fr':
+                sigmas = sigmas * 1e9  # convert to Hz for model
             kws = {"temperatures": temperatures, "powers": powers, "sigmas": sigmas}
             if residual_kwargs is not None:
                 kws.update(residual_kwargs)
