@@ -542,7 +542,7 @@ class Sweep:
         if colorbar:
             mappable = matplotlib.cm.ScalarMappable(norm, cmap)
             mappable.set_array([])
-            kwargs = {'aspect': 30, "pad":-.05, "anchor": (0.5, 1)}
+            kwargs = {'aspect': 30, "pad": -.05, "anchor": (0.5, 1)}
             if colorbar_kwargs is not None:
                 kwargs.update(colorbar_kwargs)
             cbar = axes_list[0].figure.colorbar(mappable, ax=axes_list, **kwargs)
