@@ -588,13 +588,12 @@ class Sweep:
         powers = np.unique(self.powers)
         fields = np.unique(self.fields)
         temperatures = np.unique(self.temperature_groups)
-        powers = powers[np.logical_and.reduce([(powers >= power[ii][0]) & (powers <= power[ii][1])
-                                               for ii in range(len(power))])]
-        fields = fields[np.logical_and.reduce([(fields >= field[ii][0]) & (fields <= field[ii][1])
-                                               for ii in range(len(field))])]
-        temperatures = temperatures[np.logical_and.reduce([(temperatures >= temperature[ii][0]) &
-                                                           (temperatures <= temperature[ii][1])
-                                                           for ii in range(len(temperature))])]
+        powers = powers[np.all([(powers >= power[ii][0]) & (powers <= power[ii][1])
+                                for ii in range(len(power))], axis=0)]
+        fields = fields[np.all([(fields >= field[ii][0]) & (fields <= field[ii][1])
+                                for ii in range(len(field))], axis=0)]
+        temperatures = temperatures[np.all([(temperatures >= temperature[ii][0]) & (temperatures <= temperature[ii][1])
+                                            for ii in range(len(temperature))], axis=0)]
         values_dict = {"power": powers, "field": fields, "temperature": temperatures}
         table = self.loop_parameters[data_label]
 
