@@ -255,8 +255,8 @@ class Fr:
         # Dynes params
         params.add("dynes_sqrt", value=float(dynes_sqrt), vary=bool(fit_dynes))
         # two level system params
-        params.add("fd_scaled", value=np.sqrt(float(fd) * 1e6), vary=fit_tls and fit_fd)
-        params.add("pc", value=float(pc) if fit_pc else np.inf, vary=fit_tls and fit_pc)
+        params.add("fd_scaled", value=float(np.sqrt(fd * 1e6)), vary=fit_tls and fit_fd)
+        params.add("pc", value=float(pc if fit_pc else np.inf), vary=fit_tls and fit_pc)
         # derived params
         params.add("fd", expr='fd_scaled**2 * 1e-6')
         params.add("alpha", expr='scaled_alpha_inv(scaled_alpha)')

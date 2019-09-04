@@ -264,7 +264,7 @@ class Qi:
         params.add("q0_inv", value=float(q0_inv), vary=fit_loss)
         # two level system params
         params.add("fd_scaled", value=float(np.sqrt(fd * 1e6)), vary=fit_tls and fit_fd)
-        params.add("pc", value=float(pc) if fit_pc else np.inf, vary=fit_tls and fit_pc)
+        params.add("pc", value=float(pc if fit_pc else np.inf), vary=fit_tls and fit_pc)
         # Mattis-Bardeen params
         params.add("tc", value=float(tc), vary=fit_mb and fit_tc, min=0)
         params.add("bcs", value=float(bcs), vary=fit_mb and not fit_tc, min=0)
