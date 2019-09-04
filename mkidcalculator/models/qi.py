@@ -1,3 +1,4 @@
+import warnings
 import numpy as np
 import lmfit as lm
 import scipy.constants as sc
@@ -129,13 +130,16 @@ class Qi:
                 multiprocessing.cpu_count() CPUs. Only used if low_energy is
                 False.
         Returns:
-            qi: numpy.ndarray
+            q: numpy.ndarray
                 The quality factor.
         """
         q_inv = cls.mattis_bardeen(params, temperatures, low_energy=low_energy, parallel=parallel)
         q_inv += cls.two_level_systems(params, temperatures, powers)
         q_inv += cls.constant_loss(params)
-        return 1 / q_inv
+        with warnings.catch_warnings():
+            warnings.simplefilter("ignore", RuntimeWarning)
+            q = 1 / q_inv
+        return q
 
     @classmethod
     def residual(cls, params, data, temperatures=None, powers=None, sigmas=None, low_energy=False, parallel=False):
