@@ -569,7 +569,9 @@ class Sweep:
         return axes_list
 
     def plot_parameters(self, parameters, x="power", data_label="best", n_rows=1, power=None, field=None,
-                        temperature=None, plot_fit=False, fit_label="best", axes=None):
+                        temperature=None, n_sigma=2, plot_fit=False, fit_label="best", axes=None):
+        if isinstance(parameters, str):
+            parameters = [parameters]
         power, field, temperature = create_ranges(power, field, temperature)
         if axes is None:
             from matplotlib import pyplot as plt
@@ -603,6 +605,10 @@ class Sweep:
             for ind1, value1 in enumerate(values_dict[levels[0]]):
                 for ind2, value2 in enumerate(values_dict[levels[1]]):
                     data = table[parameter].xs((value1, value2), level=levels)
+                    try:
+                        error_bars = table[parameter + "_sigma"].xs((value1, value2), level=levels)
+                    except KeyError:
+                        error_bars = None
                     if len(data.values):
                         x_vals = data.index
                         if x == "temperature":
@@ -610,7 +616,10 @@ class Sweep:
                                 x_vals = table["temperature"].xs((value1, value2), level=levels) * 1000
                             except KeyError:
                                 x_vals = data.index * 1000
-                        axes[index].plot(x_vals, data.values, 'o')
+                        if error_bars is not None:
+                            axes[index].errorbar(x_vals, data.values, error_bars.values * n_sigma, fmt='o')
+                        else:
+                            axes[index].plot(x_vals, data.values, 'o')
                         sigma = parameter.split("_")[-1]
                         if sigma == "sigma":
                             axes[index].set_ylabel("_".join(parameter.split("_")[:-1]) + " sigma")
