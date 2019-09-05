@@ -174,7 +174,7 @@ def get_loop_fit_info(loops, label='best', parameters=("fr", "qi", "q0", "chi2")
 
 
 def plot_parameter_hist(parameter, title=None, x_label=True, y_label=True, label_kwargs=None, tick_kwargs=None,
-                        tighten=True, axes=None, **kwargs):
+                        tighten=True, return_bin=False, axes=None, **kwargs):
     """
     Plot a parameter histogram.
     Args:
@@ -199,6 +199,9 @@ def plot_parameter_hist(parameter, title=None, x_label=True, y_label=True, label
         tighten: boolean (optional)
             Whether or not to apply figure.tight_layout() at the end of the
             plot. The default is True.
+        return_bin: boolean (optional)
+            Whether or not to include the binned information in the returned
+            values. The default is False and only the axes are returned.
         axes: matplotlib.axes.Axes class
             An Axes class on which to put the plot. The default is None and
             a new figure is made.
@@ -207,6 +210,10 @@ def plot_parameter_hist(parameter, title=None, x_label=True, y_label=True, label
         Returns:
             axes: matplotlib.axes.Axes class
                 An Axes class with the plotted data.
+            centers: numpy.ndarray
+                The histogram bin centers. Only returned if return_bin is True.
+            counts: numpy.ndarray
+                The histogram bin counts. Only returned if return_bin is True.
     """
     if axes is None:
         from matplotlib import pyplot as plt
@@ -216,7 +223,7 @@ def plot_parameter_hist(parameter, title=None, x_label=True, y_label=True, label
     kws = {"bins": 50}
     if kwargs:
         kws.update(kwargs)
-    axes.hist(parameter, **kws)
+    counts, edges, _ = axes.hist(parameter, **kws)
     axes.set_xlim(left=0)
     kws = {}
     if label_kwargs is not None:
@@ -231,11 +238,14 @@ def plot_parameter_hist(parameter, title=None, x_label=True, y_label=True, label
         axes.set_title(title)
     if tighten:
         figure.tight_layout()
+    if return_bin:
+        centers = 0.5 * (edges[1:] + edges[:-1])
+        return axes, centers, counts
     return axes
 
 
 def plot_parameter_vs_f(parameter, f, title=None, x_label=True, y_label=True, label_kwargs=None, tick_kwargs=None,
-                        tighten=True, bins=30, extend=True, axes=None, **kwargs):
+                        tighten=True, bins=30, extend=True, return_bin=False, axes=None, **kwargs):
     """
     Plot a parameter vs frequency.
     Args:
@@ -268,6 +278,9 @@ def plot_parameter_vs_f(parameter, f, title=None, x_label=True, y_label=True, la
             Determines whether or not to extend the data so that there is a
             bin with zero values on either side of the frequency range. The
             default is True.
+        return_bin: boolean (optional)
+            Whether or not to include the binned information in the returned
+            values. The default is False and only the axes are returned.
         axes: matplotlib.axes.Axes class
             An Axes class on which to put the plot. The default is None and
             a new figure is made.
@@ -276,6 +289,10 @@ def plot_parameter_vs_f(parameter, f, title=None, x_label=True, y_label=True, la
         Returns:
             axes: matplotlib.axes.Axes class
                 An Axes class with the plotted data.
+            centers: numpy.ndarray
+                The bin centers. Only returned if return_bin is True.
+            medians: numpy.ndarray
+                The median values in each bin. Only returned if return_bin is True.
     """
     if axes is None:
         from matplotlib import pyplot as plt
@@ -285,21 +302,21 @@ def plot_parameter_vs_f(parameter, f, title=None, x_label=True, y_label=True, la
     kws = {"where": "mid"}
     if kwargs:
         kws.update(kwargs)
-    bin_edges = np.linspace(f.min(), f.max(), bins)
-    bin_centers = 0.5 * (bin_edges[1:] + bin_edges[:-1])
+    edges = np.linspace(f.min(), f.max(), bins)
+    centers = 0.5 * (edges[1:] + edges[:-1])
     medians = np.empty(bins - 1)
     with warnings.catch_warnings():
         warnings.simplefilter("ignore", category=RuntimeWarning)  # median of empty slice
         for ii in range(len(medians) - 1):
-            medians[ii] = np.median(parameter[(f >= bin_edges[ii]) & (f < bin_edges[ii + 1])])
-        medians[-1] = np.median(parameter[(f >= bin_edges[-2]) & (f <= bin_edges[-1])])  # last bin is fully closed
+            medians[ii] = np.median(parameter[(f >= edges[ii]) & (f < edges[ii + 1])])
+        medians[-1] = np.median(parameter[(f >= edges[-2]) & (f <= edges[-1])])  # last bin is fully closed
     medians[np.isnan(medians)] = 0
     if extend:
-        dx = bin_centers[1] - bin_centers[0]
-        bin_centers = np.hstack([bin_centers[0] - dx, bin_centers, bin_centers[-1] + dx])
+        dx = centers[1] - centers[0]
+        centers = np.hstack([centers[0] - dx, centers, centers[-1] + dx])
         medians = np.hstack([0, medians, 0])
-    axes.step(bin_centers, medians, **kws)
-    axes.set_xlim(bin_centers.min(), bin_centers.max())
+    axes.step(centers, medians, **kws)
+    axes.set_xlim(centers.min(), centers.max())
     axes.set_ylim(bottom=0)
     kws = {}
     if label_kwargs is not None:
@@ -314,6 +331,8 @@ def plot_parameter_vs_f(parameter, f, title=None, x_label=True, y_label=True, la
         axes.set_title(title)
     if tighten:
         figure.tight_layout()
+    if return_bin:
+        return axes, centers, medians
     return axes
 
 
