@@ -53,10 +53,8 @@ class Qi:
         gamma = np.abs(params['gamma'].value)
         f0 = params['f0'].value
         # calculate Qinv
-        sigma0 = cc.value(0, f0, tc, gamma=dynes, bcs=bcs, low_energy=low_energy, parallel=parallel)
-        sigma1 = cc.value(temperatures, f0, tc, gamma=dynes, bcs=bcs, low_energy=low_energy, parallel=parallel)
-        q_inv = -alpha * gamma * np.real((sigma1 - sigma0) / sigma0**(gamma + 1)) / np.imag(sigma0**-gamma)
-        q_inv += alpha * np.real(sigma0**-gamma) / np.imag(sigma0**-gamma)  # Qinv(0)
+        sigma = cc.value(temperatures, f0, tc, gamma=dynes, bcs=bcs, low_energy=low_energy, parallel=parallel)
+        q_inv = alpha * np.real(sigma**-gamma) / np.imag(sigma**-gamma)
         return q_inv
 
     @classmethod
