@@ -1530,8 +1530,8 @@ class Loop:
         finalize_axes(axes, legend=True, tighten=True)
         return axes
 
-    def plot_spectra(self, pulse_indices=None, x_limits=None, second_x_axis=False, n_bins=None, x_label=None,
-                     y_label=None, label_kwargs=None, legend=True, legend_kwargs=None, tick_kwargs=None,
+    def plot_spectra(self, pulse_indices=None, plot_kwargs=None, hist_kwargs=None, x_limits=None, second_x_axis=False,
+                     x_label=None, y_label=None, label_kwargs=None, legend=True, legend_kwargs=None, tick_kwargs=None,
                      tighten=True, axes=None):
         """
         Plot the spectrum of the pulse responses in the loop.
@@ -1539,14 +1539,20 @@ class Loop:
             pulse_indices: iterable of integers (optional)
                 Indices of pulse objects in loop.pulses to include in the total
                 spectrum. The default is None and all pulses are used.
+            plot_kwargs: dictionary or list of dictionaries
+                Keyword arguments for axes.plot(). The default is None which
+                uses the default options. Keywords in this dictionary override
+                the default options. If a list of dictionaries is given, the
+                order corresponds to pulse_indices.
+            hist_kwargs: dictionary
+                Keyword arguments for axes.hist(). The default is None which
+                uses the default options. Keywords in this dictionary override
+                the default options.
             x_limits: length 2 iterable of floats
                 Bounds on the x-axis
             second_x_axis: boolean (optional)
                 If True, a second x-axis is plotted below the first with the
                 wavelength values. The default is False.
-            n_bins: integer (optional)
-                The number of bins to use in the histogram. The default is
-                None, and the best number of bins is guessed.
             x_label: string
                 The label for the x axis. The default is None which uses the
                 default label. If x_label evaluates to False, parameter_kwargs
@@ -1603,20 +1609,25 @@ class Loop:
                 pass
         energies = np.concatenate(energies)
         max_energy, min_energy = energies.max(), energies.min()
-        if n_bins is None:
-            n_bins = 10 * int((max_energy - min_energy) / min_bandwidth)
 
         # check if calibrated
         calibrated = pulses[0].spectrum["calibrated"]
 
         # setup axes and plot data
-        setup_axes(axes, x_label, y_label, label_kwargs=label_kwargs,
-                   x_label_default='energy [eV]' if calibrated else "response [radians]",
-                   y_label_default='probability density')
-        axes.hist(energies, n_bins, density=True)
+        figure, axes = setup_axes(axes, x_label, y_label, label_kwargs=label_kwargs,
+                                  x_label_default='energy [eV]' if calibrated else "response [radians]",
+                                  y_label_default='probability density')
+        kwargs = {"bins": 10 * int((max_energy - min_energy) / min_bandwidth), "density": True}
+        if hist_kwargs is not None:
+            kwargs.update(hist_kwargs)
+        axes.hist(energies, **kwargs)
 
         # plot the PDFs
         label = ""
+        if plot_kwargs is None:
+            plot_kwargs = {}
+        if isinstance(plot_kwargs, dict):
+            plot_kwargs = [plot_kwargs] * len(pulses)
         for index, pulse in enumerate(pulses):
             # get the needed data from the spectrum dictionary
             pdf = pulse.spectrum["pdf"]
@@ -1628,7 +1639,9 @@ class Loop:
                 label = "{:.0f} nm: R = {:.2f}".format(ev_nm_convert(pulse.energies[0]), pulse.resolving_power)
             else:
                 label = ""
-            axes.plot(xx, norms[index] * pdf(xx) / np.sum(norms), label=label)
+            kwargs = {"label": label}
+            kwargs.update(plot_kwargs[index])
+            axes.plot(xx, norms[index] * pdf(xx) / np.sum(norms), **kwargs)
 
         # set x axis limits
         if x_limits is not None:
