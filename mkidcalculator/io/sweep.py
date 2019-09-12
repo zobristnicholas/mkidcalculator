@@ -395,8 +395,8 @@ class Sweep:
         return original_label, result_dict
 
     def plot_loops(self, power=None, field=None, temperature=None, color_data='temperature', colormap=None,
-                   colorbar=True, colorbar_kwargs=None, colorbar_label=True, colorbar_label_kwargs=None,
-                   colorbar_tick_kwargs=None, **loop_kwargs):
+                   colorbar=True, colorbar_kwargs=None, colorbar_label=True, colorbar_limits=None,
+                   colorbar_label_kwargs=None, colorbar_tick_kwargs=None, **loop_kwargs):
         """
         Plot a subset of the loops in the sweep by combining multiple
         loop.plot() calls.
@@ -433,6 +433,9 @@ class Sweep:
                 default colorbar label. If it is a string, that string is used
                 as the colorbar label. If False, colorbar_label_kwargs is
                 ignored. The default is True.
+            colorbar_limits: tuple of floats
+                The limits of the colorbar to use. The default is None and the
+                maximum and minimum of color_data is used.
             colorbar_label_kwargs: dictionary
                 Keyword arguments for the colorbar in colorbar.set_label(). The
                 default is None which uses default options. Keywords in this
@@ -466,7 +469,9 @@ class Sweep:
             cdata = self.powers[::-1]
         else:
             raise ValueError("'{}' is not a valid value of color_data.".format(color_data))
-        norm = matplotlib.colors.Normalize(vmin=min(cdata), vmax=max(cdata))
+        if colorbar_limits is None:
+            colorbar_limits = (min(cdata), max(cdata))
+        norm = matplotlib.colors.Normalize(vmin=colorbar_limits[0], vmax=colorbar_limits[1])
         n_plots = 3 if 'plot_types' not in loop_kwargs.keys() else len(loop_kwargs['plot_types'])
         axes_list = None
         # format title
@@ -544,7 +549,7 @@ class Sweep:
         if colorbar:
             mappable = matplotlib.cm.ScalarMappable(norm, cmap)
             mappable.set_array([])
-            kwargs = {'aspect': 30, "pad": -.05, "anchor": (0.5, 1)}
+            kwargs = {'aspect': 15}
             if colorbar_kwargs is not None:
                 kwargs.update(colorbar_kwargs)
             cbar = axes_list[0].figure.colorbar(mappable, ax=axes_list, **kwargs)
