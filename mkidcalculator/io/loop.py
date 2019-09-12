@@ -755,7 +755,7 @@ class Loop:
         n_columns = int(np.ceil(n_plots / n_rows))
         if axes_list is None:
             import matplotlib.pyplot as plt
-            figure, axes_list = plt.subplots(n_rows, n_columns, figsize=(4.3 * n_columns, 4.0 * n_rows))
+            figure, axes_list = plt.subplots(n_rows, n_columns, figsize=(4.3 * n_columns, 4.0 * n_rows), squeeze=False)
             axes_list = list(axes_list.flatten())
         else:
             if isinstance(axes_list, np.ndarray):
