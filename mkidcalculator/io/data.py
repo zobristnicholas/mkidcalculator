@@ -211,7 +211,7 @@ def analogreadout_sweep(file_name, channel=None):
             A list of keyword arguments to send to Loop.load().
     """
     directory = os.path.dirname(file_name)
-    npz = np.load(file_name)
+    npz = np.load(file_name, allow_pickle=True)
     loop_kwargs = []
     for loop_name, parameters in npz['parameter_dict'].item().items():
         loop_file_name = os.path.join(directory, loop_name)
