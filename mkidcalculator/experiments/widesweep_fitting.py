@@ -145,7 +145,8 @@ def widesweep_fit(f, z, df, fit_type=basic_fit, find_resonators_kwargs=None, loo
     return loops
 
 
-def get_loop_fit_info(loops, label='best', parameters=("fr", "qi", "q0", "chi2")):
+def get_loop_fit_info(loops, label='best', parameters=("fr", "qi", "q0", "chi2"), bounds=None, errorbars=None,
+                      success=None):
     """
     Get fit information from a list of Loops
     Args:
@@ -156,6 +157,24 @@ def get_loop_fit_info(loops, label='best', parameters=("fr", "qi", "q0", "chi2")
         parameters: tuple of strings
             The fit parameters to report. "chi2" can be used to retrieve
             the reduced chi squared values.
+        bounds: tuple of numbers or tuples
+            The bounds for the parameters. It must be a tuple of the same
+            length as the parameters keyword argument. Each element is either
+            an upper bound on the parameter or a tuple, e.g. (lower bound,
+            upper bound). None can be used as a placeholder to skip a
+            parameter. The default is None and no bounds are used.
+        errorbars: boolean
+            If errorbars is True, only data from loop fits that could compute
+            errorbars on the fit parameters is included. If errorbars is False,
+            only data from loop fits that could not compute errorbars on the
+            fit parameters is included. The default is None, and no filtering
+            on the errorbars is done.
+        success: boolean
+            If success is True, only data from successful loop fits is
+            included. If False, only data from failed loop fits is
+            included. The default is None, and no filtering on fit success is
+            done. Note: fit success is typically a bad indicator on fit
+            quality. It only ever fails when something really bad happens.
     Returns:
         outputs: tuple of numpy.ndarray objects
             The outputs in the same order as parameters.
@@ -164,12 +183,33 @@ def get_loop_fit_info(loops, label='best', parameters=("fr", "qi", "q0", "chi2")
     for parameter in parameters:
         outputs.append([])
         for loop in loops:
+            result = loop.lmfit_results[label]['result']
+            if errorbars is not None and result.errorbars != errorbars:
+                continue  # skip if wrong errorbars setting
+            if success is not None and result.success != success:
+                continue  # skip if wrong success setting
             if parameter == "chi2":
-                outputs[-1].append(loop.lmfit_results[label]['result'].redchi)
+                outputs[-1].append(result.redchi)
             else:
-                outputs[-1].append(loop.lmfit_results[label]['result'].params[parameter].value)
+                outputs[-1].append(result.params[parameter].value)
+    # turn outputs into a list of numpy arrays
     for index, output in enumerate(outputs):
         outputs[index] = np.array(output)
+    # format bounds if None
+    if bounds is None:
+        bounds = [None] * len(outputs)
+    # make filtering logic
+    logic = np.ones(outputs[-1].shape, dtype=bool)
+    for index, output in enumerate(outputs):
+        if bounds[index] is None:
+            continue
+        elif isinstance(bounds[index], (list, tuple)):
+            logic = logic & (output >= bounds[index][0]) & (output <= bounds[index][1])
+        else:
+            logic = logic & (output <= bounds[index])
+    # filter outputs
+    for index, output in enumerate(outputs):
+        outputs[index] = output[logic]
     return tuple(outputs)
 
 
@@ -336,8 +376,8 @@ def plot_parameter_vs_f(parameter, f, title=None, x_label=True, y_label=True, la
     return axes
 
 
-def plot_widesweep_summary(loops, qi_cutoff=np.inf, q0_cutoff=np.inf, chi2_cutoff=np.inf, title=True, tighten=True,
-                           label='best', plot_kwargs=None, figure=None):
+def plot_widesweep_summary(loops, qi_cutoff=None, q0_cutoff=None, chi2_cutoff=None, success=True, errorbars=True,
+                           title=True, tighten=True, label='best', plot_kwargs=None, figure=None):
     """
     Plot a summary of a widesweep fit.
     Args:
@@ -345,13 +385,29 @@ def plot_widesweep_summary(loops, qi_cutoff=np.inf, q0_cutoff=np.inf, chi2_cutof
             The fitted loops to use for the summary plot
         qi_cutoff: float (optional)
             The maximum Qi to use in the summary plot. The default is
-            numpy.inf.
+            None and no cutoff is used. A tuple may be used to enforce a lower
+            bound.
         q0_cutoff: float (optional)
             The maximum Q0 to use in the summary plot. The default is
-            numpy.inf.
+            None and no cutoff is used. A tuple may be used to enforce a lower
+            bound.
         chi2_cutoff: float (optional)
             The maximum chi2 to use in the summary plot. The default is
-            numpy.inf.
+            None and no cutoff is used. A tuple may be used to enforce a lower
+            bound.
+        errorbars: boolean
+            If errorbars is True, only data from loop fits that could compute
+            errorbars on the fit parameters is included. If errorbars is False,
+            only data from loop fits that could not compute errorbars on the
+            fit parameters is included. The default is True. None may be used
+            to enforce no filtering on the errorbars.
+        success: boolean
+            If success is True, only data from successful loop fits is
+            included. If False, only data from failed loop fits is
+            included. The default is True. None may be used
+            to enforce no filtering on success. Note: fit success is typically
+            a bad indicator on fit quality. It only ever fails when something
+            really bad happens.
         title: string or boolean (optional)
             The title to use for the summary plot. The default is True and the
             default title will be applied. If False, no title is applied.
@@ -373,12 +429,8 @@ def plot_widesweep_summary(loops, qi_cutoff=np.inf, q0_cutoff=np.inf, chi2_cutof
             The figure object for the plot.
     """
     # get the data
-    fr, qi, q0, chi2 = get_loop_fit_info(loops, label=label)
-    logic = (qi <= qi_cutoff) & (q0 <= q0_cutoff) & (chi2 <= chi2_cutoff)
-    fr = fr[logic]
-    qi = qi[logic]
-    q0 = q0[logic]
-    chi2 = chi2[logic]
+    fr, qi, q0, chi2 = get_loop_fit_info(loops, label=label, parameters=("fr", "qi", "q0", "chi2"), success=success,
+                                         bounds=(None, qi_cutoff, q0_cutoff, chi2_cutoff), errorbars=errorbars)
 
     # create figure if needed
     if figure is None:
