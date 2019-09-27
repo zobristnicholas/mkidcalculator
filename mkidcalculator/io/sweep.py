@@ -516,7 +516,7 @@ class Sweep:
                          (any(field[i][0] <= loop.field <= field[i][1] for i in range(len(field))) or
                           np.isnan(loop.field)) and
                          (any(temperature[i][0] <= loop.temperature <= temperature[i][1]
-                             for i in range(len(temperature))) or np.isnan(loop.temperature)))
+                          for i in range(len(temperature))) or np.isnan(loop.temperature)))
             if condition:
                 # default plot key words
                 if plot_index == 0:
