@@ -511,10 +511,12 @@ class Sweep:
         # make a plot for each loop
         plot_index = 0
         for index, loop in enumerate(self.loops[::-1]):
-            condition = (any(power[i][0] <= loop.power <= power[i][1] for i in range(len(power))) and
-                         any(field[i][0] <= loop.field <= field[i][1] for i in range(len(field))) and
-                         any(temperature[i][0] <= loop.temperature <= temperature[i][1]
-                             for i in range(len(temperature))))
+            condition = ((any(power[i][0] <= loop.power <= power[i][1] for i in range(len(power))) or 
+                          np.isnan(loop.power)) and
+                         (any(field[i][0] <= loop.field <= field[i][1] for i in range(len(field))) or
+                          np.isnan(loop.field)) and
+                         (any(temperature[i][0] <= loop.temperature <= temperature[i][1]
+                             for i in range(len(temperature))) or np.isnan(loop.temperature)))
             if condition:
                 # default plot key words
                 if plot_index == 0:
