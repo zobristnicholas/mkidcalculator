@@ -1,6 +1,56 @@
+import arviz
 import numpy as np
 import scipy.stats as stats
 import scipy.constants as sc
+
+ONE_DB = 10**(1/10)
+
+
+def noise_monte_carlo(n_samples, f, t_hot, t_cold, s0, s1, s2=None, s3=None, gp=None, lh=1, lp=1, z0=50, lh_est=ONE_DB,
+                      lp_est=ONE_DB, t_hot_err=0.1, t_cold_err=0.1, summarize=False):
+    _check_inputs(s2, s3, gp)
+    # get the maximum likelihood result
+    mle = compute_noise_numbers(f, t_hot, t_cold, s0, s1, s2=s2, s3=s3, gp=gp, lh=lh, lp=lp, z0=z0)
+    # setup output keys
+    keys = ['gh', 'sh', 'ah']
+    if s2 is not None:
+        keys += ['si', 'ai', 'gh_sys', 'ah_sys']
+    if gp is not None:
+        keys += ['sp', 'ap', 'gp_sys', 'ap_sys']
+    result = {}
+    # populate output dictionary
+    for key in keys:
+        result[key] = np.empty(n_samples)
+    # Monte-Carlo loop
+    for index in range(n_samples):
+        t_hot_mc = np.random.normal(t_hot, t_hot * t_hot_err)
+        t_cold_mc = np.random.normal(t_cold, t_cold * t_cold_err)
+        lh_mc = np.random.exponential(lh_est - lh) + lh
+        lp_mc = np.random.exponential(lp_est - lp) + lp
+        mc = compute_noise_numbers(f, t_hot_mc, t_cold_mc, s0, s1, s2=s2, s3=s3, gp=gp, lh=lh_mc, lp=lp_mc, z0=z0)
+        for key in keys:
+            result[key][index] = np.mean(mc[key])
+    # print summary
+    if summarize:
+        p_sigma = 1 - 2 * stats.norm.cdf(-n_sigma)
+        loc, interval1 = noise_estimate(mle['ah'], prior=0.5, n_sigma=1.)
+        interval2 = arviz.hpd(result['ap_sys'][result['ap_sys'] >= 1], p_sigma)
+        noise_report(loc, label="HEMT noise number: ", statistical=interval1, systematic=interval2)
+        if s2 is not None:
+            loc, interval1 = noise_estimate(mle['ai'], prior=0.5, n_sigma=1.)
+            interval2 = arviz.hpd(result['ai'][result['ai'] >= 0.5], p_sigma)
+            noise_report(loc, label="Input noise number: ", statistical=interval1, systematic=interval2)
+            loc, interval1 = noise_estimate(mle['ah_sys'], prior=1, n_sigma=1.)
+            interval2 = arviz.hpd(result['ah_sys'][result['ah_sys'] >= 1], p_sigma)
+            noise_report(loc, label="System noise number: ", statistical=interval1, systematic=interval2)
+        if gp is not None:
+            loc, interval1 = noise_estimate(mle['ap'], prior=0.5, n_sigma=1.)
+            interval2 = arviz.hpd(result['ap'][result['ap'] >= 0.5], p_sigma)
+            noise_report(loc, label="Para-amp noise number: ", statistical=interval1, systematic=interval2)
+            loc, interval1 = noise_estimate(mle['ap_sys'], prior=1, n_sigma=1.)
+            interval2 = arviz.hpd(result['ap_sys'][result['ap_sys'] >= 1], p_sigma)
+            noise_report(loc, label="Para-amp system noise number: ", statistical=interval1, systematic=interval2)
+    return result
 
 
 def compute_noise_numbers(f, t_hot, t_cold, s0, s1, s2=None, s3=None, gp=None, lh=1, lp=1, z0=50, summarize=False):
@@ -94,9 +144,7 @@ def compute_noise_numbers(f, t_hot, t_cold, s0, s1, s2=None, s3=None, gp=None, l
                     The system noise number with the parametric amplifier in
                     units of quanta.
     """
-    # check inputs
-    if (s3 is not None or gp is not None) and (s2 is None or s3 is None or gp is None):
-        raise ValueError("'s2', 's3', and 'gp' must be provided if either 's2' or 'gp' is provided")
+    _check_inputs(s2, s3, gp)
     # calibration parameters
     s_hot = 2 * sc.h * f * z0 / np.tanh(sc.h * f / (2 * sc.k * t_hot))
     s_cold = 2 * sc.h * f * z0 / np.tanh(sc.h * f / (2 * sc.k * t_cold))
@@ -107,7 +155,7 @@ def compute_noise_numbers(f, t_hot, t_cold, s0, s1, s2=None, s3=None, gp=None, l
     results = {'gh': gh, 'sh': sh, 'ah': ah}
     if summarize:
         loc, interval = noise_estimate(ah, prior=0.5, n_sigma=1.)
-        noise_report(loc, label="HEMT noise number: ", statistical=interval, return_string=False)
+        noise_report(loc, label="HEMT noise number: ", statistical=interval)
     # Input noise
     if s2 is not None:
         si = ((s2 - s1) * s_hot + (s0 - s2) * s_cold) / (s0 - s1) * lp
@@ -117,37 +165,37 @@ def compute_noise_numbers(f, t_hot, t_cold, s0, s1, s2=None, s3=None, gp=None, l
         results.update({'si': si, 'ai': ai, 'gh_sys': gh_sys, 'ah_sys': ah_sys})
         if summarize:
             loc, interval = noise_estimate(ai, prior=0.5, n_sigma=1.)
-            noise_report(loc, label="Input noise number: ", statistical=interval, return_string=False)
-            loc, interval = noise_estimate(ah_sys, prior=0.5, n_sigma=1.)
-            noise_report(loc, label="System noise number: ", statistical=interval, return_string=False)
+            noise_report(loc, label="Input noise number: ", statistical=interval)
+            loc, interval = noise_estimate(ah_sys, prior=1, n_sigma=1.)
+            noise_report(loc, label="System noise number: ", statistical=interval)
     # para-amp noise
     if gp is not None:
         sp = (((s3 - s1 - gp * (s2 - s1)) * s_hot +
                (s0 - s3 - gp * (s0 - s2)) * s_cold) / (gp * (s0 - s1))) * lp
         ap = sp / (4 * sc.h * f * z0)
         gp_sys = gh / lh * gp / lp  # system gain with para-amp on
-        ap_sys = s2 / (4 * sc.h * f * z0 * gp_sys)  # total system noise with para-amp on
+        ap_sys = s3 / (4 * sc.h * f * z0 * gp_sys)  # total system noise with para-amp on
         results.update({'sp': sp, 'ap': ap, 'gp_sys': gp_sys, 'ap_sys': ap_sys})
         if summarize:
             loc, interval = noise_estimate(ap, prior=0.5, n_sigma=1.)
-            noise_report(loc, label="Para-amp noise number: ", statistical=interval, return_string=False)
-            loc, interval = noise_estimate(ap_sys, prior=0.5, n_sigma=1.)
-            noise_report(loc, label="Para-amp system noise number: ", statistical=interval, return_string=False)
+            noise_report(loc, label="Para-amp noise number: ", statistical=interval)
+            loc, interval = noise_estimate(ap_sys, prior=1, n_sigma=1.)
+            noise_report(loc, label="Para-amp system noise number: ", statistical=interval)
     return results
 
 
-def noise_estimate(noise, prior=0., n_sigma=1.):
+def noise_estimate(noise, prior=None, n_sigma=1.):
     """
     Compute an estimate of the average noise and a confidence interval from
-    multiple measurements.
+    multiple measurements. The measurements are assumed to be drawn from a
+    Gaussian distribution with unknown mean and variance.
     Args:
         noise: np.ndarray
             Multiple measurements of the noise.
         prior: float (optional)
             A lower bound on the possible values of the result. Standard noise
             cannot be below 0, for example. Amplifier noise in units of quanta
-            cannot be below 0.5. The default is 0. To disable the prior, use
-            None.
+            cannot be below 0.5. The default is None and no prior is used.
         n_sigma: float (optional)
             The number of sigma to use for the confidence interval. The sigma
             number corresponds to the area under the posterior distribution in
@@ -166,12 +214,16 @@ def noise_estimate(noise, prior=0., n_sigma=1.):
     scale = np.std(noise, ddof=1) / np.sqrt(n)  # estimate of gaussian standard deviation
     p_sigma = 1 - 2 * stats.norm.cdf(-n_sigma)  # gaussian probability between -n_sigma and n_sigma
     df = n - 1  # degrees of freedom
-    # posterior probability that the result is less than the prior (1/2 for amplifiers, 0 otherwise)
-    less_than = stats.t.cdf(prior, df, loc, scale)
-    # compute the interval corresponding to the sigma level adjusted for leaving out some area less than the prior
-    error = stats.t.ppf(p_sigma * (1 - less_than) + less_than, df, loc, scale)
-    interval = (max(prior, loc - error), loc + error)
-    return loc, interval
+    estimate = loc if loc > prior else prior  # the maximum likelihood value
+    # t distribution probability that the result is less than the prior (1/2 for amplifiers, 0 otherwise)
+    p_less_than = stats.t.cdf(prior, df, loc, scale)
+    # interval around the center of the rescaled t distribution containing p_sigma
+    interval = stats.t.interval(p_sigma * (1 - p_less_than), df, loc, scale)
+    # use a one-sided interval if the lower bound is lower than the prior
+    if interval[0] < prior:
+        error = stats.t.ppf(p_sigma * (1 - p_less_than) + p_less_than, df, loc, scale)  # ppf = inverse cdf
+        interval = (prior, error)
+    return estimate, interval
 
 
 def noise_report(loc, label="", statistical=None, systematic=None, return_string=False):
@@ -198,14 +250,19 @@ def noise_report(loc, label="", statistical=None, systematic=None, return_string
             return_string is False.
     """
     loc_string = "{:.3f}"
-    statistical_string = ", (+{:.3f}, -{:.3f}) statistical"
-    systematic_string = ", (+{:.3f}, -{:.3f}) systematic"
+    statistical_string = ", ({:.3f}, {:.3f}) statistical"
+    systematic_string = ", ({:.3f}, {:.3f}) systematic"
     string = label + loc_string.format(loc)
     if statistical is not None:
-        string += statistical_string.format(statistical[0], statistical[1])
+        string += statistical_string.format(statistical[0] - loc, statistical[1] - loc)
     if systematic is not None:
-        string += systematic_string.format(systematic[0], systematic[1])
+        string += systematic_string.format(systematic[0] - loc, systematic[1] - loc)
     if return_string:
         return string
     else:
         print(string)
+
+
+def _check_inputs(s2, s3, gp):
+    if (s3 is not None or gp is not None) and (s2 is None or s3 is None or gp is None):
+        raise ValueError("'s2', 's3', and 'gp' must be provided if either 's2' or 'gp' is provided")
