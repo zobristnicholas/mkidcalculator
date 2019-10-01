@@ -489,6 +489,7 @@ class Noise:
             axes.set_yscale('log')
         axes.legend()
         figure.tight_layout()
+        return axes
 
     def _set_directory(self, directory):
         self._directory = directory
