@@ -4,7 +4,7 @@ import numpy as np
 
 from mkidcalculator.models import S21
 from mkidcalculator.io.loop import Loop
-from mkidcalculator.io.sweep import Sweep
+from mkidcalculator.io.resonator import Resonator
 
 log = logging.getLogger(__name__)
 log.addHandler(logging.NullHandler())
@@ -24,17 +24,17 @@ def _load_loop(loop, **load_kwargs):
     return loop
 
 
-def _load_sweep(sweep, **load_kwargs):
-    # convert file name to sweep if needed
-    if isinstance(sweep, str):
+def _load_resonator(resonator, **load_kwargs):
+    # convert file name to resonator if needed
+    if isinstance(resonator, str):
         if load_kwargs:
-            sweep = Sweep.from_config(sweep, **load_kwargs)
+            resonator = Resonator.from_config(resonator, **load_kwargs)
         else:
             try:
-                sweep = Sweep.from_pickle(sweep)
+                resonator = Resonator.from_pickle(resonator)
             except (pickle.UnpicklingError, AttributeError, EOFError, ImportError, IndexError, AssertionError):
-                sweep = Sweep.from_config(sweep)
-    return sweep
+                resonator = Resonator.from_config(resonator)
+    return resonator
 
 
 def basic_fit(loop, label="basic_fit", model=S21, **load_kwargs):
@@ -69,8 +69,8 @@ def basic_fit(loop, label="basic_fit", model=S21, **load_kwargs):
 def temperature_fit(loop, label="temperature_fit", model=S21, **load_kwargs):
     """
     Fit the loop using the two nearest temperature data points of the same
-    power in the sweep as guesses. If there are no good guesses, nothing will
-    happen.
+    power in the resonator as guesses. If there are no good guesses, nothing
+    will happen.
     Args:
         loop: string or mkidcalculator.Loop
             The loop object to fit. If a string, the loop is loaded from either
@@ -93,7 +93,7 @@ def temperature_fit(loop, label="temperature_fit", model=S21, **load_kwargs):
     # find good fits from other loop
     good_guesses = []
     temperatures = []
-    for potential_loop in loop.sweep.loops:
+    for potential_loop in loop.resonator.loops:
         if potential_loop is loop:  # don't use fits from this loop
             continue
         if potential_loop.power != loop.power:  # don't use fits with a different power
@@ -116,7 +116,8 @@ def temperature_fit(loop, label="temperature_fit", model=S21, **load_kwargs):
 
 def linear_fit(loop, label="linear_fit", model=S21, parameter="a_sqrt", **load_kwargs):
     """
-    Fit the loop using a previous good fit, but with the nonlinearity turned off.
+    Fit the loop using a previous good fit, but with the nonlinearity turned
+    off.
     Args:
         loop: string or mkidcalculator.Loop
             The loop object to fit. If a string, the loop is loaded from either
@@ -179,14 +180,15 @@ def nonlinear_fit(loop, label="nonlinear_fit", model=S21, parameter=("a_sqrt", 0
     return loop
 
 
-def sweep_fit(sweep, model=S21, extra_fits=(temperature_fit, nonlinear_fit, linear_fit), fit_kwargs=(), iterations=2,
-              **load_kwargs):
+def resonator_fit(resonator, model=S21, extra_fits=(temperature_fit, nonlinear_fit, linear_fit), fit_kwargs=(),
+                  iterations=2, **load_kwargs):
     """
-    Fit all of the loops in a sweep.
+    Fit all of the loops in a resonator.
     Args:
-        sweep: string or mkidcalculator.Sweep
-            The sweep object to use for the fit. If a string, the sweep is
-            loaded from either Sweep.from_pickle() or Sweep.from_config().
+        resonator: string or mkidcalculator.Resonator
+            The resonator object to use for the fit. If a string, the resonator
+            is loaded from either Resonator.from_pickle() or
+            Resonator.from_config().
         model: class (optional)
             A model class to use for the fit. The default is
             mkidcalculator.models.S21.
@@ -200,25 +202,25 @@ def sweep_fit(sweep, model=S21, extra_fits=(temperature_fit, nonlinear_fit, line
         iterations: integer (optional)
             Number of times to run the extra_fits. The default is 2. This is
             useful for when the extra_fits use fit information from other loops
-            in the sweep.
+            in the resonator.
         load_kwargs: optional keyword arguments
-            Keyword arguments to send to Sweep.from_config().
-            Sweep.from_pickle() will not be attempted if kwargs are given.
+            Keyword arguments to send to Resonator.from_config().
+            Resonator.from_pickle() will not be attempted if kwargs are given.
     Returns:
-        sweep: mkidcalculator.Sweep
-            The sweep object that was fit.
+        resonator: mkidcalculator.Resonator
+            The resonator object that was fit.
     """
     # parse inputs
     if not fit_kwargs:
         fit_kwargs = [{}] * len(extra_fits)
-    # convert file name to sweep if needed
-    sweep = _load_sweep(sweep, **load_kwargs)
-    log.info("fitting sweep: {}".format(sweep))
-    # fit the sweep
+    # convert file name to resonator if needed
+    resonator = _load_resonator(resonator, **load_kwargs)
+    log.info("fitting resonator: {}".format(resonator))
+    # fit the resonator
     for iteration in range(iterations):
         log.info("starting iteration: {}".format(iteration))
         # fit loops
-        for index, loop in enumerate(sweep.loops):
+        for index, loop in enumerate(resonator.loops):
             log.info("fitting loop: {}".format(index))
             # do the basic fit
             if iteration == 0:
@@ -229,8 +231,8 @@ def sweep_fit(sweep, model=S21, extra_fits=(temperature_fit, nonlinear_fit, line
                 kwargs.update(fit_kwargs[extra_index])
                 fit(loop, **kwargs)
     # log bad fits
-    for index, loop in enumerate(sweep.loops):
+    for index, loop in enumerate(resonator.loops):
         redchi = loop.lmfit_results['best']['result'].redchi
         if redchi > MAX_REDCHI:
             log.warning("loop {} failed to fit with redchi of {}".format(index, redchi))
-    return sweep
+    return resonator

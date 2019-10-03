@@ -377,7 +377,8 @@ class Pulse:
 
     def clear_filters(self):
         """
-        Clear the filters made with pulse.make_filters() and data made with them.
+        Clear the filters made with pulse.make_filters() and data made with
+        them.
         """
         self._p_trace_filtered = None
         self._optimal_filter = None
@@ -677,8 +678,9 @@ class Pulse:
                     calculation type if a Monte Carlo method is being used.
             response: float (optional)
                 The combined phase and amplitude response in radians to use in
-                the calculation. This is only used in Monte Carlo filter methods
-                and for computing the resolving power. The default is 1.
+                the calculation. This is only used in Monte Carlo filter
+                methods and for computing the resolving power. The default is
+                1.
             energy: float (optional)
                 The energy of the response in eV. This is only used for the
                 fitting methods that need to evaluate a derivative of a
@@ -1095,8 +1097,8 @@ class Pulse:
 
     def mask_prepulse_mean(self, minimum, maximum):
         """
-        Add traces with pre-pulse means outside of the minimum and maximum to the
-        pulse.mask.
+        Add traces with pre-pulse means outside of the minimum and maximum to
+        the pulse.mask.
         Args:
             minimum: float
                 The minimum acceptable pre-pulse mean
@@ -1110,7 +1112,8 @@ class Pulse:
 
     def mask_prepulse_rms(self, maximum):
         """
-        Add traces with pre-pulse RMSs larger than the maximum to the pulse.mask.
+        Add traces with pre-pulse RMSs larger than the maximum to the
+        pulse.mask.
         Args:
             maximum: float
                 The maximum acceptable pre-pulse rms
@@ -1122,8 +1125,8 @@ class Pulse:
 
     def mask_postpulse_min_slope(self, minimum):
         """
-        Add traces with post-pulse minimum slopes smaller than the minimum to the
-        pulse.mask.
+        Add traces with post-pulse minimum slopes smaller than the minimum to
+        the pulse.mask.
         Args:
             minimum: float
                 The minimum acceptable post-pulse minimum slope
@@ -1211,10 +1214,11 @@ class Pulse:
 
     def _threshold_cut(self, use_filter=False, threshold=5):
         """
-        Remove traces from the data object that don't meet the threshold condition on the
-        phase trace.
+        Remove traces from the data object that don't meet the threshold
+        condition on the phase trace.
 
-        threshold is the number of standard deviations to put the threshold cut.
+        threshold is the number of standard deviations to put the threshold
+        cut.
         """
         if use_filter:
             data = np.array([-self._p_trace_filtered, self._traces[1]])
@@ -1276,7 +1280,8 @@ class Pulse:
 
     def _average_pulses(self):
         """
-        Average the data together by summing and normalizing the phase pulse height to 1.
+        Average the data together by summing and normalizing the phase pulse
+        height to 1.
         """
         # add all the data together
         self.template = np.sum(self._traces, axis=1)

@@ -23,8 +23,8 @@ class Loop:
     def __init__(self):
         # loop data
         self._data = AnalogReadoutLoop()  # dummy class replaced by load()
-        # sweep reference
-        self._sweep = None
+        # resonator reference
+        self._resonator = None
         # noise and pulse classes
         self.noise = []
         self.f_bias_noise = []  # for bias frequency of each noise data set
@@ -122,19 +122,19 @@ class Loop:
         return [pulse.resolving_power for pulse in self.pulses]
 
     @property
-    def sweep(self):
+    def resonator(self):
         """
-        A settable property that contains the Sweep object that this loop has
-        been assigned to. If the sweep has not been set, it will raise an
-        AttributeError.
+        A settable property that contains the Resonator object that this loop
+        has been assigned to. If the resonator has not been set, it will raise
+        an AttributeError.
         """
-        if self._sweep is None:
-            raise AttributeError("The sweep object for this pulse has not been set yet.")
-        return self._sweep
+        if self._resonator is None:
+            raise AttributeError("The resonator object for this pulse has not been set yet.")
+        return self._resonator
 
-    @sweep.setter
-    def sweep(self, sweep):
-        self._sweep = sweep
+    @resonator.setter
+    def resonator(self, resonator):
+        self._resonator = resonator
 
     def to_pickle(self, file_name):
         """Pickle and save the class as the file 'file_name'."""
@@ -161,7 +161,8 @@ class Loop:
             z: numpy.ndarray
                 The complex scattering parameter for the resonance loop.
             f: numpy.ndarray
-                The frequencies corresponding to the complex scattering parameter.
+                The frequencies corresponding to the complex scattering
+                parameter.
             attenuation: float
                 The DAC attenuation used for the data set.
             field: float
@@ -169,9 +170,11 @@ class Loop:
             temperature: float
                 The temperature at the resonator.
             imbalance_calibration: numpy.ndarray (optional)
-                A MxN complex array containing beating IQ mixer data on the rows.
+                A MxN complex array containing beating IQ mixer data on the
+                rows.
             offset: numpy.ndarray (optional)
-                The mixer offsets corresponding to the complex scattering parameter.
+                The mixer offsets corresponding to the complex scattering
+                parameter.
             metadata: dictionary (optional)
                 A dictionary containing metadata about the loop.
         Returns:
@@ -212,7 +215,7 @@ class Loop:
         Remove pulses from the loop.
         Args:
             indices: integer or iterable of integers
-                The indices in sweep.pulses that should be deleted.
+                The indices in resonator.pulses that should be deleted.
         """
         if not isinstance(indices, (tuple, list)):
             indices = [indices]
@@ -248,7 +251,7 @@ class Loop:
         Remove noise from the loop.
         Args:
             indices: integer or iterable of integers
-                The indices in sweep.noise that should be deleted.
+                The indices in resonator.noise that should be deleted.
         """
         if not isinstance(indices, (tuple, list)):
             indices = [indices]
@@ -1337,7 +1340,8 @@ class Loop:
                 Determines whether figure.tight_layout() is called. The default
                 is True.
             unwrap: boolean
-                Determines if the phase is unwrapped or not. The default is True.
+                Determines if the phase is unwrapped or not. The default is
+                True.
             axes: matplotlib.axes.Axes class
                 An Axes class on which to put the plot. The default is None and
                 a new figure is made.

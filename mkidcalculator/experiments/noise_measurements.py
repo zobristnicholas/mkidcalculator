@@ -84,9 +84,9 @@ def compute_noise_numbers(f, t_hot, t_cold, s0, s1, s2=None, s3=None, gp=None, l
             parametric amplifier is turned on. If a parametric amplifier (or
             other amplifier that has unity gain when off) is between the MKID
             and the same switch as the calibration attenuators, this noise
-            spectrum can be provided to calculate the parametric amplifier noise.
-            The default is None, which assumes no parametric amplifier is
-            connected. s2 and gp must be provided if this parameter is used.
+            spectrum can be provided to calculate the parametric amplifier
+            noise. The default is None, which assumes no parametric amplifier
+            is connected. s2 and gp must be provided if this parameter is used.
         gp: float (optional)
             The parametric amplifier power gain (not in units of dB). s2 and s3
             must be provided if this parameter is used. The default is None,

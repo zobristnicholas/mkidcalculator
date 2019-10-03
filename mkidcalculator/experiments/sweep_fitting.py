@@ -56,7 +56,7 @@ def find_resonators(f, magnitude, df, **kwargs):
 
 def collect_resonances(f, z, peaks, df):
     """
-    Collect all of the resonances from a widesweep into an array.
+    Collect all of the resonances from a sweep into an array.
     Args:
         f: numpy.ndarray
             The frequencies corresponding to i and q.
@@ -90,9 +90,9 @@ def collect_resonances(f, z, peaks, df):
     return f_array[logic, :], z_array[logic, :], peaks[logic]
 
 
-def widesweep_fit(f, z, df, fit_type=basic_fit, find_resonators_kwargs=None, loop_kwargs=None, **kwargs):
+def sweep_fit(f, z, df, fit_type=basic_fit, find_resonators_kwargs=None, loop_kwargs=None, **kwargs):
     """
-    Fits each resonator in the widesweep.
+    Fits each resonator in the sweep.
     Args:
         f: numpy.ndarray
             The frequencies corresponding to i and q.
@@ -332,7 +332,8 @@ def plot_parameter_vs_f(parameter, f, title=None, x_label=True, y_label=True, la
             centers: numpy.ndarray
                 The bin centers. Only returned if return_bin is True.
             medians: numpy.ndarray
-                The median values in each bin. Only returned if return_bin is True.
+                The median values in each bin. Only returned if return_bin is
+                True.
     """
     if axes is None:
         from matplotlib import pyplot as plt
@@ -376,10 +377,10 @@ def plot_parameter_vs_f(parameter, f, title=None, x_label=True, y_label=True, la
     return axes
 
 
-def plot_widesweep_summary(loops, qi_cutoff=None, q0_cutoff=None, chi2_cutoff=None, success=True, errorbars=True,
-                           title=True, tighten=True, label='best', plot_kwargs=None, figure=None):
+def plot_sweep_summary(loops, qi_cutoff=None, q0_cutoff=None, chi2_cutoff=None, success=True, errorbars=True,
+                       title=True, tighten=True, label='best', plot_kwargs=None, figure=None):
     """
-    Plot a summary of a widesweep fit.
+    Plot a summary of a sweep fit.
     Args:
         loops: list of mkidcalculator.Loop objects
             The fitted loops to use for the summary plot
@@ -473,7 +474,7 @@ def plot_widesweep_summary(loops, qi_cutoff=None, q0_cutoff=None, chi2_cutoff=No
     plot_parameter_vs_f(chi2, fr, axes=axes_list[5], **kws)
     # add title
     if title:
-        title = "widesweep fit summary: '{}'".format(label) if title is True else title
+        title = "sweep fit summary: '{}'".format(label) if title is True else title
         figure.suptitle(title, fontsize=15)
         rect = [0, 0, 1, .95]
     else:

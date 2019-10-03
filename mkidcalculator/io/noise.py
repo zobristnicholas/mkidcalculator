@@ -337,7 +337,8 @@ class Noise:
 
     def compute_psd(self, **kwargs):
         """
-        Compute the noise power spectral density of the noise data in this object.
+        Compute the noise power spectral density of the noise data in this
+        object.
         Args:
             kwargs: optional keyword arguments
                 keywords for the scipy.signal.welch and scipy.signal.csd

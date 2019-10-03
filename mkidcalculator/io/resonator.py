@@ -10,15 +10,15 @@ from operator import itemgetter
 from scipy.cluster.vq import kmeans2, ClusterError
 
 from mkidcalculator.io.loop import Loop
-from mkidcalculator.io.data import analogreadout_sweep
+from mkidcalculator.io.data import analogreadout_resonator
 from mkidcalculator.io.utils import lmfit, create_ranges, save_lmfit
 
 log = logging.getLogger(__name__)
 log.addHandler(logging.NullHandler())
 
 
-class Sweep:
-    """A class for manipulating resonance sweep parameter data."""
+class Resonator:
+    """A class for manipulating resonance resonator parameter data."""
     def __init__(self):
         self.loops = []
         self.powers = []
@@ -37,16 +37,16 @@ class Sweep:
         self._set_directory(os.path.dirname(os.path.abspath(file_name)))
         with open(file_name, "wb") as f:
             pickle.dump(self, f)
-        log.info("saved sweep as '{}'".format(file_name))
+        log.info("saved resonator as '{}'".format(file_name))
 
     @classmethod
     def from_pickle(cls, file_name):
-        """Returns a Sweep class from the pickle file 'file_name'."""
+        """Returns a Resonator class from the pickle file 'file_name'."""
         with open(file_name, "rb") as f:
-            sweep = pickle.load(f)
-        assert isinstance(sweep, cls), "'{}' does not contain a Sweep class.".format(file_name)
-        log.info("loaded sweep from '{}'".format(file_name))
-        return sweep
+            resonator = pickle.load(f)
+        assert isinstance(resonator, cls), "'{}' does not contain a Sweep class.".format(file_name)
+        log.info("loaded resonator from '{}'".format(file_name))
+        return resonator
 
     def create_parameters(self, label="best", fit_type="lmfit", group=True, n_groups=None):
         """
@@ -80,7 +80,7 @@ class Sweep:
                 specified number of groups.
 
         Examples:
-            table = sweep.loop_parameters['best']
+            table = resonator.loop_parameters['best']
             # get a table with only the 'fr' fit parameter
             fr = table['fr']
             # get a smaller table with all of the powers, zero field, and
@@ -88,7 +88,8 @@ class Sweep:
             idx = pandas.IndexSlice
             fr_smaller = fr.loc[idx[:, 0, 0.009: 0.011]]
             # get a cross section instead of a table
-            fr_smaller = fr.xs((idx[:], 0,  idx[0.009:0.011]), level=("power", "field", "temperature"))
+            fr_smaller = fr.xs((idx[:], 0,  idx[0.009:0.011]),
+                               level=("power", "field", "temperature"))
         """
         # check inputs
         if fit_type not in ['lmfit', 'emcee', 'emcee_mle']:
@@ -157,7 +158,7 @@ class Sweep:
 
     def add_loops(self, loops, sort=True):
         """
-        Add loop data sets to the sweep.
+        Add loop data sets to the resonator.
         Args:
             loops: Loop class or iterable of Loop classes
                 The loop data sets that are to be added to the Sweep.
@@ -170,7 +171,7 @@ class Sweep:
             loops = [loops]
         # append loop data
         for loop in loops:
-            loop.sweep = self
+            loop.resonator = self
             self.loops.append(loop)
             self.powers.append(loop.power)
             self.fields.append(loop.field)
@@ -182,10 +183,10 @@ class Sweep:
 
     def remove_loops(self, indices):
         """
-        Remove loops from the sweep.
+        Remove loops from the resonator.
         Args:
             indices: integer or iterable of integers
-                The indices in sweep.loops that should be deleted.
+                The indices in resonator.loops that should be deleted.
         """
         if not isinstance(indices, (tuple, list)):
             indices = [indices]
@@ -214,14 +215,15 @@ class Sweep:
             pass
 
     @classmethod
-    def from_config(cls, sweep_file_name, data=analogreadout_sweep, sort=True, **kwargs):
+    def from_config(cls, resonator_file_name, data=analogreadout_resonator, sort=True, **kwargs):
         """
-        Sweep class factory method that returns a Sweep() with the loop, noise
-        and pulse data loaded.
+        Resonator class factory method that returns a Resonator() with the loop,
+        noise and pulse data loaded.
         Args:
-            sweep_file_name: string
-                The configuration file name for the sweep data. It has all the
-                information needed to load in the loop, pulse, and noise data.
+            resonator_file_name: string
+                The configuration file name for the resonator data. It has all
+                the information needed to load in the loop, pulse, and noise
+                data.
             data: object (optional)
                 Class or function whose return value is a list of dictionaries
                 with each being the desired keyword arguments to Loop.load().
@@ -232,17 +234,17 @@ class Sweep:
             kwargs: optional keyword arguments
                 Extra keyword arguments to send to data.
         """
-        # create sweep
-        sweep = cls()
-        # load loop kwargs based on the sweep file
-        loop_kwargs_list = data(sweep_file_name, **kwargs)
+        # create resonator
+        resonator = cls()
+        # load loop kwargs based on the resonator file
+        loop_kwargs_list = data(resonator_file_name, **kwargs)
         loops = []
         # load loops
         for kws in loop_kwargs_list:
             kws.update({"sort": sort})
             loops.append(Loop.load(**kws))
-        sweep.add_loops(loops, sort=sort)
-        return sweep
+        resonator.add_loops(loops, sort=sort)
+        return resonator
 
     def lmfit(self, parameter, model, guess, index=None, label='default', data_label="best", residual_args=(),
               residual_kwargs=None, **kwargs):
@@ -344,7 +346,7 @@ class Sweep:
 
     def fit_report(self, parameter, label='best', fit_type='lmfit', return_string=False):
         """
-        Print a string summarizing a sweep fit.
+        Print a string summarizing a resonator fit.
         Args:
             parameter: string
                 The parameter on which the fit was done.
@@ -398,7 +400,7 @@ class Sweep:
                    colorbar=True, colorbar_kwargs=None, colorbar_label=True, colorbar_limits=None,
                    colorbar_label_kwargs=None, colorbar_tick_kwargs=None, **loop_kwargs):
         """
-        Plot a subset of the loops in the sweep by combining multiple
+        Plot a subset of the loops in the resonator by combining multiple
         loop.plot() calls.
         Args:
             power: tuple of two numbers or tuple of two number tuples

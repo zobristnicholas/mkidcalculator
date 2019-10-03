@@ -198,12 +198,12 @@ class AnalogReadoutPulse(AnalogReadoutABC):
         return result
 
 
-def analogreadout_sweep(file_name, channel=None):
+def analogreadout_resonator(file_name, channel=None):
     """
-    Class for loading in analogreadout sweep data.
+    Class for loading in analogreadout resonator data.
     Args:
         file_name: string
-            The sweep configuration file name.
+            The resonator configuration file name.
         channel: integer
             The resonator channel for the data.
     Returns:
@@ -340,10 +340,10 @@ class LegacyNoise(LegacyABC):
             An integer specifying which temperature and attenuation index to
             load. An additional third index may be included in the tuple to
             specify additional noise points. This is only needed if the data
-            is from a sweep config.
+            is from a resonator config.
         on_res: boolean (optional)
             A boolean specifying if the noise is on or off resonance. This is
-            only used when the noise comes from the sweep GUI. The default is
+            only used when the noise comes from the Sweep GUI. The default is
             True.
     """
     def __init__(self, config_file, channel, index=None, on_res=True):
@@ -382,7 +382,8 @@ class LegacyNoise(LegacyABC):
         self._data.update({"i_trace": None, "q_trace": None, "f_bias": None})  # defer loading
 
     def _load_data(self):
-        i_trace, q_trace, f = load_legacy_binary_data(self._bin, self.channel % 2, self._n_points)  # % 2 for sweep data
+        # % 2 for resonator data
+        i_trace, q_trace, f = load_legacy_binary_data(self._bin, self.channel % 2, self._n_points)
         self._data.update({"i_trace": i_trace, "q_trace": q_trace, 'f_bias': f})
 
 
@@ -432,12 +433,12 @@ class LegacyPulse(LegacyABC):
         self._data.update({"i_trace": i_trace, "q_trace": q_trace})
 
 
-def legacy_sweep(config_file, channel=None, noise=True):
+def legacy_resonator(config_file, channel=None, noise=True):
     """
-    Class for loading in legacy matlab sweep data.
+    Class for loading in legacy matlab resonator data.
     Args:
         config_file: string
-            The sweep configuration file name.
+            The resonator configuration file name.
         channel: integer
             The resonator channel for the data.
         noise: boolean
