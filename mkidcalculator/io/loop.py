@@ -129,7 +129,7 @@ class Loop:
         an AttributeError.
         """
         if self._resonator is None:
-            raise AttributeError("The resonator object for this pulse has not been set yet.")
+            raise AttributeError("The resonator object for this loop has not been set yet.")
         return self._resonator
 
     @resonator.setter
@@ -188,14 +188,14 @@ class Loop:
 
     def add_pulses(self, pulses, sort=True):
         """
-        Add pulse data sets to the loop.
+        Add Pulse objects to the loop.
         Args:
             pulses: Pulse class or iterable of Pulse classes
-                The pulse data sets that are to be added to the Loop.
+                The pulse objects that are to be added to the Loop.
             sort: boolean (optional)
-                Sort the pulse data list by its bias frequency and then its
+                Sort the pulse list by its bias frequency and then its
                 maximum energy. The default is True. If False, the order of the
-                pulse data sets is preserved.
+                pulse list is preserved.
         """
         if isinstance(pulses, Pulse):
             pulses = [pulses]
@@ -226,13 +226,13 @@ class Loop:
 
     def add_noise(self, noise, sort=True):
         """
-        Add noise data sets to the loop.
+        Add Noise objects to the loop.
         Args:
             noise: Noise class or iterable of Noise classes
-                The noise data sets that are to be added to the Loop.
+                The noise objects that are to be added to the Loop.
             sort: boolean (optional)
-                Sort the noise data list by its bias frequency. The default is
-                True. If False, the order of the noise data sets is preserved.
+                Sort the noise list by its bias frequency. The default is
+                True. If False, the order of the noise list is preserved.
         """
         if isinstance(noise, Noise):
             noise = [noise]
@@ -301,7 +301,7 @@ class Loop:
                 with the data products from the analogreadout module.
             sort: boolean (optional)
                 Sort the noise data and pulse data lists by their bias
-                frequency. The default is True. If False, the order of the
+                frequencies. The default is True. If False, the order of the
                 noise and pulse file names is preserved.
             noise_data: object (optional)
                 Class or function whose return value allows dictionary-like

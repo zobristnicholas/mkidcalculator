@@ -158,13 +158,13 @@ class Resonator:
 
     def add_loops(self, loops, sort=True):
         """
-        Add loop data sets to the resonator.
+        Add Loop objects to the resonator.
         Args:
             loops: Loop class or iterable of Loop classes
-                The loop data sets that are to be added to the Sweep.
+                The loop objects that are to be added to the Resonator.
             sort: boolean (optional)
-                Sort the loop data list by its power, field, and temperature.
-                The default is True. If False, the order of the loop data sets
+                Sort the loop list by its power, field, and temperature.
+                The default is True. If False, the order of the loop list
                 is preserved.
         """
         if isinstance(loops, Loop):
@@ -228,7 +228,7 @@ class Resonator:
                 Loop.from_file().
             sort: boolean (optional)
                 Sort the loop data by its power, field, and temperature. Also
-                sort noise data and pulse data lists by their bias frequency.
+                sort noise data and pulse data lists by their bias frequencies.
                 The default is True. If False, the input order is preserved.
             kwargs: optional keyword arguments
                 Extra keyword arguments to send to data.
