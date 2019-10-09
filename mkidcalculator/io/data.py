@@ -213,10 +213,11 @@ def analogreadout_resonator(file_name, channel=None):
     directory = os.path.dirname(file_name)
     npz = np.load(file_name, allow_pickle=True)
     loop_kwargs = []
+    all_files = glob.glob(os.path.join(directory, "sweep_*_*_*_{:d}_*".format(int(channel // 2))))
     for loop_name, parameters in npz['parameter_dict'].item().items():
         loop_file_name = os.path.join(directory, loop_name)
-        if os.path.isfile(loop_file_name):
-            loop_kwargs.append({"loop_file_name": loop_file_name, "channel": channel})
+        if os.path.isfile(loop_file_name) and loop_file_name in all_files:
+            loop_kwargs.append({"loop_file_name": loop_file_name, "channel": int(channel % 2)})
             if parameters['noise'][0]:
                 n_noise = 1 + int(parameters['noise'][5])
                 noise_name = "_".join(["noise", *loop_name.split("_")[1:]])
@@ -225,7 +226,7 @@ def analogreadout_resonator(file_name, channel=None):
                     noise_names = [noise_file_name] * n_noise
                     noise_kwargs = [{'index': ii} for ii in range(n_noise)]
                     loop_kwargs[-1].update({"noise_file_names": noise_names, "noise_kwargs": noise_kwargs,
-                                            "channel": channel})
+                                            "channel": int(channel % 2)})
                 else:
                     log.warning("Could not find '{}'".format(noise_file_name))
         else:
