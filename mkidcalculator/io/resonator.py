@@ -44,7 +44,7 @@ class Resonator:
         """Returns a Resonator class from the pickle file 'file_name'."""
         with open(file_name, "rb") as f:
             resonator = pickle.load(f)
-        assert isinstance(resonator, cls), "'{}' does not contain a Sweep class.".format(file_name)
+        assert isinstance(resonator, cls), "'{}' does not contain a Resonator class.".format(file_name)
         log.info("loaded resonator from '{}'".format(file_name))
         return resonator
 
