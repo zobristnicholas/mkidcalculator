@@ -209,10 +209,6 @@ class Resonator:
             self._set_directory(directory)
         for loop in self.loops:
             loop.free_memory(directory=directory)
-        try:
-            self._data.free_memory()
-        except AttributeError:
-            pass
 
     @classmethod
     def from_file(cls, resonator_file_name, data=analogreadout_resonator, sort=True, **kwargs):
