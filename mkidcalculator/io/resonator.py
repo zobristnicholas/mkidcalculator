@@ -20,6 +20,8 @@ log.addHandler(logging.NullHandler())
 class Resonator:
     """A class for manipulating resonator parameter data."""
     def __init__(self):
+        # resonator reference
+        self._sweep = None
         self.loops = []
         self.powers = []
         self.fields = []
@@ -30,6 +32,21 @@ class Resonator:
         self.loop_parameters = {}
         # directory of the data
         self._directory = None
+
+    @property
+    def sweep(self):
+        """
+        A settable property that contains the Resonator object that this loop
+        has been assigned to. If the resonator has not been set, it will raise
+        an AttributeError.
+        """
+        if self._sweep is None:
+            raise AttributeError("The sweep object for this resonator has not been set yet.")
+        return self._sweep
+
+    @sweep.setter
+    def sweep(self, sweep):
+        self._sweep = sweep
 
     def to_pickle(self, file_name):
         """Pickle and save the class as the file 'file_name'."""
