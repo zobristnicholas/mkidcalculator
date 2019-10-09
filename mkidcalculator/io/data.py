@@ -234,6 +234,40 @@ def analogreadout_resonator(file_name, channel=None):
     return loop_kwargs
 
 
+def analogreadout_sweep(file_name, unique=True):
+    """
+    Class for loading in analogreadout sweep data.
+    Args:
+        file_name: string
+            The sweep configuration file name.
+        unique: boolean
+            If True, data taken under the same conditions as previous data is
+            not loaded. If False, all data is loaded. The default is True.
+    Returns:
+        resonator_kwargs: list of dictionaries
+            A list of keyword arguments to send to Resonator.from_file().
+    """
+    npz = np.load(file_name, allow_pickle=True)
+    file_names = npz['parameter_dict'].item().keys()
+    if 'frequencies' in npz['sweep_dict'].item().keys():
+        multiple = 1
+        lengths = [len(npz['sweep_dict'].item()['frequencies'])]
+    else:
+        multiple = 2
+        lengths = [len(npz['sweep_dict'].item()['frequencies1']),
+                   len(npz['sweep_dict'].item()['frequencies2'])]
+
+    resonator_kwargs = []
+    for index in range(multiple * len(file_names)):
+        if unique:
+            repeat = index // multiple + 1 > lengths[index % multiple]
+            if repeat:
+                continue
+        resonator_kwargs.append({"resonator_file_name": file_name, "channel": index})
+
+    return resonator_kwargs
+
+
 class LegacyABC:
     """
     Abstract base class for handling data from the Legacy matlab code.
