@@ -14,7 +14,7 @@ log.addHandler(logging.NullHandler())
 class Noise:
     """A class for manipulating the noise data."""
     def __init__(self):
-        self._data = AnalogReadoutNoise()  # dummy class replaced by load()
+        self._data = AnalogReadoutNoise()  # dummy class replaced by from_file()
         # loop reference for computing phase and amplitude
         self._loop = None
         # phase and amplitude data
@@ -286,7 +286,7 @@ class Noise:
         return noise
 
     @classmethod
-    def load(cls, noise_file_name, data=AnalogReadoutNoise, **kwargs):
+    def from_file(cls, noise_file_name, data=AnalogReadoutNoise, **kwargs):
         """
         Noise class factory method that returns a Noise() with the data loaded.
         Args:

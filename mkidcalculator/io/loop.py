@@ -22,7 +22,7 @@ class Loop:
     """A class for manipulating resonance loop scattering parameter data."""
     def __init__(self):
         # loop data
-        self._data = AnalogReadoutLoop()  # dummy class replaced by load()
+        self._data = AnalogReadoutLoop()  # dummy class replaced by from_file()
         # resonator reference
         self._resonator = None
         # noise and pulse classes
@@ -201,7 +201,7 @@ class Loop:
             pulses = [pulses]
         # append pulse data
         for p in pulses:
-            p.loop = self  # set the loop here instead of load because add_pulses() can be used independently
+            p.loop = self  # set the loop here instead of from_file because add_pulses() can be used independently
             self.pulses.append(p)
             self.f_bias_pulses.append(p.f_bias)
             self.max_energy_pulses.append(np.max(p.energies))
@@ -238,7 +238,7 @@ class Loop:
             noise = [noise]
         # append noise data
         for n in noise:
-            n.loop = self  # set the noise here instead of load because add_noise() can be used independently
+            n.loop = self  # set the noise here instead of from_file because add_noise() can be used independently
             self.noise.append(n)
             self.f_bias_noise.append(n.f_bias)
         # sort
@@ -280,8 +280,8 @@ class Loop:
             pass
 
     @classmethod
-    def load(cls, loop_file_name, noise_file_names=(), pulse_file_names=(), data=AnalogReadoutLoop, sort=True,
-             noise_data=None, pulse_data=None, channel=None, noise_kwargs=None, pulse_kwargs=None, **kwargs):
+    def from_file(cls, loop_file_name, noise_file_names=(), pulse_file_names=(), data=AnalogReadoutLoop, sort=True,
+                  noise_data=None, pulse_data=None, channel=None, noise_kwargs=None, pulse_kwargs=None, **kwargs):
         """
         Loop class factory method that returns a Loop() with the loop, noise
         and pulse data loaded.
@@ -359,12 +359,12 @@ class Loop:
         # load noise
         noise = []
         for index, noise_file_name in enumerate(noise_file_names):
-            noise.append(Noise.load(noise_file_name, **noise_kwargs[index]))
+            noise.append(Noise.from_file(noise_file_name, **noise_kwargs[index]))
         loop.add_noise(noise, sort=sort)
         # load pulses
         pulses = []
         for index, pulse_file_name in enumerate(pulse_file_names):
-            pulses.append(Pulse.load(pulse_file_name, **pulse_kwargs[index]))
+            pulses.append(Pulse.from_file(pulse_file_name, **pulse_kwargs[index]))
         loop.add_pulses(pulses, sort=sort)
         return loop
 

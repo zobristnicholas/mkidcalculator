@@ -18,7 +18,7 @@ log.addHandler(logging.NullHandler())
 
 
 class Resonator:
-    """A class for manipulating resonance resonator parameter data."""
+    """A class for manipulating resonator parameter data."""
     def __init__(self):
         self.loops = []
         self.powers = []
@@ -215,18 +215,17 @@ class Resonator:
             pass
 
     @classmethod
-    def from_config(cls, resonator_file_name, data=analogreadout_resonator, sort=True, **kwargs):
+    def from_file(cls, resonator_file_name, data=analogreadout_resonator, sort=True, **kwargs):
         """
         Resonator class factory method that returns a Resonator() with the loop,
         noise and pulse data loaded.
         Args:
             resonator_file_name: string
-                The configuration file name for the resonator data. It has all
-                the information needed to load in the loop, pulse, and noise
-                data.
+                The file name for the resonator data.
             data: object (optional)
                 Class or function whose return value is a list of dictionaries
-                with each being the desired keyword arguments to Loop.load().
+                with each being the desired keyword arguments to
+                Loop.from_file().
             sort: boolean (optional)
                 Sort the loop data by its power, field, and temperature. Also
                 sort noise data and pulse data lists by their bias frequency.
@@ -242,7 +241,7 @@ class Resonator:
         # load loops
         for kws in loop_kwargs_list:
             kws.update({"sort": sort})
-            loops.append(Loop.load(**kws))
+            loops.append(Loop.from_file(**kws))
         resonator.add_loops(loops, sort=sort)
         return resonator
 

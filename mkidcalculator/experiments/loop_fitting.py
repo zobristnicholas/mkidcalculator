@@ -15,12 +15,12 @@ MAX_REDCHI = 100
 def _load_loop(loop, **load_kwargs):
     if isinstance(loop, str):
         if load_kwargs:
-            loop = Loop.load(loop, **load_kwargs)
+            loop = Loop.from_file(loop, **load_kwargs)
         else:
             try:
                 loop = Loop.from_pickle(loop)
             except (pickle.UnpicklingError, AttributeError, EOFError, ImportError, IndexError, AssertionError):
-                loop = Loop.load(loop)
+                loop = Loop.from_file(loop)
     return loop
 
 
@@ -28,12 +28,12 @@ def _load_resonator(resonator, **load_kwargs):
     # convert file name to resonator if needed
     if isinstance(resonator, str):
         if load_kwargs:
-            resonator = Resonator.from_config(resonator, **load_kwargs)
+            resonator = Resonator.from_file(resonator, **load_kwargs)
         else:
             try:
                 resonator = Resonator.from_pickle(resonator)
             except (pickle.UnpicklingError, AttributeError, EOFError, ImportError, IndexError, AssertionError):
-                resonator = Resonator.from_config(resonator)
+                resonator = Resonator.from_file(resonator)
     return resonator
 
 
@@ -43,7 +43,7 @@ def basic_fit(loop, label="basic_fit", model=S21, **load_kwargs):
     Args:
         loop: string or mkidcalculator.Loop
             The loop object to fit. If a string, the loop is loaded from either
-            Loop.from_pickle() or Loop.load().
+            Loop.from_pickle() or Loop.from_file().
         label: string (optional)
             The label to store the fit results under. The default is
             "basic_fit".
@@ -51,8 +51,8 @@ def basic_fit(loop, label="basic_fit", model=S21, **load_kwargs):
             A model class to use for the fit. The default is
             mkidcalculator.models.S21.
         load_kwargs: optional keyword arguments
-            Keyword arguments to send to Loop.load(). Loop.from_pickle() will
-            not be attempted if kwargs are given.
+            Keyword arguments to send to Loop.from_file(). Loop.from_pickle()
+            will not be attempted if kwargs are given.
     Returns:
         loop: mkidcalculator.Loop
             The loop object that was fit.
@@ -74,7 +74,7 @@ def temperature_fit(loop, label="temperature_fit", model=S21, **load_kwargs):
     Args:
         loop: string or mkidcalculator.Loop
             The loop object to fit. If a string, the loop is loaded from either
-            Loop.from_pickle() or Loop.load().
+            Loop.from_pickle() or Loop.from_file().
         label: string (optional)
             The label to store the fit results under. The default is
             "temperature_fit".
@@ -82,8 +82,8 @@ def temperature_fit(loop, label="temperature_fit", model=S21, **load_kwargs):
             A model class to use for the fit. The default is
             mkidcalculator.models.S21.
         load_kwargs: optional keyword arguments
-            Keyword arguments to send to Loop.load(). Loop.from_pickle() will
-            not be attempted if kwargs are given.
+            Keyword arguments to send to Loop.from_file(). Loop.from_pickle()
+            will not be attempted if kwargs are given.
     Returns:
         loop: mkidcalculator.Loop
             The loop object that was fit.
@@ -121,7 +121,7 @@ def linear_fit(loop, label="linear_fit", model=S21, parameter="a_sqrt", **load_k
     Args:
         loop: string or mkidcalculator.Loop
             The loop object to fit. If a string, the loop is loaded from either
-            Loop.from_pickle() or Loop.load().
+            Loop.from_pickle() or Loop.from_file().
         label: string (optional)
             The label to store the fit results under. The default is
             "nonlinear_fit".
@@ -131,8 +131,8 @@ def linear_fit(loop, label="linear_fit", model=S21, parameter="a_sqrt", **load_k
         parameter: string (optional)
             The nonlinear parameter name to use.
         load_kwargs: optional keyword arguments
-            Keyword arguments to send to Loop.load(). Loop.from_pickle() will
-            not be attempted if kwargs are given.
+            Keyword arguments to send to Loop.from_file(). Loop.from_pickle()
+            will not be attempted if kwargs are given.
     Returns:
         loop: mkidcalculator.Loop
             The loop object that was fit.
@@ -147,7 +147,7 @@ def nonlinear_fit(loop, label="nonlinear_fit", model=S21, parameter=("a_sqrt", 0
     Args:
         loop: string or mkidcalculator.Loop
             The loop object to fit. If a string, the loop is loaded from either
-            Loop.from_pickle() or Loop.load().
+            Loop.from_pickle() or Loop.from_file().
         label: string (optional)
             The label to store the fit results under. The default is
             "nonlinear_fit".
@@ -160,8 +160,8 @@ def nonlinear_fit(loop, label="nonlinear_fit", model=S21, parameter=("a_sqrt", 0
             Determines if the nonlinearity is varied in the fit. The default is
             True.
         load_kwargs: optional keyword arguments
-            Keyword arguments to send to Loop.load(). Loop.from_pickle() will
-            not be attempted if kwargs are given.
+            Keyword arguments to send to Loop.from_file(). Loop.from_pickle()
+            will not be attempted if kwargs are given.
     Returns:
         loop: mkidcalculator.Loop
             The loop object that was fit.
@@ -188,7 +188,7 @@ def resonator_fit(resonator, model=S21, extra_fits=(temperature_fit, nonlinear_f
         resonator: string or mkidcalculator.Resonator
             The resonator object to use for the fit. If a string, the resonator
             is loaded from either Resonator.from_pickle() or
-            Resonator.from_config().
+            Resonator.from_file().
         model: class (optional)
             A model class to use for the fit. The default is
             mkidcalculator.models.S21.
@@ -204,7 +204,7 @@ def resonator_fit(resonator, model=S21, extra_fits=(temperature_fit, nonlinear_f
             useful for when the extra_fits use fit information from other loops
             in the resonator.
         load_kwargs: optional keyword arguments
-            Keyword arguments to send to Resonator.from_config().
+            Keyword arguments to send to Resonator.from_file().
             Resonator.from_pickle() will not be attempted if kwargs are given.
     Returns:
         resonator: mkidcalculator.Resonator

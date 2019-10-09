@@ -24,7 +24,7 @@ class Pulse:
     """A class for manipulating the pulse data."""
     def __init__(self):
         # pulse data
-        self._data = AnalogReadoutPulse()  # dummy class replaced by load()
+        self._data = AnalogReadoutPulse()  # dummy class replaced by from_file()
         # loop reference for computing phase and amplitude
         self._loop = None
         # noise reference for computing energies
@@ -495,7 +495,7 @@ class Pulse:
         return pulse
 
     @classmethod
-    def load(cls, pulse_file_name, data=AnalogReadoutPulse, loop=None, noise=None, **kwargs):
+    def from_file(cls, pulse_file_name, data=AnalogReadoutPulse, loop=None, noise=None, **kwargs):
         """
         Pulse class factory method that returns a Pulse() with the data loaded.
         Args:

@@ -208,7 +208,7 @@ def analogreadout_resonator(file_name, channel=None):
             The resonator channel for the data.
     Returns:
         loop_kwargs: list of dictionaries
-            A list of keyword arguments to send to Loop.load().
+            A list of keyword arguments to send to Loop.from_file().
     """
     directory = os.path.dirname(file_name)
     npz = np.load(file_name, allow_pickle=True)
@@ -446,7 +446,7 @@ def legacy_resonator(config_file, channel=None, noise=True):
             If False, ignore the noise data. The default is True.
     Returns:
         loop_kwargs: list of dictionaries
-            A list of keyword arguments to send to Loop.load().
+            A list of keyword arguments to send to Loop.from_file().
     """
     directory = os.path.dirname(config_file)
     config = loadmat(config_file, squeeze_me=True)['curr_config']
