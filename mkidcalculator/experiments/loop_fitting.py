@@ -11,6 +11,7 @@ log = logging.getLogger(__name__)
 log.addHandler(logging.NullHandler())
 
 MAX_REDCHI = 100
+FIT_MESSAGE = "loop {} fit: label = '{}', reduced chi squared = {}"
 
 
 def _get_loops(data):
@@ -74,6 +75,7 @@ def basic_fit(data, label="basic_fit", model=S21, calibration=True, guess_kwargs
         kwargs = {"label": label}
         kwargs.update(lmfit_kwargs)
         loop.lmfit(model, guess, **kwargs)
+        log.info(FIT_MESSAGE.format(loop, label, loop.lmfit_results[label]['result'].redchi))
 
 
 def temperature_fit(data, label="temperature_fit", model=S21, **lmfit_kwargs):
@@ -117,9 +119,11 @@ def temperature_fit(data, label="temperature_fit", model=S21, **lmfit_kwargs):
                 # pick guess
                 guess = good_guesses[indices[iteration]]
                 # do fit
-                kwargs = {"label": label + "_" + str(iteration)}
+                fit_label = label + "_" + str(iteration)
+                kwargs = {"label": fit_label}
                 kwargs.update(lmfit_kwargs)
                 loop.lmfit(model, guess, **lmfit_kwargs)
+                log.info(FIT_MESSAGE.format(loop, fit_label, loop.lmfit_results[fit_label]['result'].redchi))
 
 
 def linear_fit(data, label="linear_fit", model=S21, parameter="a_sqrt", **lmfit_kwargs):
@@ -180,6 +184,7 @@ def nonlinear_fit(data, label="nonlinear_fit", model=S21, parameter=("a_sqrt", 0
             kwargs = {"label": label}
             kwargs.update(lmfit_kwargs)
             loop.lmfit(model, guess, **lmfit_kwargs)
+            log.info(FIT_MESSAGE.format(loop, label, loop.lmfit_results[label]['result'].redchi))
         else:
             raise AttributeError("loop does not have a previous fit on which to base the nonlinear fit.")
 
@@ -234,8 +239,3 @@ def multiple_fit(data, model=S21, extra_fits=(temperature_fit, nonlinear_fit, li
                     kwargs = {"label": fit.__name__ + str(iteration), "model": model}
                     kwargs.update(fit_kwargs[extra_index])
                     fit(loop, **kwargs)
-        # log bad fits
-        for index, loop in enumerate(resonator.loops):
-            redchi = loop.lmfit_results['best']['result'].redchi
-            if redchi > MAX_REDCHI:
-                log.warning("loop {} failed to fit with redchi of {}".format(index, redchi))
