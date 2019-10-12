@@ -91,6 +91,9 @@ class Sweep:
                 sorted.
             kwargs: optional keyword arguments
                 Extra keyword arguments to send to data.
+        Returns:
+            sweep: object
+                A Sweep() object containing the loaded data.
         """
         sweep = cls()
         res_kwarg_list = data(sweep_file_name, **kwargs)

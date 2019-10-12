@@ -245,6 +245,9 @@ class Resonator:
                 The default is True. If False, the input order is preserved.
             kwargs: optional keyword arguments
                 Extra keyword arguments to send to data.
+        Returns:
+            resonator: object
+                A Resonator() object containing the loaded data.
         """
         # create resonator
         resonator = cls()
