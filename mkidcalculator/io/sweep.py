@@ -4,6 +4,7 @@ import logging
 
 from mkidcalculator.io.resonator import Resonator
 from mkidcalculator.io.data import analogreadout_sweep
+from mkidcalculator.io.utils import (find_resonators, collect_resonances, get_loop_fit_info, plot_parameter_vs_f,
 
 log = logging.getLogger(__name__)
 log.addHandler(logging.NullHandler())
@@ -70,6 +71,55 @@ class Sweep:
             self._set_directory(directory)
         for resonator in self.resonators:
             resonator.free_memory(directory=directory)
+
+    @classmethod
+    def from_widesweep(cls, sweep_file_name, df, data=mazinlab_widesweep, find=find_resonators, find_kwargs=None,
+                       loop_kwargs=None, **kwargs):
+        """
+        Sweep class factory method that returns a Sweep() from widesweep data
+        the resonators identified and loaded.
+        Args:
+            sweep_file_name: string
+                The file name for the widesweep data.
+            df: float
+                The frequency bandwidth for each resonator in the units of the
+                data in the file.
+            data: object (optional)
+                Function whose return value is a tuple of the frequencies
+                (numpy.ndarray), complex scattering data (numpy.ndarray),
+                attenuation (float), field (float), and temperature (float) of
+                the widesweep.
+            find: object (optional)
+                Function whose return value is a list of resonator peak indices
+                corresponding to the data returned by 'data'. The manditory
+                input arguments are f, z, and df.
+            find_kwargs: dictionary (optional)
+                Extra keyword arguments to pass to the find function.
+            loop_kwargs: dictionary (optional)
+                Extra keyword arguments to pass to loop.from_python().
+            kwargs: optional keyword arguments
+                Extra keyword arguments to send to data.
+        Returns:
+            sweep: object
+                A Sweep() object containing the loaded data.
+        """
+        sweep = cls()
+        f, z, attenuation, field, temperature = data(sweep_file_name, **kwargs)
+        kws = {}
+        if find_kwargs is not None:
+            kws.update(find_kwargs)
+        peaks = find(f, z, df, **kws)
+        f_array, z_array, _ = collect_resonances(f, z, peaks, df)
+        resonators = []
+        for ii in range(f_array.shape[0]):
+            zii, fii = z_array[ii, :], f_array[ii, :]
+            resonators.append(Resonator())
+            kws = {}
+            if loop_kwargs is not None:
+                kws.update(loop_kwargs)
+            resonators[-1].add_loops(Loop.from_python(zii, fii, attenuation, field, temperature, **kws))
+        sweep.add_resonators(resonators)
+        return sweep
 
     @classmethod
     def from_file(cls, sweep_file_name, data=analogreadout_sweep, sort=True, **kwargs):
