@@ -5,7 +5,7 @@ import numpy as np
 from scipy.io import loadmat
 
 from mkidcalculator.io.utils import (_loaded_npz_files, offload_data, ev_nm_convert, load_legacy_binary_data,
-                                     structured_to_complex)
+                                     structured_to_complex, find_resonators, collect_resonances)
 
 log = logging.getLogger(__name__)
 log.addHandler(logging.NullHandler())
@@ -520,3 +520,35 @@ def legacy_resonator(config_file, channel=None, noise=True):
                 if not noise_kwargs:
                     log.warning("Could not find noise files for '{}'".format(config_file))
     return loop_kwargs
+
+
+def mazinlab_widesweep(file_name, field=np.nan, temperature=np.nan):
+    """
+    Function for loading data from the Mazin Lab widesweep LabView GUI.
+    Args:
+        file_name: string
+            The file name with the data.
+        field: float (optional)
+            The field at the time of the data taking. np.nan is used if not
+            provided.
+        temperature: float (optional)
+            The temperature at the time of the data taking. np.nan is used if
+            not provided.
+    Returns:
+        f: np.ndarray
+            The frequency data in GHz.
+        z: np.ndarray
+            The complex scattering parameter data.
+        attenuation: float
+            The attenuation for the data for a 0 dBm power calibration.
+        field: float
+            The field for the data.
+        temperature: float
+            The temperature for the data.
+    """
+    with open(file_name, "r") as f:
+        header = f.readline()
+    attenuation = -float(header.strip().split("\t")[1])
+    f, zr, zi = np.loadtxt(file_name, skiprows=3, unpack=True)
+    z = zr + 1j * zi
+    return f, z, attenuation, field, temperature
