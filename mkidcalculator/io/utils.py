@@ -437,7 +437,7 @@ def collect_resonances(f, z, peaks, df):
         f_array[ii, :] = f[int(peaks[ii] - dfii / 2): int(peaks[ii] + dfii / 2)]
         z_array[ii, :] = z[int(peaks[ii] - dfii / 2): int(peaks[ii] + dfii / 2)]
     # cut out resonators that aren't centered (large resonator tails on either side)
-    logic = np.abs(np.argmin(np.abs(z_array), axis=-1) - dfii / 2) > dfii / 10
+    logic = np.abs(np.argmin(np.abs(z_array), axis=-1) - dfii / 2) < dfii / 10
     return f_array[logic, :], z_array[logic, :], peaks[logic]
 
 
