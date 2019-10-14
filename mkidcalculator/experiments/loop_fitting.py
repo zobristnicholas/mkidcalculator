@@ -1,6 +1,7 @@
 import pickle
 import logging
 import numpy as np
+from collections.abc import Collection
 
 from mkidcalculator.models import S21
 from mkidcalculator.io.loop import Loop
@@ -15,28 +16,37 @@ FIT_MESSAGE = "loop {} fit: label = '{}', reduced chi squared = {}"
 
 
 def _get_loops(data):
-    if isinstance(data, Loop):
-        loops = [data]
-    elif isinstance(data, Resonator):
-        loops = data.loops
-    elif isinstance(data, Sweep):
-        loops = []
-        for resonator in data.resonators:
-            loops += resonator.loops
-    else:
-        raise ValueError("'data' object ({}) is not a Loop, Resonator, or Sweep object.".format(type(data)))
+    if not isinstance(data, Collection):
+        data = [data]
+    loops = []
+    for datum in data:
+        if isinstance(datum, Loop):
+            loops.append(datum)
+        elif isinstance(datum, Resonator):
+            loops += datum.loops
+        elif isinstance(datum, Sweep):
+            for resonator in datum.resonators:
+                loops += resonator.loops
+        else:
+            message = "'data' object ({}) is not a Loop, Resonator, Sweep, or a collection of those objects."
+            raise ValueError(message.format(type(data)))
     return loops
 
 
 def _get_resonators(data):
-    if isinstance(data, Loop):
-        resonators = [data.resonator]
-    elif isinstance(data, Resonator):
-        resonators = [data]
-    elif isinstance(data, Sweep):
-        resonators = data.resonators
-    else:
-        raise ValueError("'data' object ({}) is not a Loop, Resonator, or Sweep object.".format(type(data)))
+    if not isinstance(data, Collection):
+        data = [data]
+    resonators = []
+    for datum in data:
+        if isinstance(datum, Loop):
+            resonators.append(data.resonator)
+        elif isinstance(datum, Resonator):
+            resonators.append(datum)
+        elif isinstance(datum, Sweep):
+            resonators += datum.resonators
+        else:
+            message = "'data' object ({}) is not a Loop, Resonator, Sweep, or a collection of those objects."
+            raise ValueError(message.format(type(data)))
     return resonators
 
 
@@ -44,8 +54,8 @@ def basic_fit(data, label="basic_fit", model=S21, calibration=True, guess_kwargs
     """
     Fit the loop using the standard model guess.
     Args:
-        data: Loop, Resonator, or Sweep object
-            The loop or loops to fit. If a Resonator or Sweep object is given
+        data: Loop, Resonator, Sweep, or collection of those objects
+            The loop or loops to fit. If Resonator or Sweep objects are given
             all of the contained loops are fit.
         label: string (optional)
             The label to store the fit results under. The default is
@@ -84,8 +94,8 @@ def temperature_fit(data, label="temperature_fit", model=S21, **lmfit_kwargs):
     power in the resonator as guesses. If there are no good guesses, nothing
     will happen.
     Args:
-        data: Loop, Resonator, or Sweep object
-            The loop or loops to fit. If a Resonator or Sweep object is given
+        data: Loop, Resonator, Sweep, or collection of those objects
+            The loop or loops to fit. If Resonator or Sweep objects are given
             all of the contained loops are fit.
         label: string (optional)
             The label to store the fit results under. The default is
@@ -131,8 +141,8 @@ def linear_fit(data, label="linear_fit", model=S21, parameter="a_sqrt", **lmfit_
     Fit the loop using a previous good fit, but with the nonlinearity turned
     off.
     Args:
-        data: Loop, Resonator, or Sweep object
-            The loop or loops to fit. If a Resonator or Sweep object is given
+        data: Loop, Resonator, Sweep, or collection of those objects
+            The loop or loops to fit. If Resonator or Sweep objects are given
             all of the contained loops are fit.
         label: string (optional)
             The label to store the fit results under. The default is
@@ -152,8 +162,8 @@ def nonlinear_fit(data, label="nonlinear_fit", model=S21, parameter=("a_sqrt", 0
     """
     Fit the loop using a previous good fit, but with the nonlinearity.
     Args:
-        data: Loop, Resonator, or Sweep object
-            The loop or loops to fit. If a Resonator or Sweep object is given
+        data: Loop, Resonator, Sweep, or collection of those objects
+            The loop or loops to fit. If Resonator or Sweep objects are given
             all of the contained loops are fit.
         label: string (optional)
             The label to store the fit results under. The default is
@@ -194,8 +204,8 @@ def multiple_fit(data, model=S21, extra_fits=(temperature_fit, nonlinear_fit, li
     """
     Fit the loops using multiple methods.
     Args:
-        data: Loop, Resonator, or Sweep object
-            The loop or loops to fit. If a Resonator or Sweep object is given
+        data: Loop, Resonator, Sweep, or collection of those objects
+            The loop or loops to fit. If Resonator or Sweep objects are given
             all of the contained loops are fit.
         model: class (optional)
             A model class to use for the fit. The default is
