@@ -441,7 +441,7 @@ def collect_resonances(f, z, peaks, df):
     return f_array[logic, :], z_array[logic, :], peaks[logic]
 
 
-def _get_loop_fit_info(loops, parameters=("chi2",), label='best', bounds=None, errorbars=None, success=None):
+def _loop_fit_data(loops, parameters=("chi2",), label='best', bounds=None, errorbars=None, success=None):
     outputs = []
     for parameter in parameters:
         outputs.append([])

@@ -6,7 +6,7 @@ from mkidcalculator.io.loop import Loop
 from mkidcalculator.io.resonator import Resonator
 from mkidcalculator.io.data import analogreadout_sweep, mazinlab_widesweep
 from mkidcalculator.plotting import plot_parameter_vs_f, plot_parameter_hist
-from mkidcalculator.io.utils import find_resonators, collect_resonances, _get_loop_fit_info
+from mkidcalculator.io.utils import find_resonators, collect_resonances, _loop_fit_data
 
 log = logging.getLogger(__name__)
 log.addHandler(logging.NullHandler())
@@ -213,8 +213,8 @@ class Sweep:
         for resonator in self.resonators:
             loops += resonator.loops
         parameters = ["fr"] + list(parameters)
-        outputs = _get_loop_fit_info(loops, parameters=parameters, label=label, bounds=bounds, success=success,
-                                     errorbars=errorbars)
+        outputs = _loop_fit_data(loops, parameters=parameters, label=label, bounds=bounds, success=success,
+                                 errorbars=errorbars)
         # create figure if needed
         if figure is None:
             from matplotlib import pyplot as plt

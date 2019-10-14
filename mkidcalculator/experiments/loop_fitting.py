@@ -7,7 +7,7 @@ from mkidcalculator.models import S21
 from mkidcalculator.io.loop import Loop
 from mkidcalculator.io.sweep import Sweep
 from mkidcalculator.io.resonator import Resonator
-from mkidcalculator.io.utils import _get_loop_fit_info
+from mkidcalculator.io.utils import _loop_fit_data
 
 log = logging.getLogger(__name__)
 log.addHandler(logging.NullHandler())
@@ -252,7 +252,7 @@ def multiple_fit(data, model=S21, extra_fits=(temperature_fit, nonlinear_fit, li
                     fit(loop, **kwargs)
 
 
-def get_loop_fit_info(data, parameters=("chi2",), label='best', bounds=None, errorbars=None, success=None):
+def loop_fit_data(data, parameters=("chi2",), label='best', bounds=None, errorbars=None, success=None):
     """
     Collect fit information from Loop fits into arrays.
     Args:
@@ -287,5 +287,5 @@ def get_loop_fit_info(data, parameters=("chi2",), label='best', bounds=None, err
             The outputs in the same order as parameters.
     """
     loops = _get_loops(data)
-    return _get_loop_fit_info(loops, parameters=parameters, label=label, bounds=bounds, errorbars=errorbars,
-                              success=success)
+    return _loop_fit_data(loops, parameters=parameters, label=label, bounds=bounds, errorbars=errorbars,
+                          success=success)
