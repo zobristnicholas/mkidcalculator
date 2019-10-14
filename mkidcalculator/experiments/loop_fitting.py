@@ -7,6 +7,7 @@ from mkidcalculator.models import S21
 from mkidcalculator.io.loop import Loop
 from mkidcalculator.io.sweep import Sweep
 from mkidcalculator.io.resonator import Resonator
+from mkidcalculator.io.utils import _get_loop_fit_info
 
 log = logging.getLogger(__name__)
 log.addHandler(logging.NullHandler())
@@ -249,3 +250,42 @@ def multiple_fit(data, model=S21, extra_fits=(temperature_fit, nonlinear_fit, li
                     kwargs = {"label": fit.__name__ + str(iteration), "model": model}
                     kwargs.update(fit_kwargs[extra_index])
                     fit(loop, **kwargs)
+
+
+def get_loop_fit_info(data, parameters=("chi2",), label='best', bounds=None, errorbars=None, success=None):
+    """
+    Collect fit information from Loop fits into arrays.
+    Args:
+        data: Loop, Resonator, Sweep, or collection of those objects
+            The fitted loop or loops to extract information from. If Resonator
+            or Sweep objects are given all of the contained loops are used.
+        parameters: tuple of strings
+            The fit parameters to report. "chi2" can be used to retrieve
+            the reduced chi squared values. The default is to just return chi2.
+        label: string (optional)
+            The fit label to use.
+        bounds: tuple of numbers or tuples
+            The bounds for the parameters. It must be a tuple of the same
+            length as the parameters keyword argument. Each element is either
+            an upper bound on the parameter or a tuple, e.g. (lower bound,
+            upper bound). None can be used as a placeholder to skip a
+            parameter. The default is None and no bounds are used.
+        errorbars: boolean
+            If errorbars is True, only data from loop fits that could compute
+            errorbars on the fit parameters is included. If errorbars is False,
+            only data from loop fits that could not compute errorbars on the
+            fit parameters is included. The default is None, and no filtering
+            on the errorbars is done.
+        success: boolean
+            If success is True, only data from successful loop fits is
+            included. If False, only data from failed loop fits is
+            included. The default is None, and no filtering on fit success is
+            done. Note: fit success is typically a bad indicator on fit
+            quality. It only ever fails when something really bad happens.
+    Returns:
+        outputs: tuple of numpy.ndarray objects
+            The outputs in the same order as parameters.
+    """
+    loops = _get_loops(data)
+    return _get_loop_fit_info(loops, parameters=parameters, label=label, bounds=bounds, errorbars=errorbars,
+                              success=success)
