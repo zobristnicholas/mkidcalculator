@@ -86,7 +86,7 @@ def basic_fit(data, label="basic_fit", model=S21, calibration=True, guess_kwargs
         kwargs = {"label": label}
         kwargs.update(lmfit_kwargs)
         loop.lmfit(model, guess, **kwargs)
-        log.info(FIT_MESSAGE.format(loop, label, loop.lmfit_results[label]['result'].redchi))
+        log.info(FIT_MESSAGE.format(id(loop), label, loop.lmfit_results[label]['result'].redchi))
 
 
 def temperature_fit(data, label="temperature_fit", model=S21, **lmfit_kwargs):
@@ -134,7 +134,7 @@ def temperature_fit(data, label="temperature_fit", model=S21, **lmfit_kwargs):
                 kwargs = {"label": fit_label}
                 kwargs.update(lmfit_kwargs)
                 loop.lmfit(model, guess, **lmfit_kwargs)
-                log.info(FIT_MESSAGE.format(loop, fit_label, loop.lmfit_results[fit_label]['result'].redchi))
+                log.info(FIT_MESSAGE.format(id(loop), fit_label, loop.lmfit_results[fit_label]['result'].redchi))
 
 
 def linear_fit(data, label="linear_fit", model=S21, parameter="a_sqrt", **lmfit_kwargs):
@@ -195,7 +195,7 @@ def nonlinear_fit(data, label="nonlinear_fit", model=S21, parameter=("a_sqrt", 0
             kwargs = {"label": label}
             kwargs.update(lmfit_kwargs)
             loop.lmfit(model, guess, **lmfit_kwargs)
-            log.info(FIT_MESSAGE.format(loop, label, loop.lmfit_results[label]['result'].redchi))
+            log.info(FIT_MESSAGE.format(id(loop), label, loop.lmfit_results[label]['result'].redchi))
         else:
             raise AttributeError("loop does not have a previous fit on which to base the nonlinear fit.")
 
