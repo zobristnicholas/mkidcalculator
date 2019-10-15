@@ -255,7 +255,8 @@ class Sweep:
             if plot_kwargs[2 * index]:
                 kws.update(plot_kwargs[2 * index])
             plot_parameter_hist(outputs[index + 1], axes=axes_list[2 * index], **kws)
-            kws = {"y_label": parameters[index + 1], "x_label": fr + " [GHz]"}
+            kws = {"y_label": parameters[index + 1], "x_label": fr + " [GHz]", "title": True,
+                   "title_kwargs": {"fontsize": "medium"}}
             if index == 0:
                 kws.update({"legend": True})
             factor = 1
