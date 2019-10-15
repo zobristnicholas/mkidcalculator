@@ -2,10 +2,10 @@ import warnings
 import numpy as np
 
 
-def plot_parameter_vs_f(parameter, f, title=None, x_label=True, y_label=True, label_kwargs=None, tick_kwargs=None,
-                        tighten=True, scatter=True, median=True, bins=30, extend=True, return_bin=False, axes=None,
-                        median_kwargs=None, scatter_kwargs=None, delta=False, absolute_delta=False, legend=False,
-                        legend_kwargs=None):
+def plot_parameter_vs_f(parameter, f, title=None, title_kwargs=None, x_label=True, y_label=True, label_kwargs=None,
+                        tick_kwargs=None, tighten=True, scatter=True, median=True, bins=30, extend=True,
+                        return_bin=False, axes=None, median_kwargs=None, scatter_kwargs=None, delta=False,
+                        absolute_delta=False, legend=False, legend_kwargs=None):
     """
     Plot a parameter vs frequency.
     Args:
@@ -15,6 +15,10 @@ def plot_parameter_vs_f(parameter, f, title=None, x_label=True, y_label=True, la
             The frequencies corresponding to the parameter values.
         title: string (optional)
             The title for the plot. The default is None and no title is made.
+            If title is True, a default title is used.
+        title_kwargs: dictionary (optional)
+            Keyword arguments for the title as used in axes.title(). The
+            default is None and no keyword arguements are passed.
         x_label: string, boolean (optional)
             The x label for the plot. The default is True and the default label
             is used. If False, no label is used.
@@ -126,8 +130,13 @@ def plot_parameter_vs_f(parameter, f, title=None, x_label=True, y_label=True, la
         axes.set_ylabel("median parameter" if y_label is True else y_label, **kws)
     if tick_kwargs is not None:
         axes.tick_params(**tick_kwargs)
+    if title is True:
+        title = "median = {:g}".format(np.median(parameter))
     if title and title is not None:
-        axes.set_title(title)
+        kwargs = {}
+        if title_kwargs is not None:
+            kwargs.update(title_kwargs)
+        axes.set_title(title, **kwargs)
     if legend:
         kwargs = {"frameon": False}
         if legend_kwargs is not None:
