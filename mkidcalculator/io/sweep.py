@@ -1,7 +1,9 @@
 import os
 import pickle
 import logging
+import numpy as np
 from matplotlib import gridspec
+from collections.abc import Collection
 
 from mkidcalculator.io.loop import Loop
 from mkidcalculator.io.resonator import Resonator
@@ -162,20 +164,29 @@ class Sweep:
         for resonator in self.resonators:
             resonator._set_directory(self._directory)
 
-    def plot_loop_fits(self, parameters=("qi", "q0", "chi2"), bounds=None, errorbars=True, success=True,
+    def plot_loop_fits(self, parameters=("chi2",), fr="fr", bounds=None, errorbars=True, success=True,
                        title=True, tighten=True, label='best', plot_kwargs=None, figure=None):
         """
         Plot a summary of all the loop fits.
         Args:
             parameters: tuple of strings
                 The fit parameters to plot. "chi2" can be used to plot the
-                reduced chi squared value.
+                reduced chi squared value. The default is just "chi2".
+            fr: string
+                The parameter name that corresponds to the resonance frequency.
+                The default is "fr" which gives the resonance frequency for the
+                mkidcalculator.S21 model. If this parameter is used in the
+                parameters list, a histogram and a nearest-neighbor scatter
+                plot is shown instead of the usual histogram and scatter plot.
             bounds: tuple of numbers or tuples
                 The bounds for the parameters. It must be a tuple of the same
                 length as the parameters keyword argument. Each element is either
                 an upper bound on the parameter or a tuple, e.g. (lower bound,
-                upper bound). None can be used as a placeholder to skip a
-                bound. The default is None and no bounds are used.
+                upper bound). Only data points that satisfy all of the bounds
+                are plotted. None can be used as a placeholder to skip a bound.
+                The default is None and no bounds are used. A bound for
+                the fr parameter is used as a bound on |∆fr| in MHz but does
+                not act like a filter for the other parameters.
             errorbars: boolean
                 If errorbars is True, only data from loop fits that could compute
                 errorbars on the fit parameters is included. If errorbars is False,
@@ -213,39 +224,58 @@ class Sweep:
         loops = []
         for resonator in self.resonators:
             loops += resonator.loops
-        parameters = ["fr"] + list(parameters)
+        parameters = [fr] + list(parameters)
+        if not isinstance(bounds, Collection):
+            bounds = [bounds] * len(parameters)
+        bounds = [None] + list(bounds)
+        # replace fr bound with None so we can just set the plot bound
+        dfr_bound = None
+        for index, bound in enumerate(bounds):
+            if parameters[index] == fr and index != 0 and bound is not None:
+                dfr_bound = bound if isinstance(bound, Collection) else (0, bound)
+                bounds[index] = None
         outputs = _loop_fit_data(loops, parameters=parameters, label=label, bounds=bounds, success=success,
                                  errorbars=errorbars)
         # create figure if needed
         if figure is None:
             from matplotlib import pyplot as plt
-            figure = plt.figure(figsize=(8.5, 11))
+            figure = plt.figure(figsize=(8.5, 11 / 5 * (len(parameters) - 1)))
         # setup figure axes
         gs = gridspec.GridSpec(len(parameters) - 1, 2)
-        axes_list = np.array([figure.add_subplot(gs_ii) for _, gs_ii in np.ndenumerate(gs)])
+        axes_list = np.array([figure.add_subplot(gs_ii) for gs_ii in gs])
         # check plot kwargs
         if plot_kwargs is None:
             plot_kwargs = {}
         if isinstance(plot_kwargs, dict):
             plot_kwargs = [plot_kwargs] * len(axes_list)
         # add plots
-        for index in range(axes_list // 2):
-            kws = {"x_label": parameters[index + 1]}
-            if plot_kwargs[0]:
+        for index in range(len(axes_list) // 2):
+            kws = {"x_label": parameters[index + 1] + " [GHz]"
+                   if parameters[index + 1] == fr else parameters[index + 1]}
+            if plot_kwargs[2 * index]:
                 kws.update(plot_kwargs[2 * index])
-            plot_parameter_hist(outputs[index + 1], axes=axes_list[0], **kws)
-            kws = {"y_label": "median " + parameters[index + 1]}
-            if plot_kwargs[1]:
+            plot_parameter_hist(outputs[index + 1], axes=axes_list[2 * index], **kws)
+            kws = {"y_label": parameters[index + 1], "x_label": fr + " [GHz]"}
+            if index == 0:
+                kws.update({"legend": True})
+            factor = 1
+            if parameters[index + 1] == fr:
+                kws.update({"absolute_delta": True, "y_label": "|∆" + parameters[index + 1] + "| [MHz]"})
+                factor = 1e3
+            if plot_kwargs[2 * index + 1]:
                 kws.update(plot_kwargs[2 * index + 1])
-            plot_parameter_vs_f(outputs[index + 1], outputs[0], axes=axes_list[1], **kws)
+            plot_parameter_vs_f(outputs[index + 1] * factor, outputs[0], axes=axes_list[2 * index + 1], **kws)
+            if parameters[index + 1] == fr and dfr_bound is not None:
+                axes_list[2 * index + 1].set_ylim(dfr_bound[0], dfr_bound[1])
         # add title
         if title:
-            title = "sweep fit summary: '{}'".format(label) if title is True else title
+            title = "loop fit summary: '{}'".format(label) if title is True else title
             figure.suptitle(title, fontsize=15)
             rect = [0, 0, 1, .95]
         else:
             rect = [0, 0, 1, 1]
+        figure.align_labels()
         # tighten
         if tighten:
-            figure.tight_layout(rect=rect)
+            gs.tight_layout(figure, rect=rect)
         return figure

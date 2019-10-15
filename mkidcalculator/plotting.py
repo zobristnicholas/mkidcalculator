@@ -1,9 +1,11 @@
+import warnings
 import numpy as np
 
 
 def plot_parameter_vs_f(parameter, f, title=None, x_label=True, y_label=True, label_kwargs=None, tick_kwargs=None,
                         tighten=True, scatter=True, median=True, bins=30, extend=True, return_bin=False, axes=None,
-                        median_kwargs=None, scatter_kwargs=None):
+                        median_kwargs=None, scatter_kwargs=None, delta=False, absolute_delta=False, legend=False,
+                        legend_kwargs=None):
     """
     Plot a parameter vs frequency.
     Args:
@@ -51,6 +53,20 @@ def plot_parameter_vs_f(parameter, f, title=None, x_label=True, y_label=True, la
             Extra keyword arguments to send to axes.step().
         scatter_kwargs: dictionary (optional)
             Extra keyword arguments to send to axes.plot().
+        delta: boolean (optional)
+            If True, the difference between the parameter value and its nearest
+            neighbor in frequency is plotted instead of its parameter value.
+            The default is False.
+        absolute_delta: boolean (optional)
+            If True, the absolute difference between the parameter value and
+            its nearest neighbor in frequency is plotted instead of its
+            parameter value. The default is False.
+        legend: boolean (optional)
+            If True, the legend is displayed. The default is False.
+        legend_kwargs: dictionary (optional)
+            Keyword arguments for the legend in axes.legend(). The default
+            is None which uses default options. Keywords in this
+            dictionary override the default options.
         Returns:
             axes: matplotlib.axes.Axes class
                 An Axes class with the plotted data.
@@ -66,12 +82,18 @@ def plot_parameter_vs_f(parameter, f, title=None, x_label=True, y_label=True, la
         figure, axes = plt.subplots()
     else:
         figure = axes.figure
-
+    if delta or absolute_delta:
+        df = np.abs(f - np.atleast_2d(f).T)
+        df[df == 0] = np.nan
+        nearest_neighbor = np.nanargmin(df, axis=1)
+        parameter = parameter - parameter[nearest_neighbor]
+        if absolute_delta:
+            parameter = np.abs(parameter)
     if scatter:
-        kws = {"linestyle": "none"}
+        kws = {"linestyle": "none", "marker": "o", "markersize": 1}
         if scatter_kwargs is not None:
             kws.update(scatter_kwargs)
-        axes.plot(f, parameter)
+        axes.plot(f, parameter, **kws)
     if median:
         edges = np.linspace(f.min(), f.max(), bins)
         centers = 0.5 * (edges[1:] + edges[:-1])
@@ -86,7 +108,7 @@ def plot_parameter_vs_f(parameter, f, title=None, x_label=True, y_label=True, la
             dx = centers[1] - centers[0]
             centers = np.hstack([centers[0] - dx, centers, centers[-1] + dx])
             medians = np.hstack([0, medians, 0])
-        kws = {"where": "mid"}
+        kws = {"where": "mid", "label": "median"}
         if median_kwargs is not None:
             kws.update(median_kwargs)
         axes.step(centers, medians, **kws)
@@ -94,7 +116,7 @@ def plot_parameter_vs_f(parameter, f, title=None, x_label=True, y_label=True, la
         centers = None
         medians = None
     axes.set_xlim(f.min(), f.max())
-    axes.set_ylim(bottom=0)
+    axes.set_ylim(parameter.min(), parameter.max())
     kws = {}
     if label_kwargs is not None:
         kws.update(label_kwargs)
@@ -106,6 +128,11 @@ def plot_parameter_vs_f(parameter, f, title=None, x_label=True, y_label=True, la
         axes.tick_params(**tick_kwargs)
     if title and title is not None:
         axes.set_title(title)
+    if legend:
+        kwargs = {"frameon": False}
+        if legend_kwargs is not None:
+            kwargs.update(legend_kwargs)
+        axes.legend(**kwargs)
     if tighten:
         figure.tight_layout()
     if return_bin and median:
@@ -164,7 +191,6 @@ def plot_parameter_hist(parameter, title=None, x_label=True, y_label=True, label
     if kwargs:
         kws.update(kwargs)
     counts, edges, _ = axes.hist(parameter, **kws)
-    axes.set_xlim(left=0)
     kws = {}
     if label_kwargs is not None:
         kws.update(label_kwargs)
