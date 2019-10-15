@@ -6,3 +6,5 @@ from mkidcalculator.io.data import AnalogReadoutLoop
 from mkidcalculator.io.data import AnalogReadoutNoise
 from mkidcalculator.io.data import AnalogReadoutPulse
 from mkidcalculator.io.data import analogreadout_resonator
+from mkidcalculator.io.data import mazinlab_widesweep
+from mkidcalculator.io.data import copper_mountain_c1220_widesweep

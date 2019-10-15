@@ -552,3 +552,35 @@ def mazinlab_widesweep(file_name, field=np.nan, temperature=np.nan):
     f, zr, zi = np.loadtxt(file_name, skiprows=3, unpack=True)
     z = zr + 1j * zi
     return f, z, attenuation, field, temperature
+
+
+def copper_mountain_c1220_widesweep(file_name, attenuation=np.nan, field=np.nan, temperature=np.nan):
+    """
+    Function for loading data from the Copper Mountain C1220 VNA output file.
+    Args:
+        file_name: string
+            The file name with the data.
+        attenuation: float (optional)
+            The attenuation at the time of the data taking. np.nan is used if
+            not provided.
+        field: float (optional)
+            The field at the time of the data taking. np.nan is used if not
+            provided.
+        temperature: float (optional)
+            The temperature at the time of the data taking. np.nan is used if
+            not provided.
+    Returns:
+        f: np.ndarray
+            The frequency data in GHz.
+        z: np.ndarray
+            The complex scattering parameter data.
+        attenuation: float
+            The attenuation for the data for a 0 dBm power calibration.
+        field: float
+            The field for the data.
+        temperature: float
+            The temperature for the data.
+    """
+    f, zr, zi = np.loadtxt(file_name, skiprows=3, unpack=True, delimiter=",")
+    z = zr + 1j * zi
+    return f * 1e-9, z, attenuation, field, temperature
