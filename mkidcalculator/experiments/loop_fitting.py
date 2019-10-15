@@ -1,6 +1,8 @@
 import pickle
 import logging
 import numpy as np
+import multiprocessing as mp
+from functools import partial
 from collections.abc import Collection
 
 from mkidcalculator.models import S21
@@ -13,7 +15,24 @@ log = logging.getLogger(__name__)
 log.addHandler(logging.NullHandler())
 
 MAX_REDCHI = 100
-FIT_MESSAGE = "loop {} fit: label = '{}', reduced chi squared = {}"
+FIT_MESSAGE = "loop {:d} fit: label = '{:s}', reduced chi squared = {:g}"
+
+
+def _parallel(function, data, pool=None, **kwargs):
+    close = False
+    if not isinstance(pool, mp.pool.Pool):
+        pool = mp.Pool(mp.cpu_count())
+        close = True
+    fit = partial(function, parallel=False, **kwargs)
+    _replace(data, pool.map(fit, data))
+    if close:
+        pool.close()
+    return data
+
+
+def _replace(old, new):
+    for index, item in enumerate(old):
+        item.__dict__ = new[index][0].__dict__
 
 
 def _get_loops(data):
@@ -51,7 +70,7 @@ def _get_resonators(data):
     return resonators
 
 
-def basic_fit(data, label="basic_fit", model=S21, calibration=True, guess_kwargs=None, **lmfit_kwargs):
+def basic_fit(data, label="basic_fit", model=S21, calibration=True, guess_kwargs=None, parallel=False, **lmfit_kwargs):
     """
     Fit the loop using the standard model guess.
     Args:
@@ -71,11 +90,21 @@ def basic_fit(data, label="basic_fit", model=S21, calibration=True, guess_kwargs
         guess_kwargs: dictionary
             A dictionary of keyword arguments that can overwrite the default
             options for model.guess().
+        parallel: multiprocessing.Pool or boolean (optional)
+            A multiprocessing pool object to use for the computation. The default
+            is False, and the computation is done in serial. If True, a Pool object
+            is created with multiprocessing.cpu_count() CPUs.
         lmfit_kwargs: optional keyword arguments
             Additional keyword arguments to pass to loop.lmfit()
+    Returns:
+        loops: a list of mkidcalculator.Loop objects
+            The loop objects that were fit.
     """
     # convert file name to loop if needed
     loops = _get_loops(data)
+    if parallel:
+        return _parallel(basic_fit, loops, pool=parallel, label=label, model=model, calibration=calibration,
+                         guess_kwargs=guess_kwargs, **lmfit_kwargs)
     for loop in loops:
         # make guess
         kwargs = {"imbalance": loop.imbalance_calibration, "offset": loop.offset_calibration} if calibration else {}
@@ -87,9 +116,10 @@ def basic_fit(data, label="basic_fit", model=S21, calibration=True, guess_kwargs
         kwargs.update(lmfit_kwargs)
         loop.lmfit(model, guess, **kwargs)
         log.info(FIT_MESSAGE.format(id(loop), label, loop.lmfit_results[label]['result'].redchi))
+    return loops
 
 
-def temperature_fit(data, label="temperature_fit", model=S21, **lmfit_kwargs):
+def temperature_fit(data, label="temperature_fit", model=S21, parallel=False, **lmfit_kwargs):
     """
     Fit the loop using the two nearest temperature data points of the same
     power in the resonator as guesses. If there are no good guesses, nothing
@@ -104,11 +134,20 @@ def temperature_fit(data, label="temperature_fit", model=S21, **lmfit_kwargs):
         model: class (optional)
             A model class to use for the fit. The default is
             mkidcalculator.models.S21.
+        parallel: multiprocessing.Pool or boolean (optional)
+            A multiprocessing pool object to use for the computation. The default
+            is False, and the computation is done in serial. If True, a Pool object
+            is created with multiprocessing.cpu_count() CPUs.
         lmfit_kwargs: optional keyword arguments
             Additional keyword arguments to pass to loop.lmfit()
+     Returns:
+        loops: a list of mkidcalculator.Loop objects
+            The loop objects that were fit.
     """
     # convert file name to loop if needed
     loops = _get_loops(data)
+    if parallel:
+        return _parallel(temperature_fit, loops, pool=parallel, label=label, model=model, **lmfit_kwargs)
     for loop in loops:
         # find good fits from other loop
         good_guesses = []
@@ -135,9 +174,10 @@ def temperature_fit(data, label="temperature_fit", model=S21, **lmfit_kwargs):
                 kwargs.update(lmfit_kwargs)
                 loop.lmfit(model, guess, **lmfit_kwargs)
                 log.info(FIT_MESSAGE.format(id(loop), fit_label, loop.lmfit_results[fit_label]['result'].redchi))
+    return loops
 
 
-def linear_fit(data, label="linear_fit", model=S21, parameter="a_sqrt", **lmfit_kwargs):
+def linear_fit(data, label="linear_fit", model=S21, parameter="a_sqrt", parallel=False, **lmfit_kwargs):
     """
     Fit the loop using a previous good fit, but with the nonlinearity turned
     off.
@@ -153,13 +193,22 @@ def linear_fit(data, label="linear_fit", model=S21, parameter="a_sqrt", **lmfit_
             mkidcalculator.models.S21.
         parameter: string (optional)
             The nonlinear parameter name to use.
+        parallel: multiprocessing.Pool or boolean (optional)
+            A multiprocessing pool object to use for the computation. The default
+            is False, and the computation is done in serial. If True, a Pool object
+            is created with multiprocessing.cpu_count() CPUs.
         lmfit_kwargs: optional keyword arguments
             Additional keyword arguments to pass to loop.lmfit()
+    Returns:
+        loops: a list of mkidcalculator.Loop objects
+            The loop objects that were fit.
     """
-    nonlinear_fit(data, label=label, model=model, parameter=(parameter, 0.), vary=False, **lmfit_kwargs)
+    return nonlinear_fit(data, label=label, model=model, parameter=(parameter, 0.), vary=False, parallel=parallel,
+                         **lmfit_kwargs)
 
 
-def nonlinear_fit(data, label="nonlinear_fit", model=S21, parameter=("a_sqrt", 0.05), vary=True, **lmfit_kwargs):
+def nonlinear_fit(data, label="nonlinear_fit", model=S21, parameter=("a_sqrt", 0.05), vary=True, parallel=False,
+                  **lmfit_kwargs):
     """
     Fit the loop using a previous good fit, but with the nonlinearity.
     Args:
@@ -177,14 +226,21 @@ def nonlinear_fit(data, label="nonlinear_fit", model=S21, parameter=("a_sqrt", 0
         vary: boolean (optional)
             Determines if the nonlinearity is varied in the fit. The default is
             True.
+        parallel: multiprocessing.Pool or boolean (optional)
+            A multiprocessing pool object to use for the computation. The default
+            is False, and the computation is done in serial. If True, a Pool object
+            is created with multiprocessing.cpu_count() CPUs.
         lmfit_kwargs: optional keyword arguments
             Additional keyword arguments to pass to loop.lmfit()
     Returns:
-        loop: mkidcalculator.Loop
-            The loop object that was fit.
+        loops: a list of mkidcalculator.Loop objects
+            The loop objects that were fit.
     """
     # convert file name to loop if needed
     loops = _get_loops(data)
+    if parallel:
+        return _parallel(nonlinear_fit, loops, pool=parallel, label=label, model=model, parameter=parameter, vary=vary,
+                         **lmfit_kwargs)
     for loop in loops:
         # make guess
         if "best" in loop.lmfit_results.keys():
@@ -198,10 +254,11 @@ def nonlinear_fit(data, label="nonlinear_fit", model=S21, parameter=("a_sqrt", 0
             log.info(FIT_MESSAGE.format(id(loop), label, loop.lmfit_results[label]['result'].redchi))
         else:
             raise AttributeError("loop does not have a previous fit on which to base the nonlinear fit.")
+    return loops
 
 
 def multiple_fit(data, model=S21, extra_fits=(temperature_fit, nonlinear_fit, linear_fit), fit_kwargs=None,
-                 iterations=2, **basic_fit_kwargs):
+                 iterations=2, parallel=False, **basic_fit_kwargs):
     """
     Fit the loops using multiple methods.
     Args:
@@ -223,17 +280,25 @@ def multiple_fit(data, model=S21, extra_fits=(temperature_fit, nonlinear_fit, li
             Number of times to run the extra_fits. The default is 2. This is
             useful for when the extra_fits use fit information from other loops
             in the resonator.
+        parallel: multiprocessing.Pool or boolean (optional)
+            A multiprocessing pool object to use for the computation. The default
+            is False, and the computation is done in serial. If True, a Pool object
+            is created with multiprocessing.cpu_count() CPUs.
         basic_fit_kwargs: optional keyword arguments
             Additional keyword arguments to pass to the basic_fit function
             before the extra fits are used.
+    Returns:
+        resonators: list of mkidcalculator.Resonator objects
+            The resonator objects that were fit.
     """
-    # parse inputs
+    resonators = _get_resonators(data)
+    if parallel:
+        return _parallel(multiple_fit, resonators, pool=parallel, model=model, extra_fits=extra_fits,
+                         fit_kwargs=fit_kwargs, iterations=iterations, **basic_fit_kwargs)
     if fit_kwargs is None:
         fit_kwargs = [{}] * len(extra_fits)
     if isinstance(fit_kwargs, dict):
         fit_kwargs = [fit_kwargs] * len(extra_fits)
-    # convert file name to resonator if needed
-    resonators = _get_resonators(data)
     for resonator in resonators:
         log.info("fitting resonator: {}".format(resonator))
         # fit the resonator
@@ -250,6 +315,7 @@ def multiple_fit(data, model=S21, extra_fits=(temperature_fit, nonlinear_fit, li
                     kwargs = {"label": fit.__name__ + str(iteration), "model": model}
                     kwargs.update(fit_kwargs[extra_index])
                     fit(loop, **kwargs)
+    return resonators
 
 
 def loop_fit_data(data, parameters=("chi2",), label='best', bounds=None, errorbars=None, success=None):
