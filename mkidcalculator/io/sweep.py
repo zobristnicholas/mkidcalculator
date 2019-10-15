@@ -1,6 +1,7 @@
 import os
 import pickle
 import logging
+from matplotlib import gridspec
 
 from mkidcalculator.io.loop import Loop
 from mkidcalculator.io.resonator import Resonator

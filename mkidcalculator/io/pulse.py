@@ -1,5 +1,4 @@
 import os
-import corner
 import pickle
 import logging
 import warnings
@@ -1488,6 +1487,7 @@ class Pulse:
                 Use the pulse.mask to determine which traces to plot metrics for.
                 The default is True.
         """
+        import corner  # imports pyplot
         if self._prepulse_mean is None or self._prepulse_rms is None or self._postpulse_min_slope is None:
             raise AttributeError("Data metrics have not been computed yet.")
         if use_mask:

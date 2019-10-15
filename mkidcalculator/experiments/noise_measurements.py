@@ -1,4 +1,3 @@
-import arviz
 import numpy as np
 import scipy.stats as stats
 import scipy.constants as sc
@@ -32,6 +31,7 @@ def noise_monte_carlo(n_samples, f, t_hot, t_cold, s0, s1, s2=None, s3=None, gp=
             result[key][index] = np.mean(mc[key])
     # print summary
     if summarize:
+        import arviz  # imports pyplot
         p_sigma = 1 - 2 * stats.norm.cdf(-n_sigma)
         loc, interval1 = noise_estimate(mle['ah'], prior=0.5, n_sigma=1.)
         interval2 = arviz.hpd(result['ap_sys'][result['ap_sys'] >= 1], p_sigma)
