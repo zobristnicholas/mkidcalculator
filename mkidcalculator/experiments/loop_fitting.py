@@ -294,29 +294,31 @@ def multiple_fit(data, model=S21, extra_fits=(temperature_fit, nonlinear_fit, li
             The resonator objects that were fit.
     """
     resonators = _get_resonators(data)
-    if parallel:
-        return _parallel(multiple_fit, resonators, pool=parallel, model=model, extra_fits=extra_fits,
-                         fit_kwargs=fit_kwargs, iterations=iterations, **basic_fit_kwargs)
+    # make a pool if needed so it isn't done in each fit
+    close = False
+    if parallel and not isinstance(parallel, mp.pool.Pool):
+        parallel = mp.Pool(mp.cpu_count())
+        close = True
     if fit_kwargs is None:
         fit_kwargs = [{}] * len(extra_fits)
     if isinstance(fit_kwargs, dict):
         fit_kwargs = [fit_kwargs] * len(extra_fits)
     for resonator in resonators:
-        log.info("fitting resonator: {}".format(resonator))
-        # fit the resonator
+        # fit the resonator loops with the basic fit
+        log.info("fitting resonator: {}".format(id(resonator)))
+        kwargs = {"model": model, "parallel": parallel}
+        kwargs.update(basic_fit_kwargs)
+        basic_fit(resonator, **kwargs)
+        # fit the resonator loops with the extra fits
         for iteration in range(iterations):
             log.info("starting iteration: {}".format(iteration))
-            # fit loops
-            for index, loop in enumerate(resonator.loops):
-                log.info("fitting loop: {}".format(index))
-                # do the basic fit
-                if iteration == 0:
-                    basic_fit(loop, model=model, **basic_fit_kwargs)
-                # do the extra fits
-                for extra_index, fit in enumerate(extra_fits):
-                    kwargs = {"label": fit.__name__ + str(iteration), "model": model}
-                    kwargs.update(fit_kwargs[extra_index])
-                    fit(loop, **kwargs)
+            for extra_index, fit in enumerate(extra_fits):
+                kwargs = {"label": fit.__name__ + str(iteration), "model": model, "parallel": parallel}
+                kwargs.update(fit_kwargs[extra_index])
+                fit(resonator, **kwargs)
+    # close the pool if it was generated in the code
+    if close:
+        parallel.close()
     return resonators
 
 
