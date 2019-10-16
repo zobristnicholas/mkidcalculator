@@ -18,6 +18,8 @@ MAX_REDCHI = 100
 FIT_MESSAGE = "loop {:d} fit: label = '{:s}', reduced chi squared = {:g}"
 
 
+# TODO: loading and running in parallel breaks npz file loading ... running in new session from pickle load is fine
+# TODO: multiple_fit() slows down a lot when more than one resonator is given and parallel = True
 def _parallel(function, data, pool=None, **kwargs):
     close = False
     if not isinstance(pool, mp.pool.Pool):
