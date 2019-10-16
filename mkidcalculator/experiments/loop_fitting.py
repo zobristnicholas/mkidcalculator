@@ -93,9 +93,9 @@ def basic_fit(data, label="basic_fit", model=S21, calibration=True, guess_kwargs
             A dictionary of keyword arguments that can overwrite the default
             options for model.guess().
         parallel: multiprocessing.Pool or boolean (optional)
-            A multiprocessing pool object to use for the computation. The default
-            is False, and the computation is done in serial. If True, a Pool object
-            is created with multiprocessing.cpu_count() CPUs.
+            A multiprocessing pool object to use for the computation. The
+            default is False, and the computation is done in serial. If True,
+            a Pool object is created with multiprocessing.cpu_count() CPUs.
         lmfit_kwargs: optional keyword arguments
             Additional keyword arguments to pass to loop.lmfit()
     Returns:
@@ -137,9 +137,9 @@ def temperature_fit(data, label="temperature_fit", model=S21, parallel=False, **
             A model class to use for the fit. The default is
             mkidcalculator.models.S21.
         parallel: multiprocessing.Pool or boolean (optional)
-            A multiprocessing pool object to use for the computation. The default
-            is False, and the computation is done in serial. If True, a Pool object
-            is created with multiprocessing.cpu_count() CPUs.
+            A multiprocessing pool object to use for the computation. The
+            default is False, and the computation is done in serial. If True,
+            a Pool object is created with multiprocessing.cpu_count() CPUs.
         lmfit_kwargs: optional keyword arguments
             Additional keyword arguments to pass to loop.lmfit()
      Returns:
@@ -196,9 +196,9 @@ def linear_fit(data, label="linear_fit", model=S21, parameter="a_sqrt", parallel
         parameter: string (optional)
             The nonlinear parameter name to use.
         parallel: multiprocessing.Pool or boolean (optional)
-            A multiprocessing pool object to use for the computation. The default
-            is False, and the computation is done in serial. If True, a Pool object
-            is created with multiprocessing.cpu_count() CPUs.
+            A multiprocessing pool object to use for the computation. The
+            default is False, and the computation is done in serial. If True,
+            a Pool object is created with multiprocessing.cpu_count() CPUs.
         lmfit_kwargs: optional keyword arguments
             Additional keyword arguments to pass to loop.lmfit()
     Returns:
@@ -229,9 +229,9 @@ def nonlinear_fit(data, label="nonlinear_fit", model=S21, parameter=("a_sqrt", 0
             Determines if the nonlinearity is varied in the fit. The default is
             True.
         parallel: multiprocessing.Pool or boolean (optional)
-            A multiprocessing pool object to use for the computation. The default
-            is False, and the computation is done in serial. If True, a Pool object
-            is created with multiprocessing.cpu_count() CPUs.
+            A multiprocessing pool object to use for the computation. The
+            default is False, and the computation is done in serial. If True,
+            a Pool object is created with multiprocessing.cpu_count() CPUs.
         lmfit_kwargs: optional keyword arguments
             Additional keyword arguments to pass to loop.lmfit()
     Returns:
@@ -283,9 +283,9 @@ def multiple_fit(data, model=S21, extra_fits=(temperature_fit, nonlinear_fit, li
             useful for when the extra_fits use fit information from other loops
             in the resonator.
         parallel: multiprocessing.Pool or boolean (optional)
-            A multiprocessing pool object to use for the computation. The default
-            is False, and the computation is done in serial. If True, a Pool object
-            is created with multiprocessing.cpu_count() CPUs.
+            A multiprocessing pool object to use for the computation. The
+            default is False, and the computation is done in serial. If True,
+            a Pool object is created with multiprocessing.cpu_count() CPUs.
         basic_fit_kwargs: optional keyword arguments
             Additional keyword arguments to pass to the basic_fit function
             before the extra fits are used.
