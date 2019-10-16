@@ -31,8 +31,10 @@ def _parallel(function, data, pool=None, **kwargs):
 
 
 def _replace(old, new):
+    # classes returned by pool aren't the same instances as the input classes, so we copy over the attributes
     for index, item in enumerate(old):
-        item.__dict__ = new[index][0].__dict__
+        # the copy is needed to prevent __dict__ from disappearing during garbage collection of new
+        item.__dict__ = new[index][0].__dict__.copy()
 
 
 def _get_loops(data):
@@ -172,7 +174,7 @@ def temperature_fit(data, label="temperature_fit", model=S21, parallel=False, **
                 fit_label = label + "_" + str(iteration)
                 kwargs = {"label": fit_label}
                 kwargs.update(lmfit_kwargs)
-                loop.lmfit(model, guess, **lmfit_kwargs)
+                loop.lmfit(model, guess, **kwargs)
                 log.info(FIT_MESSAGE.format(id(loop), fit_label, loop.lmfit_results[fit_label]['result'].redchi))
     return loops
 
@@ -250,7 +252,7 @@ def nonlinear_fit(data, label="nonlinear_fit", model=S21, parameter=("a_sqrt", 0
             # do fit
             kwargs = {"label": label}
             kwargs.update(lmfit_kwargs)
-            loop.lmfit(model, guess, **lmfit_kwargs)
+            loop.lmfit(model, guess, **kwargs)
             log.info(FIT_MESSAGE.format(id(loop), label, loop.lmfit_results[label]['result'].redchi))
         else:
             raise AttributeError("loop does not have a previous fit on which to base the nonlinear fit.")
