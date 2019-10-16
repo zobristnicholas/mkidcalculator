@@ -56,7 +56,7 @@ class NpzHolder:
         None, all are removed (default).
         """
         if file_names is None:
-            file_names = self._files.keys()
+            file_names = list(self._files.keys())
         elif isinstance(file_names, str):
             file_names = [file_names]
         for file_name in file_names:
