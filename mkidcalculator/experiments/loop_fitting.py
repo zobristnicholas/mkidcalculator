@@ -21,7 +21,7 @@ FIT_MESSAGE = "loop {:d} fit: label = '{:s}', reduced chi squared = {:g}"
 def _parallel(function, data, pool=None, **kwargs):
     close = False
     if not isinstance(pool, mp.pool.Pool):
-        pool = mp.Pool(mp.cpu_count())
+        pool = mp.Pool(mp.cpu_count() // 2)
         close = True
     fit = partial(function, parallel=False, **kwargs)
     _replace(data, pool.map(fit, data))
@@ -95,7 +95,8 @@ def basic_fit(data, label="basic_fit", model=S21, calibration=True, guess_kwargs
         parallel: multiprocessing.Pool or boolean (optional)
             A multiprocessing pool object to use for the computation. The
             default is False, and the computation is done in serial. If True,
-            a Pool object is created with multiprocessing.cpu_count() CPUs.
+            a Pool object is created with multiprocessing.cpu_count() // 2
+            CPUs.
         lmfit_kwargs: optional keyword arguments
             Additional keyword arguments to pass to loop.lmfit()
     Returns:
@@ -139,7 +140,8 @@ def temperature_fit(data, label="temperature_fit", model=S21, parallel=False, **
         parallel: multiprocessing.Pool or boolean (optional)
             A multiprocessing pool object to use for the computation. The
             default is False, and the computation is done in serial. If True,
-            a Pool object is created with multiprocessing.cpu_count() CPUs.
+            a Pool object is created with multiprocessing.cpu_count() // 2
+            CPUs.
         lmfit_kwargs: optional keyword arguments
             Additional keyword arguments to pass to loop.lmfit()
      Returns:
@@ -198,7 +200,8 @@ def linear_fit(data, label="linear_fit", model=S21, parameter="a_sqrt", parallel
         parallel: multiprocessing.Pool or boolean (optional)
             A multiprocessing pool object to use for the computation. The
             default is False, and the computation is done in serial. If True,
-            a Pool object is created with multiprocessing.cpu_count() CPUs.
+            a Pool object is created with multiprocessing.cpu_count() // 2
+            CPUs.
         lmfit_kwargs: optional keyword arguments
             Additional keyword arguments to pass to loop.lmfit()
     Returns:
@@ -231,7 +234,8 @@ def nonlinear_fit(data, label="nonlinear_fit", model=S21, parameter=("a_sqrt", 0
         parallel: multiprocessing.Pool or boolean (optional)
             A multiprocessing pool object to use for the computation. The
             default is False, and the computation is done in serial. If True,
-            a Pool object is created with multiprocessing.cpu_count() CPUs.
+            a Pool object is created with multiprocessing.cpu_count() // 2
+            CPUs.
         lmfit_kwargs: optional keyword arguments
             Additional keyword arguments to pass to loop.lmfit()
     Returns:
@@ -285,7 +289,8 @@ def multiple_fit(data, model=S21, extra_fits=(temperature_fit, nonlinear_fit, li
         parallel: multiprocessing.Pool or boolean (optional)
             A multiprocessing pool object to use for the computation. The
             default is False, and the computation is done in serial. If True,
-            a Pool object is created with multiprocessing.cpu_count() CPUs.
+            a Pool object is created with multiprocessing.cpu_count() // 2
+            CPUs.
         basic_fit_kwargs: optional keyword arguments
             Additional keyword arguments to pass to the basic_fit function
             before the extra fits are used.
@@ -297,7 +302,7 @@ def multiple_fit(data, model=S21, extra_fits=(temperature_fit, nonlinear_fit, li
     # make a pool if needed so it isn't done in each fit
     close = False
     if parallel and not isinstance(parallel, mp.pool.Pool):
-        parallel = mp.Pool(mp.cpu_count())
+        parallel = mp.Pool(mp.cpu_count() // 2)
         close = True
     if fit_kwargs is None:
         fit_kwargs = [{}] * len(extra_fits)
