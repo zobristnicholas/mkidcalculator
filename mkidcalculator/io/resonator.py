@@ -283,10 +283,11 @@ class Resonator:
                 A parameters object containing starting values (and bounds if
                 desired) for all of the parameters needed for the residual
                 function.
-            index: pandas.IndexSlice (optional)
-                A pandas index which specifies which data from the loop
-                parameters table should be fit. The default is None and all
-                data is fit.
+            index: tuple of 3 slices or a list of those tuples
+                A list of slices for power, field and temperature which specify
+                which data from the loop parameters table should be fit. The
+                default is None and all data is fit. If a list of slices is
+                used, the slices are concatenated.
             label: string (optional)
                 A label describing the fit, used for storing the results in the
                 self.lmfit_results dictionary. The default is 'default'.
@@ -310,7 +311,12 @@ class Resonator:
                 also stored in self.lmfit_results[label]['result'].
         """
         # get the data to fit
-        table = self.loop_parameters[data_label] if index is None else self.loop_parameters[data_label].loc[index]
+        if index is None:
+            table = self.loop_parameters[data_label]
+        elif len(index) == 3 and all([isinstance(index[ind], slice) for ind in range(3)]):
+            table = self.loop_parameters[data_label].loc[index]
+        else:
+            table = pd.concat([self.loop_parameters[data_label].loc[ind] for ind in index])
         if isinstance(parameter, str):
             parameter = [parameter]
         args_list = []
