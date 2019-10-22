@@ -368,7 +368,7 @@ def _integer_bandwidth(f, df):
     return int(np.round(df / (f[1] - f[0]) / 2) * 2)  # nearest even number
 
 
-def find_resonators(f, z, df, **kwargs):
+def find_resonators(f, z, df=5e-4, **kwargs):
     """
     Find resonators in a S21 trace.
     Args:
@@ -376,9 +376,11 @@ def find_resonators(f, z, df, **kwargs):
             The frequencies corresponding to the magnitude array.
         z: numpy.ndarray
             The complex scattering data.
-        df: float
+        df: float (optional)
             The frequency bandwidth for each resonator. df / 2 will be used as
-            the max peak width unless overridden.
+            the max peak width unless overridden. Resonators separated by less
+            than df / 2 are also discarded. If None, no max peak width or
+            frequency cut is used. The default is 5e-4 (0.5 MHz).
         kwargs: optional keyword arguments
             Optional keyword arguments to scipy.signal.find_peaks. Values here
             will override the defaults.
@@ -387,21 +389,24 @@ def find_resonators(f, z, df, **kwargs):
             An array of peak integers
     """
     # resonator bandwidth in indices
-    dfii = _integer_bandwidth(f, df)
+    dfii = _integer_bandwidth(f, df) if df is not None else None
     # detrend magnitude data for peak finding
     magnitude = detrend(20 * np.log10(np.abs(z)))
     fit = np.argsort(magnitude)[:int(3 * len(magnitude) / 4):-1]
     poly = np.polyfit(f[fit], magnitude[fit], 1)
     magnitude = magnitude - np.polyval(poly, f)
     # find peaks
-    kws = {"prominence": 1, "height": 5, "width": (None, int(dfii / 2))}
+    kws = {"prominence": 1, "height": 5}
+    if dfii is not None:
+        kws.update({"width": (None, int(dfii / 2))})
     kws.update(kwargs)
     peaks, _ = find_peaks(-magnitude, **kws)
     # cut out resonators that are separated from neighbors by less than df / 2
-    right = np.hstack((np.diff(f[peaks]) > df / 2, False))
-    left = np.hstack((False, np.diff(f[peaks][::-1])[::-1] < -df / 2))
-    logic = left & right
-    peaks = peaks[logic]
+    if df is not None:
+        right = np.hstack((np.diff(f[peaks]) > df / 2, False))
+        left = np.hstack((False, np.diff(f[peaks][::-1])[::-1] < -df / 2))
+        logic = left & right
+        peaks = peaks[logic]
     return peaks
 
 
