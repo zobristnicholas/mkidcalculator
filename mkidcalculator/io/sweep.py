@@ -78,7 +78,7 @@ class Sweep:
             resonator.free_memory(directory=directory)
 
     @classmethod
-    def from_widesweep(cls, sweep_file_name, df, data=mazinlab_widesweep, find=find_resonators, find_kwargs=None,
+    def from_widesweep(cls, sweep_file_name, df, data=mazinlab_widesweep, indices=find_resonators, indices_kwargs=None,
                        loop_kwargs=None, **kwargs):
         """
         Sweep class factory method that returns a Sweep() from widesweep data
@@ -94,12 +94,14 @@ class Sweep:
                 (numpy.ndarray), complex scattering data (numpy.ndarray),
                 attenuation (float), field (float), and temperature (float) of
                 the widesweep.
-            find: object (optional)
-                Function whose return value is a list of resonator peak indices
-                corresponding to the data returned by 'data'. The manditory
-                input arguments are f, z, and df.
-            find_kwargs: dictionary (optional)
-                Extra keyword arguments to pass to the find function.
+            indices: iterable of integers or function (optional)
+                If an iterable, indices is interpreted as starting peak
+                locations. If a function, it must return an iterable of
+                resonator peak indices corresponding to the data returned by
+                'data'. The manditory input arguments are f, z.
+            indices_kwargs: dictionary (optional)
+                Extra keyword arguments to pass to the indices function. The
+                default is None.
             loop_kwargs: dictionary (optional)
                 Extra keyword arguments to pass to loop.from_python().
             kwargs: optional keyword arguments
@@ -110,10 +112,15 @@ class Sweep:
         """
         sweep = cls()
         f, z, attenuation, field, temperature = data(sweep_file_name, **kwargs)
-        kws = {}
-        if find_kwargs is not None:
-            kws.update(find_kwargs)
-        peaks = find(f, z, df, **kws)
+
+        if callable(indices):
+            kws = {"df": df} if indices is find_resonators else {}
+            if indices_kwargs is not None:
+                kws.update(indices_kwargs)
+            peaks = np.array(indices(f, z, **kws))
+        else:
+            peaks = np.array(indices)
+
         f_array, z_array, _ = collect_resonances(f, z, peaks, df)
         resonators = []
         for ii in range(f_array.shape[0]):
