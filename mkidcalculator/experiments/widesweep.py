@@ -1,3 +1,4 @@
+import os
 import pickle
 import logging
 import numpy as np
@@ -12,7 +13,7 @@ log = logging.getLogger(__name__)
 log.addHandler(logging.NullHandler())
 
 
-def frequency_selector(file_name, delta_f=0.025, output_name="frequencies.p", data=mazinlab_widesweep,
+def frequency_selector(file_name, delta_f=0.025, data=mazinlab_widesweep,
                        indices=find_resonators, indices_kwargs=None, figure_kwargs=None, **kwargs):
     """
     A simple GUI for finding resonant frequencies in a widesweep.
@@ -22,15 +23,16 @@ def frequency_selector(file_name, delta_f=0.025, output_name="frequencies.p", da
         delta_f: float (optional)
             The frequency span to use for each window range. The default is
             0.025.
-        output_name: string (optional)
-            The output file name or path for saving the data. The default is
-            'frequencies.p'.
         data: object (optional)
             Function whose return value is a tuple of the frequencies
             (numpy.ndarray), complex scattering data (numpy.ndarray),
             attenuation (float), field (float), and temperature (float) of
             the widesweep.
-        indices: iterable of integers or function (optional)
+        indices: string, iterable of integers or function (optional)
+            A string may be used to specify an indices file name. Data will be
+            loaded and then re-saved to this file on closing. If the file does
+            not exist, no indices are assumed and the file will be created on
+            closing.
             If an iterable, indices is interpreted as starting peak locations.
             If a function, it must return an iterable of resonator peak indices
             corresponding to the data returned by 'data'. The manditory
@@ -43,19 +45,29 @@ def frequency_selector(file_name, delta_f=0.025, output_name="frequencies.p", da
             Extra keyword arguments to send to data.
     """
     from matplotlib import pyplot as plt
+    # get output file name
+    if isinstance(indices, str):
+        output_file = indices
+    else:
+        output_file = ".".join(file_name.split('.')[:-1])
+        while os.path.isfile(output_file + ".p"):
+            output_file += "_new"
+        output_file += ".p"
     # get data from file
     f, z, attenuation, field, temperature = data(file_name, **kwargs)
     magnitude = 20 * np.log10(np.abs(z))
-    # find peaks if we were given a method
+    # find peaks if we were given a method or a file
     peaks = np.full(f.shape, False)
     peak_handles = np.full(f.shape, None)
     if indices is not None and callable(indices):
         kws = {}
         if indices_kwargs is not None:
             kws.update(indices_kwargs)
-        peaks[np.array(indices(f, z, **kws))] = True
-    elif indices is not None:
-        peaks[np.array(indices)] = True
+        indices = indices(f, z, **kws)
+    elif isinstance(indices, str):
+        with open(indices, "rb") as file_:
+            indices = pickle.load(file_)
+    peaks[np.array(indices)] = True
 
     # setup figure
     kws = {"figsize": (15, 5)}
@@ -151,8 +163,8 @@ def frequency_selector(file_name, delta_f=0.025, output_name="frequencies.p", da
         for index, handle in enumerate(subset):
             if handle is not None:
                 handle.remove()
-                del handle
                 peak_handles[close_indices[index]] = None
+                del handle
                 figure.canvas.draw()
                 break  # only remove one
         subset = peaks[close_indices]
@@ -171,16 +183,10 @@ def frequency_selector(file_name, delta_f=0.025, output_name="frequencies.p", da
             remove_frequency(event.xdata)
 
     def close(event):
-        frequency_indices = np.unique(np.nonzero(peaks)[0])  # first dimension
-        answer = input("Save file to '{}' [y/n/alternative file name]?".format(output_name))
-        if not answer.lower() in ['y', 'yes'] and not answer.lower() in ['n', 'no']:
-            name = answer
-        else:
-            name = output_name
-        if not answer.lower() in ['n', 'no']:
-            with open(name, "wb") as file_:
-                pickle.dump(frequency_indices, file_)
-            log.info("data saved to '{:s}'".format(name))
+        frequency_indices = np.unique(np.nonzero(peaks)[0])  # first dimension and unique
+        with open(output_file, "wb") as f_:
+            pickle.dump(frequency_indices, f_)
+        log.info("data saved to '{:s}'".format(output_file))
 
     # initialize data to plot
     update_frequency(f.min())
