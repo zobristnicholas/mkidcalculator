@@ -173,7 +173,7 @@ def frequency_selector(file_name, delta_f=0.025, output_name="frequencies.p", da
     def close(event):
         frequency_indices = np.unique(np.nonzero(peaks)[0])  # first dimension
         answer = input("Save file to '{}' [y/n/alternative file name]?".format(output_name))
-        if not answer.lower() in ['y', 'yes'] or not answer.lower() in ['n', 'no']:
+        if not answer.lower() in ['y', 'yes'] and not answer.lower() in ['n', 'no']:
             name = answer
         else:
             name = output_name
