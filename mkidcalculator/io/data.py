@@ -522,6 +522,29 @@ def legacy_resonator(config_file, channel=None, noise=True):
     return loop_kwargs
 
 
+def legacy_sweep(config_file, noise=True):
+    """
+    Class for loading in analogreadout sweep data.
+    Args:
+        config_file: string
+            The sweep configuration file name.
+        noise: boolean
+            If False, ignore the noise data. The default is True.
+    Returns:
+        resonator_kwargs: list of dictionaries
+            A list of keyword arguments to send to Resonator.from_file().
+    """
+    directory = os.path.dirname(config_file)
+    config = loadmat(config_file, squeeze_me=True)['curr_config']
+    channels = np.arange(len(config['f0list'].item()))
+
+    resonator_kwargs = []
+    for channel in channels:
+        resonator_kwargs.append({'resonator_file_name': config_file, 'channel': channel, 'noise': noise,
+                                 'data': legacy_resonator})
+    return resonator_kwargs
+
+
 def mazinlab_widesweep(file_name, field=np.nan, temperature=np.nan):
     """
     Function for loading data from the Mazin Lab widesweep LabView GUI.
