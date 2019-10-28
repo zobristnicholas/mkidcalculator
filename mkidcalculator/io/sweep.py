@@ -231,9 +231,10 @@ class Sweep:
         loops = []
         for resonator in self.resonators:
             loops += resonator.loops
-        parameters = [fr] + list(parameters)
+        parameters = list(parameters)
         if not isinstance(bounds, Collection):
             bounds = [bounds] * len(parameters)
+        parameters = [fr] + parameters
         bounds = [None] + list(bounds)
         # replace fr bound with None so we can just set the plot bound
         dfr_bound = None
