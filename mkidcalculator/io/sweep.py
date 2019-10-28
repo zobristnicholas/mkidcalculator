@@ -171,8 +171,9 @@ class Sweep:
         for resonator in self.resonators:
             resonator._set_directory(self._directory)
 
-    def plot_loop_fits(self, parameters=("chi2",), fr="fr", bounds=None, errorbars=True, success=True,
-                       title=True, tighten=True, label='best', plot_kwargs=None, figure=None):
+    def plot_loop_fits(self, parameters=("chi2",), fr="fr", bounds=None, errorbars=True, success=True, power=None,
+                       field=None, temperature=None, title=True, tighten=True, label='best', plot_kwargs=None,
+                       axes_list=None):
         """
         Plot a summary of all the loop fits.
         Args:
@@ -207,6 +208,18 @@ class Sweep:
                 to enforce no filtering on success. Note: fit success is typically
                 a bad indicator on fit quality. It only ever fails when something
                 really bad happens.
+            power: tuple of two numbers or tuple of two number tuples
+                Inclusive range or ranges of powers to plot. A single number
+                will cause only that value to be plotted. The default is to
+                include all of the powers.
+            field: tuple of two numbers or tuple of two number tuples
+                Inclusive range or ranges of fields to plot. A single number
+                will cause only that value to be plotted. The default is to
+                include all of the fields.
+            temperature: tuple of two numbers or tuple of two number tuples
+                Inclusive range or ranges of temperatures to plot. A single
+                number will cause only that value to be plotted. The default is
+                to include all of the temperatures.
             title: string or boolean (optional)
                 The title to use for the summary plot. The default is True and the
                 default title will be applied. If False, no title is applied.
@@ -243,7 +256,7 @@ class Sweep:
                 dfr_bound = bound if isinstance(bound, Collection) else (0, bound)
                 bounds[index] = None
         outputs = _loop_fit_data(loops, parameters=parameters, label=label, bounds=bounds, success=success,
-                                 errorbars=errorbars)
+                                 errorbars=errorbars, power=power, field=field, temperature=temperature)
         # create figure if needed
         if figure is None:
             from matplotlib import pyplot as plt
