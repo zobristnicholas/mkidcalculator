@@ -233,12 +233,12 @@ class Sweep:
                 only one is provided, it is used for all of the plots. If a list
                 is provided, it must be of the same length as the number of plots.
                 No kwargs are passed by default.
-            figure: matplotlib.figure.Figure class
-                A figure to use for the plots. The default is None and one is
-                created automatically.
+            axes_list: an iterable of matplotlib.axes.Axes classes
+                A list of Axes classes on which to put the plots. The default
+                is None and a new figure is made.
         Returns:
-            figure: matplotlib.figure.Figure class
-                The figure object for the plot.
+            axes_list: an iterable of matplotlib.axes.Axes classes
+                A list of Axes classes with the plotted data.
         """
         # get the data
         loops = []
@@ -258,12 +258,14 @@ class Sweep:
         outputs = _loop_fit_data(loops, parameters=parameters, label=label, bounds=bounds, success=success,
                                  errorbars=errorbars, power=power, field=field, temperature=temperature)
         # create figure if needed
-        if figure is None:
+        if axes_list is None:
             from matplotlib import pyplot as plt
             figure = plt.figure(figsize=(8.5, 11 / 5 * (len(parameters) - 1)))
-        # setup figure axes
-        gs = gridspec.GridSpec(len(parameters) - 1, 2)
-        axes_list = np.array([figure.add_subplot(gs_ii) for gs_ii in gs])
+            # setup figure axes
+            gs = gridspec.GridSpec(len(parameters) - 1, 2)
+            axes_list = np.array([figure.add_subplot(gs_ii) for gs_ii in gs])
+        else:
+            figure = axes_list[0].figure
         # check plot kwargs
         if plot_kwargs is None:
             plot_kwargs = {}
@@ -299,5 +301,5 @@ class Sweep:
         figure.align_labels()
         # tighten
         if tighten:
-            gs.tight_layout(figure, rect=rect)
-        return figure
+            figure.tight_layout(rect=rect)
+        return axes_list
