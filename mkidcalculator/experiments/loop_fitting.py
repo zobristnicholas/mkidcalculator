@@ -329,7 +329,8 @@ def multiple_fit(data, model=S21, extra_fits=(temperature_fit, nonlinear_fit, li
     return resonators
 
 
-def loop_fit_data(data, parameters=("chi2",), label='best', bounds=None, errorbars=None, success=None):
+def loop_fit_data(data, parameters=("chi2",), label='best', bounds=None, errorbars=None, success=None, power=None,
+                  field=None, temperature=None):
     """
     Collect fit information from Loop fits into arrays.
     Args:
@@ -359,10 +360,22 @@ def loop_fit_data(data, parameters=("chi2",), label='best', bounds=None, errorba
             included. The default is None, and no filtering on fit success is
             done. Note: fit success is typically a bad indicator on fit
             quality. It only ever fails when something really bad happens.
+        power: tuple of two numbers or tuple of two number tuples
+            Inclusive range or ranges of powers to plot. A single number
+            will cause only that value to be plotted. The default is to
+            include all of the powers.
+        field: tuple of two numbers or tuple of two number tuples
+            Inclusive range or ranges of fields to plot. A single number
+            will cause only that value to be plotted. The default is to
+            include all of the fields.
+        temperature: tuple of two numbers or tuple of two number tuples
+            Inclusive range or ranges of temperatures to plot. A single
+            number will cause only that value to be plotted. The default is
+            to include all of the temperatures.
     Returns:
         outputs: tuple of numpy.ndarray objects
             The outputs in the same order as parameters.
     """
     loops = _get_loops(data)
     return _loop_fit_data(loops, parameters=parameters, label=label, bounds=bounds, errorbars=errorbars,
-                          success=success)
+                          success=success, power=power, field=field, temperature=temperature)

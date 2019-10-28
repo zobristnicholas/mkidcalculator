@@ -456,20 +456,23 @@ def collect_resonances(f, z, peaks, df):
     return f_array[logic, :], z_array[logic, :], peaks[logic]
 
 
-def _loop_fit_data(loops, parameters=("chi2",), label='best', bounds=None, errorbars=None, success=None):
+def _loop_fit_data(loops, parameters=("chi2",), label='best', bounds=None, errorbars=None, success=None,
+                   power=None, field=None, temperature=None):
+    power, field, temperature = create_ranges(power, field, temperature)
     outputs = []
     for parameter in parameters:
         outputs.append([])
         for loop in loops:
-            result = loop.lmfit_results[label]['result']
-            if errorbars is not None and result.errorbars != errorbars:
-                continue  # skip if wrong errorbars setting
-            if success is not None and result.success != success:
-                continue  # skip if wrong success setting
-            if parameter == "chi2":
-                outputs[-1].append(result.redchi)
-            else:
-                outputs[-1].append(result.params[parameter].value)
+            if valid_ranges(loop, power, field, temperature):
+                result = loop.lmfit_results[label]['result']
+                if errorbars is not None and result.errorbars != errorbars:
+                    continue  # skip if wrong errorbars setting
+                if success is not None and result.success != success:
+                    continue  # skip if wrong success setting
+                if parameter == "chi2":
+                    outputs[-1].append(result.redchi)
+                else:
+                    outputs[-1].append(result.params[parameter].value)
     # turn outputs into a list of numpy arrays
     for index, output in enumerate(outputs):
         outputs[index] = np.array(output)
