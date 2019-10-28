@@ -293,6 +293,16 @@ def create_ranges(power, field, temperature):
     return power, field, temperature
 
 
+def valid_range(value, spans):
+    return any(spans[i][0] <= value <= spans[i][1] for i in range(len(spans))) or np.isnan(value)
+
+
+def valid_ranges(loop, power, field, temperature):
+    condition = (valid_range(loop.power, power) and valid_range(loop.field, field) and
+                 valid_range(loop.temperature, temperature))
+    return condition
+
+
 def sort_and_fix(data, energies, fix_zero):
     data = [0] + data if fix_zero else phase
     data, energies = np.array(data), np.array(energies)

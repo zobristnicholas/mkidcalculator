@@ -11,7 +11,7 @@ from scipy.cluster.vq import kmeans2, ClusterError
 
 from mkidcalculator.io.loop import Loop
 from mkidcalculator.io.data import analogreadout_resonator
-from mkidcalculator.io.utils import lmfit, create_ranges, save_lmfit
+from mkidcalculator.io.utils import lmfit, create_ranges, valid_ranges, save_lmfit
 
 log = logging.getLogger(__name__)
 log.addHandler(logging.NullHandler())
@@ -534,13 +534,7 @@ class Resonator:
         # make a plot for each loop
         plot_index = 0
         for index, loop in enumerate(self.loops[::-1]):
-            condition = ((any(power[i][0] <= loop.power <= power[i][1] for i in range(len(power))) or 
-                          np.isnan(loop.power)) and
-                         (any(field[i][0] <= loop.field <= field[i][1] for i in range(len(field))) or
-                          np.isnan(loop.field)) and
-                         (any(temperature[i][0] <= loop.temperature <= temperature[i][1]
-                          for i in range(len(temperature))) or np.isnan(loop.temperature)))
-            if condition:
+            if valid_ranges(loop, power, field, temperature):
                 # default plot key words
                 if plot_index == 0:
                     plot_kwargs = [{'data_kwargs': {'color': cmap(norm(cdata[index]))},
