@@ -119,9 +119,12 @@ def plot_parameter_vs_f(parameter, f, title=None, title_kwargs=None, x_label=Tru
     else:
         centers = None
         medians = None
-    axes.set_xlim(f.min() - 0.05 * (f.max() - f.min()), f.max() + 0.05 * (f.max() - f.min()))
-    axes.set_ylim(parameter.min() - 0.05 * (parameter.max() - parameter.min()),
-                  parameter.max() + 0.05 * (parameter.max() - parameter.min()))
+    try:
+        axes.set_xlim(f.min() - 0.05 * (f.max() - f.min()), f.max() + 0.05 * (f.max() - f.min()))
+        axes.set_ylim(parameter.min() - 0.05 * (parameter.max() - parameter.min()),
+                      parameter.max() + 0.05 * (parameter.max() - parameter.min()))
+    except ValueError:
+        pass  # f and/or parameter have no data
     kws = {}
     if label_kwargs is not None:
         kws.update(label_kwargs)
@@ -132,7 +135,9 @@ def plot_parameter_vs_f(parameter, f, title=None, title_kwargs=None, x_label=Tru
     if tick_kwargs is not None:
         axes.tick_params(**tick_kwargs)
     if title is True:
-        title = "median = {:g}".format(np.median(parameter))
+        with warnings.catch_warnings():
+            warnings.simplefilter("ignore", RuntimeWarning)
+            title = "median = {:g}".format(np.median(parameter))
     if title and title is not None:
         kwargs = {}
         if title_kwargs is not None:
