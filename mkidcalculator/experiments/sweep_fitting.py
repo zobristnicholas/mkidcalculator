@@ -12,6 +12,8 @@ from mkidcalculator.experiments.loop_fitting import basic_fit
 log = logging.getLogger(__name__)
 log.addHandler(logging.NullHandler())
 
+# TODO: remove file .. no longer needed with Sweep.from_widesweep()
+
 
 def _integer_bandwidth(f, df):
     return int(np.round(df / (f[1] - f[0]) / 4) * 4)  # nearest even number divisible by 4
