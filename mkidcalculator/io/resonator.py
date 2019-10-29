@@ -419,7 +419,7 @@ class Resonator:
 
     def plot_loops(self, power=None, field=None, temperature=None, color_data='temperature', colormap=None,
                    colorbar=True, colorbar_kwargs=None, colorbar_label=True, colorbar_limits=None,
-                   colorbar_label_kwargs=None, colorbar_tick_kwargs=None, **loop_kwargs):
+                   colorbar_label_kwargs=None, colorbar_tick_kwargs=None, tighten=True, **loop_kwargs):
         """
         Plot a subset of the loops in the resonator by combining multiple
         loop.plot() calls.
@@ -468,6 +468,9 @@ class Resonator:
                 colorbar_axes.tick_params(). The default is None which uses the
                 default options. Keywords in this dictionary override the
                 default options.
+            tighten: boolean
+                Determines whether figure.tight_layout() is called. The default
+                is True.
             loop_kwargs: optional keyword arguments
                 Extra keyword arguments to send to loop.plot().
         Returns:
@@ -479,7 +482,6 @@ class Resonator:
             raise TypeError("'fit_parameters' is not a valid keyword argument")
         if "parameters_kwargs" in loop_kwargs.keys():
             raise TypeError("'parameters_kwargs' is not a valid keyword argument")
-        expand_figure = True if 'axes_list' not in loop_kwargs.keys() else False
         power, field, temperature = create_ranges(power, field, temperature)
         if color_data == 'temperature':
             cmap = matplotlib.cm.get_cmap('coolwarm') if colormap is None else colormap
@@ -556,7 +558,7 @@ class Resonator:
                     plot_kwargs[kw_index].update(kws)
                 # update loop kwargs
                 if plot_index == 0:
-                    loop_kwargs.update({"plot_kwargs": plot_kwargs, "title": title})
+                    loop_kwargs.update({"plot_kwargs": plot_kwargs, "title": title, "tighten": False})
                 else:
                     loop_kwargs.update({"axes_list": axes_list, "title": False, "legend": False, "tighten": False,
                                         "plot_kwargs": plot_kwargs})
@@ -568,10 +570,41 @@ class Resonator:
         if colorbar:
             mappable = matplotlib.cm.ScalarMappable(norm, cmap)
             mappable.set_array([])
-            kwargs = {'aspect': 15}
+            kwargs = {}
             if colorbar_kwargs is not None:
                 kwargs.update(colorbar_kwargs)
-            cbar = axes_list[0].figure.colorbar(mappable, ax=axes_list, **kwargs)
+
+            fraction = kwargs.pop('fraction', 0.05)  # fraction of total width to give to colorbar
+            shrink = kwargs.pop('shrink', 1.0)  # colorbar height multiplicative factor
+            aspect = kwargs.pop('aspect', 20)  # colorbar height / width
+            pad = kwargs.pop('pad', 0.05)  # distance between right plot and colorbar / figure width
+            subplot_pad = 0.2  # pad between subplots (not colorbar and over-ridden with tight_layout)
+
+            x1 = 1 - fraction
+            width_ratios = [x1 / axes_list[0].numRows] * axes_list[0].numCols
+            width_ratios.append(fraction)
+            pad_s = (1 - shrink) * 0.5
+            wh_ratios = [pad_s, shrink, pad_s]
+            wh_space = subplot_pad * (axes_list[0].numRows + 1)  # subplot_pad in units of avg axes width
+            gs = matplotlib.gridspec.GridSpec(axes_list[0].numRows, axes_list[0].numCols + 1,
+                                              figure=axes_list[0].figure,
+                                              wspace=wh_space,
+                                              top=0.9 if title else 1,
+                                              width_ratios=width_ratios)
+            gs2 = matplotlib.gridspec.GridSpecFromSubplotSpec(3, 2,
+                                                              subplot_spec=gs[:, -1],
+                                                              hspace=0.,
+                                                              wspace=0,
+                                                              height_ratios=wh_ratios,
+                                                              width_ratios=[pad - subplot_pad,
+                                                                            fraction - pad + subplot_pad])
+            for axes in axes_list:
+                axes.set_position(gs[axes.rowNum, axes.colNum].get_position(axes.figure))
+                axes.set_subplotspec(gs[axes.rowNum, axes.colNum])
+            cax = axes_list[0].figure.add_subplot(gs2[1, 1])
+            cax.set_aspect(aspect, anchor=(0.0, 0.5), adjustable='box')
+            cbar = axes_list[0].figure.colorbar(mappable, cax=cax, **kwargs)
+
             if colorbar_label:
                 if color_data == 'temperature':
                     label = "temperature [mK]" if colorbar_label is True else colorbar_label
@@ -585,11 +618,10 @@ class Resonator:
                 cbar.set_label(label, **kwargs)
                 if colorbar_tick_kwargs is not None:
                     cbar.ax.tick_params(**colorbar_tick_kwargs)
-            # resize the figure if axes not given directly
-            if expand_figure:
-                extent = cbar.ax.get_window_extent()
-                cbar_width = extent.transformed(axes_list[0].figure.dpi_scale_trans.inverted()).width
-                axes_list[0].figure.set_figwidth(axes_list[0].figure.get_figwidth() + cbar_width)
+            if tighten:
+                gs.tight_layout(axes_list[0].figure, rect=[0, 0, 1, 0.9 if title else 1])
+        elif tighten:
+            axes_list[0].figure.tight_layout(rect=[0, 0, 1, 0.9 if title else 1])
         return axes_list
 
     def plot_parameters(self, parameters, x="power", data_label="best", n_rows=1, power=None, field=None,
