@@ -338,13 +338,14 @@ class S21:
         if imbalance is not None:
             # bandpass filter the I and Q signals
             i, q = imbalance.real, imbalance.imag
+            n = i.shape[0]
             ip, f_i_ind = bandpass(i)
             qp, f_q_ind = bandpass(q)
             # compute alpha and gamma
             amp = np.sqrt(2 * np.mean(qp**2, axis=-1))
             alpha = np.sqrt(2 * np.mean(ip**2, axis=-1)) / amp
-            ratio = np.angle(np.fft.rfft(ip)[np.arange(3), f_i_ind[:, 0]] /
-                             np.fft.rfft(qp)[np.arange(3), f_q_ind[:, 0]])  # for arcsine branch
+            ratio = np.angle(np.fft.rfft(ip)[np.arange(n), f_i_ind[:, 0]] /
+                             np.fft.rfft(qp)[np.arange(n), f_q_ind[:, 0]])  # for arcsine branch
             gamma = np.arcsin(np.sign(ratio) * 2 * np.mean(qp * ip, axis=-1) / (alpha * amp**2)) + np.pi * (ratio < 0)
             alpha = np.mean(alpha)
             gamma = np.mean(gamma)
