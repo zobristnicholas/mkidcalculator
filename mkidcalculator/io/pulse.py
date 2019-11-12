@@ -1061,25 +1061,20 @@ class Pulse:
 
         # determine the minimum slope after the pulse peak
         self._postpulse_min_slope = np.zeros(self.peak_indices.shape)
-        if smoothing:
-            sigma = np.std(np.array([self.noise.p_trace, self.noise.a_trace]).sum(axis=0), ddof=1)
-            for index, peak in enumerate(self.peak_indices):
-                if peak + 2 * peak_offset > n_samples - 1:
-                    self._postpulse_min_slope[index] = -np.inf
-                else:
-                    postpulse = data[:, index, peak + peak_offset:].sum(axis=0)
-                    weights = np.empty(postpulse.size)
-                    weights.fill(1 / sigma)
-                    time = np.linspace(0, postpulse.size / self.sample_rate, postpulse.size) * 1e6
-                    s = UnivariateSpline(time, postpulse, w=weights)
-                    self._postpulse_min_slope[index] = np.min(s.derivative()(time))
-        else:
-            for index, peak in enumerate(self.peak_indices):
-                if peak + 2 * peak_offset > n_samples - 1:
-                    self._postpulse_min_slope[index] = -np.inf
-                else:
-                    postpulse = data[:, index, peak + peak_offset:].sum(axis=0)
-                    self._postpulse_min_slope[index] = np.min(np.diff(postpulse)) * self.sample_rate * 1e6
+        sigma = np.std(np.array([self.noise.p_trace, self.noise.a_trace]).sum(axis=0), ddof=1) if smoothing else None
+        for index, peak in enumerate(self.peak_indices):
+            if peak + 2 * peak_offset > n_samples - 1:
+                self._postpulse_min_slope[index] = -np.inf
+            elif smoothing:
+                postpulse = data[:, index, peak + peak_offset:].sum(axis=0)
+                weights = np.empty(postpulse.size)
+                weights.fill(1 / sigma)
+                time = np.linspace(0, postpulse.size / self.sample_rate, postpulse.size) * 1e6
+                s = UnivariateSpline(time, postpulse, w=weights)
+                self._postpulse_min_slope[index] = np.min(s.derivative()(time))
+            else:
+                postpulse = data[:, index, peak + peak_offset:].sum(axis=0)
+                self._postpulse_min_slope[index] = np.min(np.diff(postpulse)) * self.sample_rate * 1e6
 
     def mask_peak_indices(self, minimum, maximum):
         """
@@ -1133,6 +1128,21 @@ class Pulse:
         if self._postpulse_min_slope is None:
             raise AttributeError("The pulse traces have not been characterized yet.")
         logic = self._postpulse_min_slope < minimum
+        self.mask[logic] = False
+
+    def mask_integral(self, minimum, maximum):
+        """
+        Add traces with area under the curve outside of the minimum and maximum
+        to the pulse.mask
+        Args:
+            minimum: float
+                The minimum acceptable pre-pulse mean
+            maximum: float
+                The maximum acceptable pre-pulse mean
+        """
+        if self._integral is None:
+            raise AttributeError("The pulse traces have not been characterized yet.")
+        logic = np.logical_or(self._integral < minimum, self._integral > maximum)
         self.mask[logic] = False
 
     def compute_spectrum(self, use_mask=True, use_calibration=True, calibrated=None, **kwargs):
