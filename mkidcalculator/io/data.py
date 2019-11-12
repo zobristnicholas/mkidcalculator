@@ -175,9 +175,14 @@ class AnalogReadoutPulse(AnalogReadoutABC):
                "offset": "zero", "metadata": "metadata", "attenuation": ("metadata", ("parameters", "attenuation")),
                "sample_rate": ("metadata", analogreadout_sample_rate)}
 
-    def __init__(self, *args, **kwargs):
+    def __init__(self, *args, energies=(), wavelengths=(), **kwargs):
         super().__init__(*args, **kwargs)
-        self._energies = []
+        if energies != ():
+            self._energies = tuple(np.atleast_1d(energies))
+        elif wavelengths != ():
+            self._energies = tuple(ev_nm_convert(np.atleast_1d(wavelengths)))
+        else:
+            self._energies = ()
 
     def __getitem__(self, item):
         if item == 'energies':
