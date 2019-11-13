@@ -1,5 +1,4 @@
 import os
-import pickle
 import logging
 import numpy as np
 from matplotlib import gridspec
@@ -9,7 +8,7 @@ from mkidcalculator.io.loop import Loop
 from mkidcalculator.io.resonator import Resonator
 from mkidcalculator.io.data import analogreadout_sweep, mazinlab_widesweep
 from mkidcalculator.plotting import plot_parameter_vs_f, plot_parameter_hist
-from mkidcalculator.io.utils import find_resonators, collect_resonances, _loop_fit_data
+from mkidcalculator.io.utils import find_resonators, collect_resonances, _loop_fit_data, dump, load
 
 log = logging.getLogger(__name__)
 log.addHandler(logging.NullHandler())
@@ -24,15 +23,13 @@ class Sweep:
         """Pickle and save the class as the file 'file_name'."""
         # set the _directory attributes so all the data gets saved in the right folder
         self._set_directory(os.path.dirname(os.path.abspath(file_name)))
-        with open(file_name, "wb") as f:
-            pickle.dump(self, f)
+        dump(self, file_name)
         log.info("saved sweep as '{}'".format(file_name))
 
     @classmethod
     def from_pickle(cls, file_name):
         """Returns a Sweep class from the pickle file 'file_name'."""
-        with open(file_name, "rb") as f:
-            sweep = pickle.load(f)
+        sweep = load(file_name)
         assert isinstance(sweep, cls), "'{}' does not contain a Sweep class.".format(file_name)
         log.info("loaded sweep from '{}'".format(file_name))
         return sweep

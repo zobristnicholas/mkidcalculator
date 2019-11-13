@@ -1,5 +1,4 @@
 import os
-import pickle
 import logging
 import inspect
 import matplotlib
@@ -11,7 +10,7 @@ from scipy.cluster.vq import kmeans2, ClusterError
 
 from mkidcalculator.io.loop import Loop
 from mkidcalculator.io.data import analogreadout_resonator
-from mkidcalculator.io.utils import lmfit, create_ranges, valid_ranges, save_lmfit, subplots_colorbar
+from mkidcalculator.io.utils import lmfit, create_ranges, valid_ranges, save_lmfit, subplots_colorbar, dump, load
 
 log = logging.getLogger(__name__)
 log.addHandler(logging.NullHandler())
@@ -52,15 +51,13 @@ class Resonator:
         """Pickle and save the class as the file 'file_name'."""
         # set the _directory attributes so all the data gets saved in the right folder
         self._set_directory(os.path.dirname(os.path.abspath(file_name)))
-        with open(file_name, "wb") as f:
-            pickle.dump(self, f)
+        dump(self, file_name)
         log.info("saved resonator as '{}'".format(file_name))
 
     @classmethod
     def from_pickle(cls, file_name):
         """Returns a Resonator class from the pickle file 'file_name'."""
-        with open(file_name, "rb") as f:
-            resonator = pickle.load(f)
+        resonator = load(file_name)
         assert isinstance(resonator, cls), "'{}' does not contain a Resonator class.".format(file_name)
         log.info("loaded resonator from '{}'".format(file_name))
         return resonator

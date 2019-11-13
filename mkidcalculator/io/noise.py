@@ -1,11 +1,10 @@
 import os
-import pickle
 import logging
 import numpy as np
 from scipy.signal import welch, csd
 
 from mkidcalculator.io.data import AnalogReadoutNoise
-from mkidcalculator.io.utils import compute_phase_and_amplitude, offload_data, _loaded_npz_files
+from mkidcalculator.io.utils import compute_phase_and_amplitude, offload_data, _loaded_npz_files, dump, load
 
 log = logging.getLogger(__name__)
 log.addHandler(logging.NullHandler())
@@ -272,15 +271,13 @@ class Noise:
         """Pickle and save the class as the file 'file_name'."""
         # set the _directory attributes so all the data gets saved in the right folder
         self._set_directory(os.path.dirname(os.path.abspath(file_name)))
-        with open(file_name, "wb") as f:
-            pickle.dump(self, f)
+        dump(self, file_name)
         log.info("saved noise as '{}'".format(file_name))
 
     @classmethod
     def from_pickle(cls, file_name):
         """Returns a Noise class from the pickle file 'file_name'."""
-        with open(file_name, "rb") as f:
-            noise = pickle.load(f)
+        noise = load(file_name)
         assert isinstance(noise, cls), "'{}' does not contain a Noise class.".format(file_name)
         log.info("loaded noise from '{}'".format(file_name))
         return noise

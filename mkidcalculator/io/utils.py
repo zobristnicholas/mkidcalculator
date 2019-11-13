@@ -1,4 +1,5 @@
 import os
+import pickle
 import numbers
 import logging
 import tempfile
@@ -526,3 +527,22 @@ def subplots_colorbar(mappable, axes_list, gridspec_kwargs=None, **kwargs):
     cax.set_aspect(aspect, anchor=(0.0, 0.5), adjustable='box')
     cbar = axes_list[0].figure.colorbar(mappable, cax=cax, **kwargs)
     return cbar, gs
+
+
+def dump(obj, file_name):
+    with open(file_name, "wb") as f:
+        # noinspection PyBroadException
+        try:
+            pickle.dump(obj, f)
+        except Exception:
+            import cloudpickle
+            try:
+                cloudpickle.dump(obj, f)
+            except Exception as e:
+                raise pickle.UnpicklingError(repr(e))
+
+
+def load(file_name):
+    with open(file_name, "rb") as f:
+        data = pickle.load(f)
+    return data

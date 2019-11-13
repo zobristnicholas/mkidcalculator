@@ -1,5 +1,4 @@
 import os
-import pickle
 import logging
 import warnings
 import numpy as np
@@ -13,7 +12,7 @@ from scipy.interpolate import UnivariateSpline, InterpolatedUnivariateSpline
 
 from mkidcalculator.io.data import AnalogReadoutPulse
 from mkidcalculator.io.utils import (compute_phase_and_amplitude, offload_data, _loaded_npz_files,
-                                     quadratic_spline_roots, ev_nm_convert)
+                                     quadratic_spline_roots, ev_nm_convert, dump, load)
 
 log = logging.getLogger(__name__)
 log.addHandler(logging.NullHandler())
@@ -481,15 +480,13 @@ class Pulse:
         """Pickle and save the class as the file 'file_name'."""
         # set the _directory attributes so all the data gets saved in the right folder
         self._set_directory(os.path.dirname(os.path.abspath(file_name)))
-        with open(file_name, "wb") as f:
-            pickle.dump(self, f)
+        dump(self, file_name)
         log.info("saved pulse as '{}'".format(file_name))
 
     @classmethod
     def from_pickle(cls, file_name):
         """Returns a Pulse class from the pickle file 'file_name'."""
-        with open(file_name, "rb") as f:
-            pulse = pickle.load(f)
+        pulse = load(file_name)
         assert isinstance(pulse, cls), "'{}' does not contain a Pulse class.".format(file_name)
         log.info("loaded pulse from '{}'".format(file_name))
         return pulse

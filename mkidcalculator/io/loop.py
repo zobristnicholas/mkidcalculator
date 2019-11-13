@@ -1,6 +1,5 @@
 import os
 import copy
-import pickle
 import logging
 import lmfit as lm
 import numpy as np
@@ -12,7 +11,8 @@ from scipy.interpolate import make_interp_spline
 from mkidcalculator.io.noise import Noise
 from mkidcalculator.io.pulse import Pulse
 from mkidcalculator.io.data import AnalogReadoutLoop, AnalogReadoutNoise, AnalogReadoutPulse
-from mkidcalculator.io.utils import ev_nm_convert, lmfit, sort_and_fix, setup_axes, finalize_axes, get_plot_model
+from mkidcalculator.io.utils import (ev_nm_convert, lmfit, sort_and_fix, setup_axes, finalize_axes, get_plot_model,
+                                     dump, load)
 
 log = logging.getLogger(__name__)
 log.addHandler(logging.NullHandler())
@@ -140,15 +140,13 @@ class Loop:
         """Pickle and save the class as the file 'file_name'."""
         # set the _directory attributes so all the data gets saved in the right folder
         self._set_directory(os.path.dirname(os.path.abspath(file_name)))
-        with open(file_name, "wb") as f:
-            pickle.dump(self, f)
+        dump(self, file_name)
         log.info("saved loop as '{}'".format(file_name))
 
     @classmethod
     def from_pickle(cls, file_name):
         """Returns a Loop class from the pickle file 'file_name'."""
-        with open(file_name, "rb") as f:
-            loop = pickle.load(f)
+        loop = load(file_name)
         assert isinstance(loop, cls), "'{}' does not contain a Loop class.".format(file_name)
         log.info("loaded loop from '{}'".format(file_name))
         return loop
