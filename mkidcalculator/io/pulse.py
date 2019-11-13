@@ -50,6 +50,7 @@ class Pulse:
         self._prepulse_mean = None
         self._prepulse_rms = None
         self._postpulse_min_slope = None
+        self._integral = None
         # for holding large data
         self._npz = None
         self._directory = None
@@ -1075,6 +1076,8 @@ class Pulse:
             else:
                 postpulse = data[:, index, peak + peak_offset:].sum(axis=0)
                 self._postpulse_min_slope[index] = np.min(np.diff(postpulse)) * self.sample_rate * 1e6
+        # determine the integrated area of the response
+        self._integral = data.sum(axis=0).sum(axis=-1)  # add phase and amplitude components for the response
 
     def mask_peak_indices(self, minimum, maximum):
         """
@@ -1132,8 +1135,8 @@ class Pulse:
 
     def mask_integral(self, minimum, maximum):
         """
-        Add traces with area under the curve outside of the minimum and maximum
-        to the pulse.mask
+        Add traces with an area under the response outside of the minimum and
+        maximum to the pulse.mask
         Args:
             minimum: float
                 The minimum acceptable pre-pulse mean
@@ -1498,19 +1501,22 @@ class Pulse:
                 The default is True.
         """
         import corner  # imports pyplot
-        if self._prepulse_mean is None or self._prepulse_rms is None or self._postpulse_min_slope is None:
+        condition = (self._prepulse_mean is None or self._prepulse_rms is None or self._postpulse_min_slope is None
+                     or self._integral is None)
+        if condition:
             raise AttributeError("Data metrics have not been computed yet.")
         if use_mask:
             metrics = np.vstack([self.peak_indices[self.mask], self._prepulse_mean[self.mask],
-                                 self._prepulse_rms[self.mask], self._postpulse_min_slope[self.mask]]).T
+                                 self._prepulse_rms[self.mask], self._postpulse_min_slope[self.mask],
+                                 self._integral[self.mask]]).T
         else:
             metrics = np.vstack([self.peak_indices, self._prepulse_mean,
-                                 self._prepulse_rms, self._postpulse_min_slope]).T
+                                 self._prepulse_rms, self._postpulse_min_slope, self._integral]).T
         with warnings.catch_warnings():
             warnings.simplefilter(action='ignore', category=UserWarning)  # for singular axis limits
-            corner.corner(metrics, labels=['peak times', 'prepulse mean', 'prepulse rms', 'postpulse min slope'],
-                          plot_contours=False, plot_density=False, range=[.97, .97, .97, .97], bins=[100, 20, 20, 100],
-                          quiet=True)
+            corner.corner(metrics, quiet=True,
+                          labels=['peak times', 'prepulse mean', 'prepulse rms', 'postpulse min slope', 'integral'],
+                          plot_contours=False, plot_density=False, range=[.97] * 4 + [1], bins=[100, 20, 20, 100, 20])
 
     def plot_spectrum(self, x_limits=None, second_x_axis=False, axes=None):
         """
