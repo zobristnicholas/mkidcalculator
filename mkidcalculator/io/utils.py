@@ -535,14 +535,22 @@ def dump(obj, file_name):
         try:
             pickle.dump(obj, f)
         except Exception:
-            import cloudpickle
+            import dill
             try:
-                cloudpickle.dump(obj, f)
+                dill.dump(obj, f)
             except Exception as e:
-                raise pickle.UnpicklingError(repr(e))
+                raise pickle.PicklingError(repr(e))
 
 
 def load(file_name):
     with open(file_name, "rb") as f:
-        data = pickle.load(f)
+        # noinspection PyBroadException
+        try:
+            data = pickle.load(f)
+        except Exception:
+            import dill
+            try:
+                data = dill.load(f)
+            except Exception as e:
+                raise pickle.UnpicklingError(repr(e))
     return data
