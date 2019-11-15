@@ -1073,8 +1073,10 @@ class Pulse:
             else:
                 postpulse = data[:, index, peak + peak_offset:].sum(axis=0)
                 self._postpulse_min_slope[index] = np.min(np.diff(postpulse)) * self.sample_rate * 1e6
+
         # determine the integrated area of the response
-        self._integral = data.sum(axis=0).sum(axis=-1)  # add phase and amplitude components for the response
+        response = data.sum(axis=0)  # add phase and amplitude components for the response
+        self._integral = (response - np.median(response, axis=-1, keepdims=True)).sum(axis=-1)
 
     def mask_peak_indices(self, minimum, maximum):
         """
