@@ -7,6 +7,7 @@ import numpy.fft as fft
 import numpy.linalg as la
 from matplotlib.widgets import Button, Slider
 import scipy.stats as stats
+import scipy.optimize as opt
 from scipy.signal import fftconvolve
 from scipy.interpolate import UnivariateSpline, InterpolatedUnivariateSpline
 
@@ -620,7 +621,7 @@ class Pulse:
         norm = self.apply_filter(template, filter_type="amplitude_filter").max()
         self._a_filter /= norm
 
-    def performance(self, calculation_type="optimal_filter", mode="variance", response=1.5, energy=None,
+    def performance(self, calculation_type="optimal_filter", mode="variance", energy=None,
                     baseline=(1, .1), distribution=False):
         """
         Return the expected variance for a particular response calculation
@@ -630,6 +631,8 @@ class Pulse:
                 Valid options are listed. The default is "optimal_filter".
                 Options that are Monte Carlo simulations are computationally
                 expensive and re-run on each call of pulse.variance().
+                The filter methods must have an energy calibration of the
+                same type as the filter to get the appropriate results.
                 "optimal_filter":
                     Theoretical two dimensional optimal filter performance.
                 "optimal_filter_mc":
@@ -674,11 +677,6 @@ class Pulse:
                     the mean response / the resolution. The mean response may
                     differ from the requested response due to bias in the
                     calculation type if a Monte Carlo method is being used.
-            response: float (optional)
-                The combined phase and amplitude response in radians to use in
-                the calculation. This is only used in Monte Carlo filter
-                methods and for computing the resolving power. The default is
-                1.
             energy: float (optional)
                 The energy of the response in eV. This is only used for the
                 fitting methods that need to evaluate a derivative of a
@@ -690,15 +688,15 @@ class Pulse:
                 amplitude baseline). Otherwise, both are assumed to be the
                 same. The default is (1, .1).
             distribution: bool (optional)
-                Determines if the detector responses are returned as well. This
+                Determines if the measured energies are returned as well. This
                 is only allowed if the calculation was a Monte Carlo method.
         Returns:
             result: float
                 Either the variance, resolution, or resolving power of the
                 calculation type.
             responses: numpy.ndarray
-                The responses used to calculate the result. This is only
-                available for Monte Carlo calculation types and if
+                The measured energies used to calculate the result. This is
+                only available for Monte Carlo calculation types and if
                 distribution is True.
         """
         # check inputs
@@ -713,20 +711,37 @@ class Pulse:
             energy = self.energies[0]
         mc_types = ["optimal_filter_mc", "phase_filter_mc", "amplitude_filter_mc", "optimal_fit_mc", "phase_fit_mc",
                     "amplitude_fit_mc"]
+        fit_types = ["optimal_fit_mc", "optimal_fit", "phase_fit_mc", "phase_fit", "amplitude_fit_mc", "amplitude_fit"]
+
+        # get the response from the calibration (not needed for fit calculations)
+        response = None
+        if calculation_type not in fit_types:
+            if not calculation_type.startswith(self._response_type):
+                raise RuntimeError("The response type '{}' does not match the calculation type"
+                                   .format(self._response_type))
+            if not calculation_type.startswith(self.loop._energy_calibration_type):
+                raise RuntimeError("The loop energy calibration type '{}' does not match the calculation type"
+                                   .format(self.loop._energy_calibration_type))
+            response = opt.brentq(lambda x: self.loop.energy_calibration(x) - energy,
+                                  self.loop._response_avg.max() * 1.01, self.loop._response_avg.min() * 0.99)
         # theory calculations
         if calculation_type in ["optimal_filter", "phase_filter", "amplitude_filter"]:
+            if self._response_type != calculation_type:
+                raise RuntimeError("The response type '{}' does not match the calculation type"
+                                   .format(self.loop._response_type))
+            if self.loop._energy_calibration_type != calculation_type:
+                raise RuntimeError("The loop energy calibration type '{}' does not match the calculation type"
+                                   .format(self.loop._energy_calibration_type))
             if calculation_type == "optimal_filter":
-                result = self.optimal_filter_var
+                result = self.optimal_filter_var * self.loop.energy_calibration.derivative()(response)**2
             elif calculation_type == "phase_filter":
-                result = self.p_filter_var
-                response *= np.abs(self.template[0].min() / (self.template[0].min() + self.template[1].min()))
+                result = self.p_filter_var * self.loop.energy_calibration.derivative()(response)**2
             else:
-                result = self.a_filter_var
-                response *= np.abs(self.template[1].min() / (self.template[0].min() + self.template[1].min()))
+                result = self.a_filter_var * self.loop.energy_calibration.derivative()(response)**2
             if mode == 'fwhm':
                 result = 2 * np.sqrt(2 * np.log(2) * result)
             elif mode == 'resolving_power':
-                result = response / (2 * np.sqrt(2 * np.log(2) * result))
+                result = energy / (2 * np.sqrt(2 * np.log(2) * result))
             responses = None
         elif calculation_type in ["optimal_fit", "phase_fit", "amplitude_fit"]:
             # grab the normalized template, calibration, and parameters
@@ -790,6 +805,8 @@ class Pulse:
                 # compute the responses
                 method = "amplitude_filter" if calculation_type == "amplitude_filter_mc" else "amplitude_fit"
                 responses, _ = self.compute_responses(calculation_type=method, data=data)
+            if calculation_type in ["optimal_filter_mc", "phase_filter_mc", "amplitude_filter_mc"]:
+                responses = self.loop.energy_calibration(responses)  # responses are already in energy for fit types
             # compute the result
             if mode == 'variance':
                 result = np.var(responses, ddof=1)
