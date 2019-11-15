@@ -789,8 +789,8 @@ class Pulse:
             elif calculation_type in ["phase_filter_mc", "phase_fit_mc"]:
                 # get noise traces
                 noise = self.noise.generate_noise(noise_type="p", n_traces=10000)
-                # normalize the template for response = phase + amplitude
-                template = self.template[0] / np.abs(self.template[0].min() + self.template[1].min())
+                # normalize the template for response = phase
+                template = self.template[0] / np.abs(self.template[0].min())
                 # make data traces
                 data = noise + response * template + baseline[0]
                 # compute the responses
@@ -799,8 +799,8 @@ class Pulse:
             else:
                 # get noise traces
                 noise = self.noise.generate_noise(noise_type="a", n_traces=10000)
-                # normalize the template for response = phase + amplitude
-                template = self.template[1] / np.abs(self.template[0].min() + self.template[1].min())
+                # normalize the template for response = amplitude
+                template = self.template[1] / np.abs(self.template[1].min())
                 data = noise + response * template + baseline[1]
                 # compute the responses
                 method = "amplitude_filter" if calculation_type == "amplitude_filter_mc" else "amplitude_fit"
