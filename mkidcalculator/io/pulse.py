@@ -44,6 +44,7 @@ class Pulse:
         # detector response
         self._responses = None
         self._peak_indices = None
+        self._response_type = None
         # trace mask
         self._mask = None
         self._prepulse_mean = None
@@ -891,6 +892,7 @@ class Pulse:
         else:
             raise ValueError("'{}' is not a valid calculation_type".format(calculation_type))
         if save_values:
+            self._response_type = calculation_type
             if mask_only:
                 self.responses = np.empty(self.mask.shape)
                 self.responses[np.logical_not(self.mask)] = np.nan

@@ -40,6 +40,7 @@ class Loop:
         self._directory = None
         # response calibrations
         self.energy_calibration = None
+        self._energy_calibration_type = None
         self._response_avg = None
         self._response_energies = None
         # energy calibrations
@@ -517,8 +518,8 @@ class Loop:
                 The default is 'not-a-knot'.
         """
         # get energies and responses for the calibration
-        responses, energies, _ = self._calibration_points(pulse_indices=pulse_indices, use_mask=use_mask,
-                                                          fix_zero=fix_zero)
+        responses, energies, _, calibration_type = self._calibration_points(pulse_indices=pulse_indices,
+                                                                            use_mask=use_mask, fix_zero=fix_zero)
         assert len(energies) >= 2, "There must be at least 2 pulse data sets with unique, known, single energy lines."
         # sort them by increasing response
         responses, energies = np.array(responses), np.array(energies)
@@ -527,6 +528,7 @@ class Loop:
         # store for future plotting
         self._response_avg = responses
         self._response_energies = energies
+        self._energy_calibration_type = calibration_type
 
         self.energy_calibration = make_interp_spline(responses, energies, k=k, bc_type=bc_type)
 
@@ -551,7 +553,7 @@ class Loop:
                 correspond to those in scipy.interpolate.make_interp_spline.
                 The default is 'not-a-knot'.
         """
-        _, energies, indices = self._calibration_points(pulse_indices=pulse_indices, fix_zero=fix_zero)
+        _, energies, indices, _ = self._calibration_points(pulse_indices=pulse_indices, fix_zero=fix_zero)
         assert len(energies) >= 2, "There must be at least 2 pulse data sets with unique, known, single energy lines."
         # compute phase and amplitude responses
         phase = []
@@ -588,7 +590,7 @@ class Loop:
                 correspond to those in scipy.interpolate.make_interp_spline.
                 The default is 'not-a-knot'.
         """
-        _, energies, indices = self._calibration_points(pulse_indices=pulse_indices, fix_zero=fix_zero)
+        _, energies, indices, _ = self._calibration_points(pulse_indices=pulse_indices, fix_zero=fix_zero)
         assert len(energies) >= 2, "There must be at least 2 pulse data sets with unique, known, single energy lines."
         # compute phase and amplitude responses
         amplitude = []
@@ -628,7 +630,7 @@ class Loop:
                 template for all energies. The default is False.
         """
         # find energies and order
-        _, energies, indices = self._calibration_points(pulse_indices=pulse_indices, fix_zero=False)
+        _, energies, indices, _ = self._calibration_points(pulse_indices=pulse_indices, fix_zero=False)
         energies, order = np.unique(energies, return_index=True)
         indices = np.array(indices)[order]
 
@@ -1692,8 +1694,13 @@ class Loop:
         energies = []
         indices = list(pulse_indices)  # creates a copy
         bad_indices = []
+        calibration_type = None
         # get energies and responses for pulses
         for index, pulse in enumerate(itemgetter(*pulse_indices)(self.pulses)):
+            if calibration_type is None:
+                calibration_type = pulse._response_type
+            elif calibration_type != pulse._response_type:
+                raise ValueError("pulse objects have different types of responses")
             energy = pulse.energies
             # skip if no energy
             if energy is None and skip_bad:
@@ -1718,7 +1725,7 @@ class Loop:
         # add zero point
         if fix_zero:
             responses, energies = [0] + responses, [0] + energies
-        return responses, energies, indices
+        return responses, energies, indices, calibration_type
 
     def _set_directory(self, directory):
         self._directory = directory
