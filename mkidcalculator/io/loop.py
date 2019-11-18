@@ -1536,7 +1536,7 @@ class Loop:
 
     def plot_spectra(self, pulse_indices=None, plot_kwargs=None, hist_kwargs=None, x_limits=None, second_x_axis=False,
                      x_label=None, y_label=None, label_kwargs=None, legend=True, legend_kwargs=None, tick_kwargs=None,
-                     tighten=True, axes=None):
+                     tighten=True, norm=False, axes=None):
         """
         Plot the spectrum of the pulse responses in the loop.
         Args:
@@ -1583,6 +1583,12 @@ class Loop:
             tighten: boolean
                 Determines whether figure.tight_layout() is called. The default
                 is True.
+            norm: boolean
+                If False, the combined spectra is normalized to unit
+                probability where the relative brightness of the sub-spectra
+                is retained. If True, each sub-spectra is normalized to the
+                same probability and the total probability is still 1. The
+                default is False.
             axes: matplotlib.axes.Axes class (optional)
                 An axes class for plotting the data.
         Returns:
@@ -1622,6 +1628,14 @@ class Loop:
                                   x_label_default='energy [eV]' if calibrated else "response [radians]",
                                   y_label_default='probability density')
         kwargs = {"bins": 10 * int((max_energy - min_energy) / min_bandwidth), "density": True}
+        if norm is True:
+            prob_norm = 0
+            weight = 0
+            for p in pulses:
+                prob_norm += p.spectrum['pdf'](energies)
+            for p in pulses:
+                weight += p.spectrum["pdf"](energies) / p.spectrum["energies"].size / prob_norm
+            kwargs.update({"weights": weight})
         if hist_kwargs is not None:
             kwargs.update(hist_kwargs)
         axes.hist(energies, **kwargs)
@@ -1645,7 +1659,8 @@ class Loop:
                 label = ""
             kwargs = {"label": label}
             kwargs.update(plot_kwargs[index])
-            axes.plot(xx, norms[index] * pdf(xx) / np.sum(norms), **kwargs)
+            pdf_xx = pdf(xx) / len(norms) if norm else norms[index] * pdf(xx) / np.sum(norms)
+            axes.plot(xx, pdf_xx, **kwargs)
 
         # set x axis limits
         if x_limits is not None:
