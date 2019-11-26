@@ -1,17 +1,17 @@
 # mkidcalculator
 This package provides tools for analyzing MKID data loaded from arbitrary sources. Routines are provided along with plotting tools to make basic analysis tasks simple and straightforward. 
 
-##Getting Started
+## Getting Started
 These instructions will help you install _mkidcalculator_ on your machine. The code is still in it's beta stage so there is currently no release version. It must be downloaded and installed directly from GitHub.
 
-###Prerequisites
+### Prerequisites
 The code is designed to run on all python versions greater than 3.7. All other python prerequisites will be automatically downloaded during the installation. 
 
 Git must be installed to clone the repository (as in the install instructions), but it can be downloaded directly from [GitHub](https://github.com/zobristnicholas/mkidcalculator) as well.
 
 No testing is currently implemented to verify cross platform compatibility, but the code is expected to be platform independent. Development was done on Mac OSX.  
 
-###Installing
+### Installing
 On the command line run the following with your choice of \<directory\> and \<version\>:
 ```
 cd <directory>
