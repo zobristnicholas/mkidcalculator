@@ -47,6 +47,15 @@ class Resonator:
     def sweep(self, sweep):
         self._sweep = sweep
 
+    @property  # @property so that self.f not put into memory on load
+    def f_center(self):
+        """
+        The median frequency of all of the loop.f_center frequencies. This is a
+        useful rough proxy for the resonant frequency that depends only on the
+        data and not the fit.
+        """
+        return np.median([loop.f_center for loop in self.loops])
+
     def to_pickle(self, file_name):
         """Pickle and save the class as the file 'file_name'."""
         # set the _directory attributes so all the data gets saved in the right folder

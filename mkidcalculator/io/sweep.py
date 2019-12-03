@@ -19,6 +19,15 @@ class Sweep:
     def __init__(self):
         self.resonators = []
 
+    @property  # @property so that self.f not put into memory on load
+    def f_centers(self):
+        """
+        A list of the median frequencies for each resonator corresponding to
+        sweep.resonators. This is a useful rough proxy for the resonant
+        frequencies that depends only on the data and not the fit.
+        """
+        return [resonator.f_center for resonator in self.resonators]
+
     def to_pickle(self, file_name):
         """Pickle and save the class as the file 'file_name'."""
         # set the _directory attributes so all the data gets saved in the right folder

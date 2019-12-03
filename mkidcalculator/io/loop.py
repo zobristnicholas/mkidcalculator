@@ -65,6 +65,14 @@ class Loop:
         """The frequencies corresponding to the complex scattering parameter."""
         return self._data['f']
 
+    @property  # @property so that self.f not put into memory on load
+    def f_center(self):
+        """
+        The median frequency in loop.f. This is a useful rough proxy for the
+        resonant frequency that depends only on the data and not the fit.
+        """
+        return np.median(self.f)
+
     @property
     def imbalance_calibration(self):
         """A MxN complex array containing beating IQ mixer data on the rows."""
