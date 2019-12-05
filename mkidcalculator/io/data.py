@@ -228,7 +228,8 @@ def analogreadout_resonator(file_name, channel=None):
         elif match:
             loop_kwargs.append({"loop_file_name": loop_file_name, "channel": int(channel % 2)})
             if parameters['noise'][0]:
-                n_noise = 1 + int(parameters['noise'][5])
+                # 3 is boolean, 5 is number of off resonance
+                n_noise = 1 + int(parameters['noise'][5]) * int(parameters['noise'][3])
                 noise_name = "_".join(["noise", *loop_name.split("_")[1:]])
                 noise_file_name = os.path.join(directory, noise_name)
                 if os.path.isfile(noise_file_name):
