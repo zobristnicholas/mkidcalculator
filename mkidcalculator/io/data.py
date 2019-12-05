@@ -1,5 +1,6 @@
 import os
 import glob
+import fnmatch
 import logging
 import numpy as np
 from scipy.io import loadmat
@@ -218,10 +219,13 @@ def analogreadout_resonator(file_name, channel=None):
     directory = os.path.dirname(file_name)
     npz = np.load(file_name, allow_pickle=True)
     loop_kwargs = []
-    all_files = glob.glob(os.path.join(directory, "sweep_*_*_*_{:d}_*".format(int(channel // 2))))
+    pattern = "sweep_*_*_*_{:d}_*".format(int(channel // 2))
     for loop_name, parameters in npz['parameter_dict'].item().items():
         loop_file_name = os.path.join(directory, loop_name)
-        if os.path.isfile(loop_file_name) and loop_file_name in all_files:
+        match = fnmatch.filter([loop_name], pattern)
+        if not os.path.isfile(loop_file_name) and match:
+            log.warning("Could not find '{}'".format(loop_file_name))
+        elif match:
             loop_kwargs.append({"loop_file_name": loop_file_name, "channel": int(channel % 2)})
             if parameters['noise'][0]:
                 n_noise = 1 + int(parameters['noise'][5])
@@ -234,8 +238,6 @@ def analogreadout_resonator(file_name, channel=None):
                                             "channel": int(channel % 2)})
                 else:
                     log.warning("Could not find '{}'".format(noise_file_name))
-        else:
-            log.warning("Could not find '{}'".format(loop_file_name))
     return loop_kwargs
 
 
@@ -539,7 +541,6 @@ def legacy_sweep(config_file, noise=True):
         resonator_kwargs: list of dictionaries
             A list of keyword arguments to send to Resonator.from_file().
     """
-    directory = os.path.dirname(config_file)
     config = loadmat(config_file, squeeze_me=True)['curr_config']
     channels = np.arange(len(config['f0list'].item()))
 
