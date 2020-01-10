@@ -110,7 +110,8 @@ def frequency_selector(file_name, delta_f=0.025, data=mazinlab_widesweep,
 
     # define updating functions
     def add_vline(index, value):
-        peak_handles[index] = axes.axvline(value, color='C2')
+        if peak_handles[index] is None:
+            peak_handles[index] = axes.axvline(value, color='C2')
 
     def update_frequency(value):
         # set x lim
@@ -151,7 +152,7 @@ def frequency_selector(file_name, delta_f=0.025, data=mazinlab_widesweep,
 
     def add_frequency(value):
         index = closest_index(value)
-        if index is not None:
+        if index is not None and not peaks[index]:
             log.info("adding peak at frequency: {:f}".format(f[index]))
             peaks[index] = True
             add_vline(index, f[index])
