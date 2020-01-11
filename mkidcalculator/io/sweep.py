@@ -100,11 +100,12 @@ class Sweep:
                 (numpy.ndarray), complex scattering data (numpy.ndarray),
                 attenuation (float), field (float), and temperature (float) of
                 the widesweep.
-            indices: iterable of integers or function (optional)
+            indices: iterable of integers, function, or string (optional)
                 If an iterable, indices is interpreted as starting peak
                 locations. If a function, it must return an iterable of
                 resonator peak indices corresponding to the data returned by
-                'data'. The manditory input arguments are f, z.
+                'data'. The manditory input arguments are f, z. If a string,
+                the data is unpickled and the first data type is assumed.
             indices_kwargs: dictionary (optional)
                 Extra keyword arguments to pass to the indices function. The
                 default is None.
@@ -124,6 +125,8 @@ class Sweep:
             if indices_kwargs is not None:
                 kws.update(indices_kwargs)
             peaks = np.array(indices(f, z, **kws))
+        elif isinstance(indices, str):
+            peaks = np.array(load(indices))
         else:
             peaks = np.array(indices)
 
