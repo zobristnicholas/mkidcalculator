@@ -1530,6 +1530,11 @@ class Pulse:
         else:
             metrics = np.vstack([self.peak_indices, self._prepulse_mean,
                                  self._prepulse_rms, self._postpulse_min_slope, self._integral]).T
+        # replace infinities with their nearest value because corner doesn't like them if they end up in the range
+        for index in range(metrics.shape[1]):
+            metrics[np.isposinf(metrics[:, index]), index] = np.max(metrics[~np.isposinf(metrics[:, index]), index])
+            metrics[np.isneginf(metrics[:, index]), index] = np.min(metrics[~np.isposinf(metrics[:, index]), index])
+
         with warnings.catch_warnings():
             warnings.simplefilter(action='ignore', category=UserWarning)  # for singular axis limits
             corner.corner(metrics, quiet=True,
