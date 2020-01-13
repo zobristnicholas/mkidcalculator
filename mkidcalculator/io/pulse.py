@@ -825,13 +825,13 @@ class Pulse:
         else:
             return result
 
-    def compute_responses(self, calculation_type="optimal_filter", data=None, mask_only=False):
+    def compute_responses(self, calculation_type="optimal_filter", data=None, mask_only=False, filter_=None):
         """
         Compute the detector response responses and peak indices using a
         particular calculation method. The results are stored in
         pulse.responses and pulse.peak_indices if data is not None.
         Args:
-            calculation_type: string
+            calculation_type: string (optional)
                 The calculation type used to compute the responses. Valid
                 options are listed below. The default is "optimal_filter".
                 "optimal_filter":
@@ -855,16 +855,19 @@ class Pulse:
                     Work in progress
                 "amplitude_orthogonal_filter":
                     Work in progress
-            data: numpy.ndarray
+            data: numpy.ndarray (optional)
                 A numpy array for which to compute responses. The data must
                 be in the shape specified by pulse.apply_filter for the given
                 calculation type. The responses and peak indices are returned
                 instead of saved to the object if data is not None. None is the
                 default.
-            mask_only: boolean
+            mask_only: boolean (optional)
                 If True, only responses where the pulse.mask is True are
                 computed. Nothing happens if data is specified. The default is
                 False.
+            filter_: numpy.ndarray (optional)
+                An optional filter can be specified to use instead of the
+                pre-computed one for calculation types that use them.
         Returns:
              responses: numpy.ndarray
                 The response in radians for each trace.
@@ -883,7 +886,7 @@ class Pulse:
                     data = self.p_trace if not mask_only else self.p_trace[self.mask, :]
                 else:
                     data = self.a_trace if not mask_only else self.a_trace[self.mask, :]
-            filtered_data = self.apply_filter(data, filter_type=calculation_type)
+            filtered_data = self.apply_filter(data, filter_type=calculation_type, filter_=filter_)
             responses = filtered_data.max(axis=1)
             peak_indices = np.argmax(filtered_data, axis=1)
         elif calculation_type in ["optimal_fit", "phase_fit", "amplitude_fit"]:
@@ -922,7 +925,7 @@ class Pulse:
                 self.peak_indices = peak_indices
         return responses, peak_indices
 
-    def apply_filter(self, data, filter_type="optimal_filter"):
+    def apply_filter(self, data, filter_type="optimal_filter", filter_=None):
         """
         Method for convolving the filters with the data. For the 2D filter the
         first axis must be for the phase and amplitude. The filter is applied
@@ -933,7 +936,7 @@ class Pulse:
                 the shape must be either 2 x n_traces x n_points or
                 2 x n_points. For filtering just one of the phase or amplitude
                 the shape must be n_points or n_traces x n_points.
-            filter_type: string
+            filter_type: string (optional)
                 The type of filter to use. Valid options are listed below. The
                 default is "optimal_filter".
                 "optimal_filter":
@@ -944,6 +947,9 @@ class Pulse:
                 "amplitude_filter":
                     Use a filter constructed with the amplitude template and
                     noise.
+            filter_: numpy.ndarray (optional)
+                An optional filter can be specified to use instead of the
+                pre-computed one.
         Returns:
             result: numpy.ndarray
                 A numpy array of the same shape as the input that has been
@@ -952,12 +958,18 @@ class Pulse:
         data = self._pad_data(data)
         kwargs = {"mode": "valid", "axes": -1}
         if filter_type == "optimal_filter":
-            result = (fftconvolve(np.atleast_2d(data[0]), np.atleast_2d(self.optimal_filter[0]), **kwargs) +
-                      fftconvolve(np.atleast_2d(data[1]), np.atleast_2d(self.optimal_filter[1]), **kwargs))
+            if filter_ is None:
+                filter_ = self.optimal_filter
+            result = (fftconvolve(np.atleast_2d(data[0]), np.atleast_2d(filter_[0]), **kwargs) +
+                      fftconvolve(np.atleast_2d(data[1]), np.atleast_2d(filter_[1]), **kwargs))
         elif filter_type == "phase_filter":
-            result = fftconvolve(np.atleast_2d(data), np.atleast_2d(self.p_filter), **kwargs)
+            if filter_ is None:
+                filter_ = self.p_filter
+            result = fftconvolve(np.atleast_2d(data), np.atleast_2d(filter_), **kwargs)
         elif filter_type == "amplitude_filter":
-            result = fftconvolve(np.atleast_2d(data), np.atleast_2d(self.a_filter), **kwargs)
+            if filter_ is None:
+                filter_ = self.a_filter
+            result = fftconvolve(np.atleast_2d(data), np.atleast_2d(filter_), **kwargs)
         else:
             raise ValueError("'{}' is not a valid calculation_type".format(filter_type))
         return result
