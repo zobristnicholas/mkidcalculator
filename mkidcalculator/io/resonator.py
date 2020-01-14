@@ -120,6 +120,7 @@ class Resonator:
         # group temperatures
         if group:
             temperatures = np.array(self.temperatures)
+            temperatures[np.isnan(temperatures)] = 0  # set all nan temperatures to the same unrealizable value
             if n_groups is None:
                 n_groups = temperatures.size // (np.unique(self.powers).size * np.unique(self.fields).size)
             k = np.linspace(temperatures.min(), temperatures.max(), n_groups)
