@@ -610,20 +610,20 @@ class Resonator:
         return axes_list
 
     def plot_parameters(self, parameters, x="power", data_label="best", n_rows=1, power=None, field=None,
-                        temperature=None, n_sigma=2, plot_fit=False, fit_label="best", axes=None):
+                        temperature=None, n_sigma=2, plot_fit=False, fit_label="best", axes_list=None):
         if isinstance(parameters, str):
             parameters = [parameters]
         power, field, temperature = create_ranges(power, field, temperature)
-        if axes is None:
+        if axes_list is None:
             from matplotlib import pyplot as plt
             n_columns = int(np.ceil(len(parameters) / n_rows))
-            figure, axes = plt.subplots(nrows=n_rows, ncols=n_columns, squeeze=False,
-                                        figsize=(4.3 * n_columns, 4.0 * n_rows))
-            axes = axes.ravel()
+            figure, axes_list = plt.subplots(nrows=n_rows, ncols=n_columns, squeeze=False,
+                                             figsize=(4.3 * n_columns, 4.0 * n_rows))
+            axes_list = axes_list.ravel()
         else:
-            if not isinstance(axes, np.ndarray):
-                axes = np.atleast_1d(axes)
-            figure = axes[0].figure
+            if not isinstance(axes_list, np.ndarray):
+                axes_list = np.atleast_1d(axes_list)
+            figure = axes_list[0].figure
 
         levels = ["power", "field", "temperature"]
         if x not in levels:
@@ -658,16 +658,16 @@ class Resonator:
                             except KeyError:
                                 x_vals = data.index * 1000
                         if error_bars is not None:
-                            axes[index].errorbar(x_vals, data.values, error_bars.values * n_sigma, fmt='o')
+                            axes_list[index].errorbar(x_vals, data.values, error_bars.values * n_sigma, fmt='o')
                         else:
-                            axes[index].plot(x_vals, data.values, 'o')
+                            axes_list[index].plot(x_vals, data.values, 'o')
                         sigma = parameter.split("_")[-1]
                         if sigma == "sigma":
-                            axes[index].set_ylabel("_".join(parameter.split("_")[:-1]) + " sigma")
+                            axes_list[index].set_ylabel("_".join(parameter.split("_")[:-1]) + " sigma")
                         else:
-                            axes[index].set_ylabel(parameter)
+                            axes_list[index].set_ylabel(parameter)
                         x_label = {"power": "power [dBm]", "field": "field [V]", "temperature": "temperature [mK]"}
-                        axes[index].set_xlabel(x_label[x])
+                        axes_list[index].set_xlabel(x_label[x])
 
                         if plot_fit and parameter in self.lmfit_results.keys():
                             if fit_label in self.lmfit_results[parameter].keys():
@@ -687,5 +687,5 @@ class Resonator:
                                 x_m = kwargs[x + "s"] if x != "temperature" else 1000 * kwargs[x + "s"]
                                 if parameter == "fr":
                                     m *= 1e-9  # Convert to GHz
-                                axes[index].plot(x_m, m)
+                                axes_list[index].plot(x_m, m)
         figure.tight_layout()
