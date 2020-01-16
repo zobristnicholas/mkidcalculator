@@ -348,7 +348,7 @@ def finalize_axes(axes, title=False, title_kwargs=None, legend=False, legend_kwa
         kwargs = {"fontsize": 11}
         if title_kwargs is not None:
             kwargs.update(title_kwargs)
-        axes.set_title(text, **kwargs)
+        axes.set_title(title, **kwargs)
     if tick_kwargs is not None:
         axes.tick_params(**tick_kwargs)
     if tighten:
