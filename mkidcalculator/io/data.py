@@ -616,7 +616,7 @@ def copper_mountain_c1220_widesweep(file_name, attenuation=np.nan, field=np.nan,
     return f * 1e-9, z, attenuation, field, temperature
 
 
-def digital_readout_gen2_widesweep(file_name, field=np.nan, temperature=np.nan):
+def mkidreadout2_widesweep(file_name, field=np.nan, temperature=np.nan):
     """
     Function for loading data from the Mazin Lab generation 2 digital readout
     widesweep file. Frequencies are ordered by segment and may be overlapping.
@@ -643,7 +643,49 @@ def digital_readout_gen2_widesweep(file_name, field=np.nan, temperature=np.nan):
             The temperature for the data.
     """
     npz = np.load(file_name)
-    f = npz['freqs'].ravel() * 1e-9
     z = npz['I'] + 1j * npz['Q']
     z = z.reshape((z.shape[0], z.shape[1] * z.shape[2]))
+    f = np.broadcast_to(npz['freqs'].ravel() * 1e-9, z.shape)
     return f, z, npz['atten'], field, temperature
+
+
+def mkidreadout2_widesweep_indices(f, z, metadata_file=None):
+    """
+    Returns an array of indices that correspond to the resonator locations from
+    the data returned by mkidreadout2_widesweep().
+
+    Args:
+        f: numpy.ndarray
+            The frequency data in GHz.
+        z: numpy.ndarray
+            The complex scattering parameter data.
+        metadata_file: string
+            The file name for the widesweep metadata file.
+
+    Returns:
+        indices: numpy.ndarray
+            The indices of f corresponding to resonator locations.
+    """
+    if z.base is None:
+        message = ("z must be a view of the original array loaded by mkidreadout2_widesweep(). "
+                   "Don't copy it before using it in this function.")
+        raise ValueError(message)
+
+    # load in the metadata
+    if metadata_file is None:
+        raise ValueError("Supply a metadata file.")  # must be a keyword to be loadable from Sweep.from_widesweep()
+    metadata = np.loadtxt(metadata_file)
+    if metadata.shape[1] == 3:
+        fr = metadata[:, 1] * 1e-9
+    elif metadata.shape[1] == 9:
+        fr = metadata[:, 5] * 1e-9
+    else:
+        raise IOError("Unknown file format for {}".format(metadata_file))
+
+    # find the indices
+    window_f_centers = f.reshape(z.base.shape)[0, :, z.base.shape[-1] // 2]
+    window_index = np.argmin(np.abs(fr - window_f_centers[:, np.newaxis]), axis=0)  # index of closest window to fr
+    f_windows = f.reshape(z.base.shape)[0, window_index, :]  # (len(fr), window size)
+    f_index = np.argmin(np.abs(fr[:, np.newaxis] - f_windows), axis=1)  # index of closest frequency to fr in the window
+    indices = f_index + window_index * z.base.shape[-1]
+    return indices
