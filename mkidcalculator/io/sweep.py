@@ -6,7 +6,7 @@ from collections.abc import Collection
 
 from mkidcalculator.io.loop import Loop
 from mkidcalculator.io.resonator import Resonator
-from mkidcalculator.io.data import analogreadout_sweep, mazinlab_widesweep
+from mkidcalculator.io.data import analogreadout_sweep, labview_segmented_widesweep
 from mkidcalculator.plotting import plot_parameter_vs_f, plot_parameter_hist
 from mkidcalculator.io.utils import find_resonators, collect_resonances, _loop_fit_data, dump, load
 
@@ -84,11 +84,12 @@ class Sweep:
             resonator.free_memory(directory=directory)
 
     @classmethod
-    def from_widesweep(cls, sweep_file_name, df, data=mazinlab_widesweep, indices=find_resonators, indices_kwargs=None,
-                       loop_kwargs=None, **kwargs):
+    def from_widesweep(cls, sweep_file_name, df, data=labview_segmented_widesweep, indices=find_resonators,
+                       indices_kwargs=None, loop_kwargs=None, **kwargs):
         """
         Sweep class factory method that returns a Sweep() from widesweep data
-        the resonators identified and loaded.
+        (continuous data in which the resonator locations need to be
+        identified).
         Args:
             sweep_file_name: string
                 The file name for the widesweep data.
@@ -96,16 +97,18 @@ class Sweep:
                 The frequency bandwidth for each resonator in the units of the
                 data in the file.
             data: object (optional)
-                Function whose return value is a tuple of the frequencies
-                (numpy.ndarray), complex scattering data (numpy.ndarray),
-                attenuation (float), field (float), and temperature (float) of
-                the widesweep.
+                Function whose return value is a tuple of the frequencies,
+                complex scattering data, attenuation, field, and temperature of
+                the widesweep. The dimensions of the returned data arrays
+                should conform to the shape (K temperatures, L fields,
+                M attenuations, N frequencies), where singleton dimensions to
+                the left can be left out.
             indices: iterable of integers, function, or string (optional)
                 If an iterable, indices is interpreted as starting peak
-                locations. If a function, it must return an iterable of
-                resonator peak indices corresponding to the data returned by
-                'data'. The manditory input arguments are f, z. If a string,
-                the data is unpickled and the first data type is assumed.
+                frequency locations from the values returned by data. If a
+                function, it must return an iterable of resonator peak indices
+                corresponding to the data returned by data. The manditory input
+                arguments are f, z. If a string, the indices are unpickled.
             indices_kwargs: dictionary (optional)
                 Extra keyword arguments to pass to the indices function. The
                 default is None.
@@ -117,28 +120,38 @@ class Sweep:
             sweep: object
                 A Sweep() object containing the loaded data.
         """
-        sweep = cls()
+        # get the data and add in missing dimensions
         f, z, attenuation, field, temperature = data(sweep_file_name, **kwargs)
 
+        # get the indices
         if callable(indices):
             kws = {"df": df} if indices is find_resonators else {}
             if indices_kwargs is not None:
                 kws.update(indices_kwargs)
-            peaks = np.array(indices(f, z, **kws))
+            peaks = indices(f, z, **kws)
         elif isinstance(indices, str):
-            peaks = np.array(load(indices))
+            peaks = load(indices)
         else:
-            peaks = np.array(indices)
+            peaks = indices
 
-        f_array, z_array, _ = collect_resonances(f, z, peaks, df)
+        # collect the data into (temp, field, atten, resonator, data) shape
+        f_array, z_array = collect_resonances(f, z, peaks, df)
+
+        # make the resonator objects
+        kws = {}
+        if loop_kwargs is not None:
+            kws.update(loop_kwargs)
         resonators = []
-        for ii in range(f_array.shape[0]):
-            zii, fii = z_array[ii, :], f_array[ii, :]
+        for ri in range(f_array.shape[-2]):
             resonators.append(Resonator())
-            kws = {}
-            if loop_kwargs is not None:
-                kws.update(loop_kwargs)
-            resonators[-1].add_loops(Loop.from_python(zii, fii, attenuation, field, temperature, **kws))
+            for ti, tv in enumerate(np.atleast_1d(temperature)):
+                for fi, fv in enumerate(np.atleast_1d(field)):
+                    for ai, av in enumerate(np.atleast_1d(attenuation)):
+                        # add the loop for each temperature, field, attenuation to the resonator
+                        resonators[-1].add_loops(Loop.from_python(z_array[ti, fi, ai, ri, :],
+                                                                  f_array[ti, fi, ai, ri, :], av, fv, tv, **kws))
+        # create the sweep
+        sweep = cls()
         sweep.add_resonators(resonators)
         return sweep
 

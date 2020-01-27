@@ -6,7 +6,7 @@ import numpy as np
 from scipy.io import loadmat
 
 from mkidcalculator.io.utils import (_loaded_npz_files, offload_data, ev_nm_convert, load_legacy_binary_data,
-                                     structured_to_complex, find_resonators, collect_resonances)
+                                     structured_to_complex)
 
 log = logging.getLogger(__name__)
 log.addHandler(logging.NullHandler())
@@ -552,7 +552,7 @@ def legacy_sweep(config_file, noise=True):
     return resonator_kwargs
 
 
-def mazinlab_widesweep(file_name, field=np.nan, temperature=np.nan):
+def labview_segmented_widesweep(file_name, field=np.nan, temperature=np.nan):
     """
     Function for loading data from the Mazin Lab widesweep LabView GUI.
     Args:
@@ -614,3 +614,36 @@ def copper_mountain_c1220_widesweep(file_name, attenuation=np.nan, field=np.nan,
     f, zr, zi = np.loadtxt(file_name, skiprows=3, unpack=True, delimiter=",")
     z = zr + 1j * zi
     return f * 1e-9, z, attenuation, field, temperature
+
+
+def digital_readout_gen2_widesweep(file_name, field=np.nan, temperature=np.nan):
+    """
+    Function for loading data from the Mazin Lab generation 2 digital readout
+    widesweep file. Frequencies are ordered by segment and may be overlapping.
+    Args:
+        file_name: string
+            The file name with the data.
+        field: float (optional)
+            The field at the time of the data taking. np.nan is used if not
+            provided.
+        temperature: float (optional)
+            The temperature at the time of the data taking. np.nan is used if
+            not provided.
+
+    Returns:
+        f: np.ndarray
+            The frequency data in GHz.
+        z: np.ndarray
+            The complex scattering parameter data.
+        attenuation: np.ndarray
+            The attenuation for the data for a 0 dBm power calibration.
+        field: float
+            The field for the data.
+        temperature: float
+            The temperature for the data.
+    """
+    npz = np.load(file_name)
+    f = npz['freqs'].ravel() * 1e-9
+    z = npz['I'] + 1j * npz['Q']
+    z = z.reshape((z.shape[0], z.shape[1] * z.shape[2]))
+    return f, z, npz['atten'], field, temperature

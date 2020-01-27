@@ -7,13 +7,13 @@ from matplotlib.widgets import Slider, Button
 from mpl_toolkits.axes_grid1.inset_locator import inset_axes
 
 from mkidcalculator.io.utils import find_resonators
-from mkidcalculator.io.data import mazinlab_widesweep
+from mkidcalculator.io.data import labview_segmented_widesweep
 
 log = logging.getLogger(__name__)
 log.addHandler(logging.NullHandler())
 
 
-def frequency_selector(file_name, delta_f=0.025, data=mazinlab_widesweep,
+def frequency_selector(file_name, delta_f=0.025, data=labview_segmented_widesweep,
                        indices=find_resonators, indices_kwargs=None, figure_kwargs=None, **kwargs):
     """
     A simple GUI for finding resonant frequencies in a widesweep.

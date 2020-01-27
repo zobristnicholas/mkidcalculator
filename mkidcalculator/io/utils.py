@@ -377,10 +377,10 @@ def get_plot_model(self, fit_type, label, params=None, calibrate=False, default_
 
 
 def _integer_bandwidth(f, df):
-    return int(np.round(df / (f[1] - f[0]) / 2) * 2)  # nearest even number
+    return int(np.round(df / (f[1] - f[0])))
 
 
-def find_resonators(f, z, df=5e-4, **kwargs):
+def find_resonators(f, z, df=5e-4, index=None, **kwargs):
     """
     Find resonators in a S21 trace.
     Args:
@@ -393,13 +393,21 @@ def find_resonators(f, z, df=5e-4, **kwargs):
             the max peak width unless overridden. Resonators separated by less
             than df / 2 are also discarded. If None, no max peak width or
             frequency cut is used. The default is 5e-4 (0.5 MHz).
+        index: tuple of integers (optional)
+            A tuple corresponding to all but the last index in f to use for
+            finding resonators.
         kwargs: optional keyword arguments
             Optional keyword arguments to scipy.signal.find_peaks. Values here
             will override the defaults.
     Returns:
-        peaks: numpy.ndarray, dtype=integer
-            An array of peak integers
+        index_array: tuple of (numpy.ndarray, dtype=integer)
+            An array of peak locations
     """
+    # find peaks for only the first temp, field, atten if index isn't given
+    if index is None:
+        index = tuple([0] * (f.ndim - 1))
+    z = z[index]
+    f = f[index]
     # resonator bandwidth in indices
     dfii = _integer_bandwidth(f, df) if df is not None else None
     # detrend magnitude data for peak finding
@@ -410,15 +418,9 @@ def find_resonators(f, z, df=5e-4, **kwargs):
     # find peaks
     kws = {"prominence": 1, "height": 5}
     if dfii is not None:
-        kws.update({"width": (None, int(dfii / 2))})
+        kws.update({"width": (None, int(dfii / 2)), "distance": int(dfii / 2)})
     kws.update(kwargs)
     peaks, _ = find_peaks(-magnitude, **kws)
-    # cut out resonators that are separated from neighbors by less than df / 2
-    if df is not None:
-        right = np.hstack((np.diff(f[peaks]) > df / 2, False))
-        left = np.hstack((False, np.diff(f[peaks][::-1])[::-1] < -df / 2))
-        logic = left & right
-        peaks = peaks[logic]
     return peaks
 
 
@@ -430,32 +432,32 @@ def collect_resonances(f, z, peaks, df):
             The frequencies corresponding to i and q.
         z: numpy.ndarray
             The S21 complex scattering data.
-        peaks: numpy.ndarray, dtype=integer
-            The indices corresponding to the resonator locations.
+        peaks: iterable of integers
+            The indices corresponding to the resonator locations in frequency.
         df: float
             The final bandwidth of all of the outputs.
     Returns:
         f_array: numpy.ndarray
-            A MxN array for the frequencies where M is the number of resonators
-            and N is the number of frequencies.
+            A JxKxLxMxN array for the frequencies where J is the number of
+            temperatures, K is the number of fields, L is the number of
+            attenuations, M is the number of resonators and N is the number
+            of frequencies.
         z_array: numpy.ndarray
-            A MxN array for the S21 data where M is the number of resonators
-            and N is the number of frequencies.
-        peaks: numpy.ndarray, dtype=integer
-            The peak indices corresponding to resonator locations. Some indices
-            may be removed due to encroaching nearby resonators.
+            An array for the S21 data of the same size as f_array.
     """
+    f = np.array(f, ndmin=4, copy=False)  # (temp, field, atten, frequencies)
+    z = np.array(z, ndmin=4, copy=False)  # (temp, field, atten, z)
+    peaks = np.array(peaks)
+
     # resonator bandwidth in indices
-    dfii = _integer_bandwidth(f, df)
+    dfii = _integer_bandwidth(f[(0,) * (f.ndim - 1)], df)
+
     # collect resonance data into arrays
-    f_array = np.empty((len(peaks), int(dfii)))
-    z_array = np.empty(f_array.shape, dtype=np.complex)
-    for ii in range(f_array.shape[0]):
-        f_array[ii, :] = f[int(peaks[ii] - dfii / 2): int(peaks[ii] + dfii / 2)]
-        z_array[ii, :] = z[int(peaks[ii] - dfii / 2): int(peaks[ii] + dfii / 2)]
-    # cut out resonators that aren't centered (large resonator tails on either side)
-    logic = np.abs(np.argmin(np.abs(z_array), axis=-1) - dfii / 2) < dfii / 10
-    return f_array[logic, :], z_array[logic, :], peaks[logic]
+    offset = np.arange(-dfii // 2 + 1, dfii // 2 + 1)[:, np.newaxis]
+    index_array = (peaks + offset).T
+    f_array = f[..., index_array]
+    z_array = z[..., index_array]
+    return f_array, z_array
 
 
 def _loop_fit_data(loops, parameters=("chi2",), label='best', bounds=None, errorbars=None, success=None,
