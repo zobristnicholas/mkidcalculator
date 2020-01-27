@@ -183,8 +183,7 @@ class S21:
         else:
             z /= cls.baseline(params, f)
         if center:
-            # TODO: replace with params.eval(center) when lmfit publishes new release
-            center = params._asteval.eval("1 - q0 / (2 * qc) - 1j * q0**2 / qc * df / f0")
+            center = params.eval("1 - q0 / (2 * qc) - 1j * q0**2 / qc * df / f0")
             z = center - z
         return z
 
