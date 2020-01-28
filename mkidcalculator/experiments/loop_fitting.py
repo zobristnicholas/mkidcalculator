@@ -26,7 +26,7 @@ def _parallel(function, loops, pool=None, **kwargs):
     try:
         # make a pool if needed so it isn't done in each fit
         if not isinstance(pool, mp.pool.Pool):
-            pool = mp.Pool(psutil.cpu_count(logical=False) // 2)
+            pool = mp.Pool(3 * psutil.cpu_count(logical=False) // 4)
             close = True
         # disassociate the sweeps if parallel because they don't serialize fast enough
         for loop in loops:
@@ -389,7 +389,7 @@ def multiple_fit(data, model=S21, extra_fits=(temperature_fit, power_fit, nonlin
     try:
         # make a pool if needed so it isn't done in each fit
         if parallel and not isinstance(parallel, mp.pool.Pool):
-            parallel = mp.Pool(mp.cpu_count() // 2)
+            parallel = mp.Pool(3 * psutil.cpu_count(logical=False) // 4)
             close = True
         # fit the resonator loops with the basic fit
         log.info("starting {}".format(basic_fit))
