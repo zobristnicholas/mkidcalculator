@@ -19,7 +19,6 @@ FIT_MESSAGE = "loop {:d} fit: label = '{:s}', reduced chi squared = {:g}"
 
 
 # TODO: loading and running in parallel breaks npz file loading ... running in new session from pickle load is fine
-# TODO: multiple_fit() slows down a lot when more than one resonator is given and parallel = True
 def _parallel(function, data, pool=None, **kwargs):
     close = False
     if not isinstance(pool, mp.pool.Pool):
@@ -74,6 +73,29 @@ def _get_resonators(data):
     return resonators
 
 
+def _get_good_fits(loop, target, fix=()):
+    # find good fits from other loop
+    good_guesses, powers, fields, temperatures = [], [], [], []
+    if loop.resonator is None:
+        raise ValueError("The loop object isn't associated with a resonator.")
+    for potential_loop in loop.resonator.loops:
+        if potential_loop is loop:  # don't use fits from this loop
+            continue
+        if np.isnan(getattr(potential_loop, target)):  # no nans in the target loop attribute
+            continue
+        for fixed in fix:  # don't use fits with a different fixed attribute
+            if getattr(potential_loop, fixed) != getattr(loop, fixed):
+                continue
+        # only use fits that have redchi < MAX_REDCHI
+        results_dict = potential_loop.lmfit_results
+        if "best" in results_dict.keys() and results_dict['best']['result'].redchi < MAX_REDCHI:
+            good_guesses.append(results_dict['best']['result'].params.copy())
+            powers.append(potential_loop.power)
+            temperatures.append(potential_loop.field)
+            fields.append(potential_loop.temperature)
+    return good_guesses, powers, fields, temperatures
+
+
 def basic_fit(data, label="basic_fit", model=S21, calibration=True, guess_kwargs=None, parallel=False, **lmfit_kwargs):
     """
     Fit the loop using the standard model guess.
@@ -124,11 +146,81 @@ def basic_fit(data, label="basic_fit", model=S21, calibration=True, guess_kwargs
     return loops
 
 
+def power_fit(data, label="power_fit", model=S21, parallel=False,
+              baseline=("gain0", "gain1", "gain2", "phase0", "phase1", "phase2"), **lmfit_kwargs):
+    """
+    Fit the loop using the two nearest power data points of similar
+    temperature and same field in the resonator as guesses. If there are no
+    good guesses, nothing will happen.
+    Args:
+        data: Loop, Resonator, Sweep, or collection of those objects
+            The loop or loops to fit. If Resonator or Sweep objects are given
+            all of the contained loops are fit.
+        label: string (optional)
+            The label to store the fit results under. The default is
+            "power_fit".
+        model: class (optional)
+            A model class to use for the fit. The default is
+            mkidcalculator.models.S21.
+        parallel: multiprocessing.Pool or boolean (optional)
+            A multiprocessing pool object to use for the computation. The
+            default is False, and the computation is done in serial. If True,
+            a Pool object is created with multiprocessing.cpu_count() // 2
+            CPUs.
+        baseline: tuple of strings (optional)
+            A list of parameter names corresponding to the baseline. They will
+            use the model guess from the best fit done so far on this loop as a
+            starting point. If no fit has been done a AttributeError will be
+            raised.
+        lmfit_kwargs: optional keyword arguments
+            Additional keyword arguments to pass to loop.lmfit()
+     Returns:
+        loops: a list of mkidcalculator.Loop objects
+            The loop objects that were fit.
+    """
+    # convert file name to loop if needed
+    loops = _get_loops(data)
+    if parallel:
+        return _parallel(power_fit, loops, pool=parallel, label=label, model=model, **lmfit_kwargs)
+    for loop in loops:
+        # check that at least one other fit has been done first
+        if "best" not in loop.lmfit_results.keys():
+            raise AttributeError("loop does not have a previous fit on which to base the power fit.")
+        # find good fits from other loop
+        good_guesses, powers, _, temperatures = _get_good_fits(loop, "power", fix=("field",))
+        # get the guesses nearest in power and temperature data sets
+        distance = np.empty(len(good_guesses), dtype=[('power', np.float), ('temperature', np.float)])
+        distance['power'] = np.abs(loop.power - np.array(powers))
+        distance['temperature'] = np.abs(loop.temperature - np.array(temperatures))
+        indices = np.argsort(distance, order=("temperature", "power"))  # closest in temperature then in power
+        # fit the two nearest data sets
+        used_powers = []
+        for index in indices:
+            if len(used_powers) >= 2:
+                break
+            if powers[index] not in used_powers:  # don't try the same power more than once
+                used_powers.append(powers[index])
+                # pick guess
+                guess = good_guesses[index]
+                # fix baseline parameters to the init values of the best guess
+                baseline_guess = loop.lmfit_results["best"]["result"].init_values
+                for param in baseline:
+                    if param in guess and param in baseline_guess:
+                        guess[param].set(value=baseline_guess[param])
+                # do fit
+                fit_label = label + "_" + str(len(used_powers) - 1)
+                kwargs = {"label": fit_label}
+                kwargs.update(lmfit_kwargs)
+                loop.lmfit(model, guess, **kwargs)
+                log.info(FIT_MESSAGE.format(id(loop), fit_label, loop.lmfit_results[fit_label]['result'].redchi))
+    return loops
+
+
 def temperature_fit(data, label="temperature_fit", model=S21, parallel=False, **lmfit_kwargs):
     """
     Fit the loop using the two nearest temperature data points of the same
-    power in the resonator as guesses. If there are no good guesses, nothing
-    will happen.
+    power and field in the resonator as guesses. If there are no good guesses,
+    nothing will happen.
     Args:
         data: Loop, Resonator, Sweep, or collection of those objects
             The loop or loops to fit. If Resonator or Sweep objects are given
@@ -156,18 +248,7 @@ def temperature_fit(data, label="temperature_fit", model=S21, parallel=False, **
         return _parallel(temperature_fit, loops, pool=parallel, label=label, model=model, **lmfit_kwargs)
     for loop in loops:
         # find good fits from other loop
-        good_guesses = []
-        temperatures = []
-        for potential_loop in loop.resonator.loops:
-            if potential_loop is loop:  # don't use fits from this loop
-                continue
-            if potential_loop.power != loop.power:  # don't use fits with a different power
-                continue
-            # only use fits that have redchi < MAX_REDCHI
-            results_dict = potential_loop.lmfit_results
-            if "best" in results_dict.keys() and results_dict['best']['result'].redchi < MAX_REDCHI:
-                good_guesses.append(results_dict['best']['result'].params.copy())
-                temperatures.append(potential_loop.temperature)
+        good_guesses, _, _, temperatures = _get_good_fits(loop, "temperature", fix=("power", "field"))
         # fit the two nearest temperature data sets
         indices = np.argsort(np.abs(loop.temperature - np.array(temperatures)))
         for iteration in range(2):
@@ -265,7 +346,7 @@ def nonlinear_fit(data, label="nonlinear_fit", model=S21, parameter=("a_sqrt", 0
     return loops
 
 
-def multiple_fit(data, model=S21, extra_fits=(temperature_fit, nonlinear_fit, linear_fit), fit_kwargs=None,
+def multiple_fit(data, model=S21, extra_fits=(temperature_fit, power_fit, nonlinear_fit, linear_fit), fit_kwargs=None,
                  iterations=2, parallel=False, **basic_fit_kwargs):
     """
     Fit the loops using multiple methods.
@@ -279,7 +360,7 @@ def multiple_fit(data, model=S21, extra_fits=(temperature_fit, nonlinear_fit, li
         extra_fits: tuple of functions (optional)
             Extra functions to use to try to fit the loops. They must have
             the arguments of basic_fit(). The default is
-            (temperature_fit, nonlinear_fit, linear_fit).
+            (temperature_fit, power_fit, nonlinear_fit, linear_fit).
         fit_kwargs: dictionary or iterable of dictionaries (optional)
             Extra keyword arguments to send to the extra_fits. The default is
             None and no extra keywords are used. If a single dictionary is
@@ -301,31 +382,44 @@ def multiple_fit(data, model=S21, extra_fits=(temperature_fit, nonlinear_fit, li
             The resonator objects that were fit.
     """
     resonators = _get_resonators(data)
-    # make a pool if needed so it isn't done in each fit
     close = False
-    if parallel and not isinstance(parallel, mp.pool.Pool):
-        parallel = mp.Pool(mp.cpu_count() // 2)
-        close = True
-    if fit_kwargs is None:
-        fit_kwargs = [{}] * len(extra_fits)
-    if isinstance(fit_kwargs, dict):
-        fit_kwargs = [fit_kwargs] * len(extra_fits)
-    for resonator in resonators:
-        # fit the resonator loops with the basic fit
-        log.info("fitting resonator: {}".format(id(resonator)))
-        kwargs = {"model": model, "parallel": parallel}
-        kwargs.update(basic_fit_kwargs)
-        basic_fit(resonator, **kwargs)
-        # fit the resonator loops with the extra fits
-        for iteration in range(iterations):
-            log.info("starting iteration: {}".format(iteration))
-            for extra_index, fit in enumerate(extra_fits):
-                kwargs = {"label": fit.__name__ + str(iteration), "model": model, "parallel": parallel}
-                kwargs.update(fit_kwargs[extra_index])
-                fit(resonator, **kwargs)
-    # close the pool if it was generated in the code
-    if close:
-        parallel.close()
+    sweeps = []
+    try:
+        # make a pool if needed so it isn't done in each fit
+        if parallel and not isinstance(parallel, mp.pool.Pool):
+            parallel = mp.Pool(mp.cpu_count() // 2)
+            close = True
+        # disassociate the sweeps if parallel because they don't serialize fast enough
+        if parallel:
+            for resonator in resonators:
+                sweeps.append(resonator.sweep)
+                resonator.sweep = None  # don't carry all of the sweep info across processes
+        # setup fit kwargs
+        if fit_kwargs is None:
+            fit_kwargs = [{}] * len(extra_fits)
+        if isinstance(fit_kwargs, dict):
+            fit_kwargs = [fit_kwargs] * len(extra_fits)
+        for resonator in resonators:
+            # fit the resonator loops with the basic fit
+            log.info("fitting resonator: {}".format(id(resonator)))
+            kwargs = {"model": model, "parallel": parallel}
+            kwargs.update(basic_fit_kwargs)
+            basic_fit(resonator, **kwargs)
+            # fit the resonator loops with the extra fits
+            for iteration in range(iterations):
+                log.info("starting iteration: {}".format(iteration))
+                for extra_index, fit in enumerate(extra_fits):
+                    kwargs = {"label": fit.__name__ + str(iteration), "model": model, "parallel": parallel}
+                    kwargs.update(fit_kwargs[extra_index])
+                    fit(resonator, **kwargs)
+    finally:
+        # re-associate the sweeps
+        if parallel:
+            for index, resonator in enumerate(resonators):
+                resonator.sweep = sweeps[index]
+        # close the pool if it was generated in the code
+        if close:
+            parallel.close()
     return resonators
 
 
