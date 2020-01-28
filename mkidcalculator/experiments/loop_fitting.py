@@ -1,4 +1,4 @@
-import pickle
+import psutil
 import logging
 import numpy as np
 import multiprocessing as mp
@@ -25,7 +25,7 @@ def _parallel(function, loops, pool=None, **kwargs):
     try:
         # make a pool if needed so it isn't done in each fit
         if not isinstance(pool, mp.pool.Pool):
-            pool = mp.Pool(mp.cpu_count() // 2)
+            pool = mp.Pool(psutil.cpu_count(logical=False) // 2)
             close = True
         # disassociate the sweeps if parallel because they don't serialize fast enough
         for loop in loops:
