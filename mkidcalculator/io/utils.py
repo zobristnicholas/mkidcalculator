@@ -270,10 +270,7 @@ def save_lmfit(lmfit_results, model, result, label='default', residual_args=(), 
         log.warning("'{}' has already been used as an lmfit label. The old data has been overwritten.".format(label))
     lmfit_results[label] = {'result': result, 'model': model, 'kwargs': residual_kwargs, 'args': residual_args}
     # if the result is better than has been previously computed, add it to the 'best' key
-    if 'best' not in lmfit_results.keys():
-        lmfit_results['best'] = lmfit_results[label]
-        lmfit_results['best']['label'] = label
-    elif result.aic < lmfit_results['best']['result'].aic:
+    if 'best' not in lmfit_results.keys() or result.aic < lmfit_results['best']['result'].aic:
         lmfit_results['best'] = lmfit_results[label]
         lmfit_results['best']['label'] = label
 

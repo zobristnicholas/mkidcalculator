@@ -10,7 +10,8 @@ from scipy.cluster.vq import kmeans2, ClusterError
 
 from mkidcalculator.io.loop import Loop
 from mkidcalculator.io.data import analogreadout_resonator
-from mkidcalculator.io.utils import lmfit, create_ranges, valid_ranges, save_lmfit, subplots_colorbar, dump, load
+from mkidcalculator.io.utils import (lmfit, create_ranges, valid_ranges, save_lmfit, subplots_colorbar, dump, load,
+                                     _loop_fit_data)
 
 log = logging.getLogger(__name__)
 log.addHandler(logging.NullHandler())
@@ -71,6 +72,36 @@ class Resonator:
         log.info("loaded resonator from '{}'".format(file_name))
         return resonator
 
+    def group_temperatures(self, n_groups=None):
+        """
+        Groups temperatures together into temperature_groups attribute since
+        they aren't ever exactly equal.
+           n_groups: integer
+               An integer that determines how many temperature groups to
+               include. The default is None, and n_groups is calculated. This
+               procedure only works if the data is 'square' (same number of
+               temperature points per unique power and field combination).
+        Raises:
+           scipy.cluster.vq.ClusterError:
+               The temperature data is too disordered to cluster into the
+               specified number of groups.
+        """
+        if np.isnan(self.temperatures).any():
+            raise ValueError("Can't group NaN temperatures")
+        temperatures = np.array(self.temperatures)
+        if n_groups is None:
+            n_groups = temperatures.size // (np.unique(self.powers).size * np.unique(self.fields).size)
+        k = np.linspace(temperatures.min(), temperatures.max(), n_groups)
+        try:
+            centroids, groups = kmeans2(temperatures, k=k, minit='matrix', missing='raise')
+        except ClusterError:
+            message = "The temperature data is too disordered to cluster into {} groups".format(n_groups)
+            raise ClusterError(message)
+        self.temperature_groups = np.empty_like(self.temperatures)
+        for index, centroid in enumerate(centroids):
+            self.temperature_groups[groups == index] = centroid
+        self.temperature_groups = list(self.temperature_groups)
+
     def create_parameters(self, label="best", fit_type="lmfit", group=True, n_groups=None):
         """
         Creates the loop parameters pandas DataFrame by looking at all of the
@@ -119,20 +150,7 @@ class Resonator:
             raise ValueError("'fit_type' must be either 'lmfit', 'emcee', or 'emcee_mle'")
         # group temperatures
         if group:
-            temperatures = np.array(self.temperatures)
-            temperatures[np.isnan(temperatures)] = 0  # set all nan temperatures to the same unrealizable value
-            if n_groups is None:
-                n_groups = temperatures.size // (np.unique(self.powers).size * np.unique(self.fields).size)
-            k = np.linspace(temperatures.min(), temperatures.max(), n_groups)
-            try:
-                centroids, groups = kmeans2(temperatures, k=k, minit='matrix', missing='raise')
-            except ClusterError:
-                message = "The temperature data is too disordered to cluster into {} groups".format(n_groups)
-                raise ClusterError(message)
-            self.temperature_groups = np.empty(temperatures.shape)
-            for index, centroid in enumerate(centroids):
-                self.temperature_groups[groups == index] = centroid
-            self.temperature_groups = list(self.temperature_groups)
+            self.group_temperatures(n_groups=n_groups)
         else:
             self.temperature_groups = self.temperatures
         # determine the parameter names
@@ -149,7 +167,6 @@ class Resonator:
                 for name in p.keys():
                     parameter_names.add(name)
                     parameter_names.add(name + "_sigma")
-
         # initialize the data frame
         parameter_names = sorted(list(parameter_names))
         if group:
@@ -609,8 +626,8 @@ class Resonator:
                 axes_list[0].figure.tight_layout(rect=[0, 0, 1, 0.9 if title else 1])
         return axes_list
 
-    def plot_parameters(self, parameters, x="power", data_label="best", n_rows=1, power=None, field=None,
-                        temperature=None, n_sigma=2, plot_fit=False, fit_label="best", axes_list=None):
+    def plot_parameters(self, parameters, x="power", loop_kwargs=None, n_rows=1, power=None, field=None,
+                        temperature=None, n_sigma=2, plot_fit=False, label="best", axes_list=None):
         if isinstance(parameters, str):
             parameters = [parameters]
         power, field, temperature = create_ranges(power, field, temperature)
@@ -632,37 +649,40 @@ class Resonator:
 
         powers = np.unique(self.powers)
         fields = np.unique(self.fields)
-        temperatures = np.unique(self.temperature_groups)
-        powers = powers[np.all([(powers >= power[ii][0]) & (powers <= power[ii][1])
+        if self.temperature_groups is not None and x != "temperature":
+            temperatures = np.unique(self.temperature_groups)
+        else:
+            temperatures = np.unique(self.temperatures)
+        powers = powers[np.any([(powers >= power[ii][0]) & (powers <= power[ii][1])
                                 for ii in range(len(power))], axis=0)]
-        fields = fields[np.all([(fields >= field[ii][0]) & (fields <= field[ii][1])
+        fields = fields[np.any([(fields >= field[ii][0]) & (fields <= field[ii][1])
                                 for ii in range(len(field))], axis=0)]
-        temperatures = temperatures[np.all([(temperatures >= temperature[ii][0]) & (temperatures <= temperature[ii][1])
+        temperatures = temperatures[np.any([(temperatures >= temperature[ii][0]) & (temperatures <= temperature[ii][1])
                                             for ii in range(len(temperature))], axis=0)]
         values_dict = {"power": powers, "field": fields, "temperature": temperatures}
-        table = self.loop_parameters[data_label]
+        range_dict = {"power": power, "field": field, "temperature": temperature}
 
+        kwargs = {}
         for index, parameter in enumerate(parameters):
+            kwargs.update({"parameter": parameter, "label": "best"})
             for ind1, value1 in enumerate(values_dict[levels[0]]):
                 for ind2, value2 in enumerate(values_dict[levels[1]]):
-                    data = table[parameter].xs((value1, value2), level=levels)
-                    try:
-                        error_bars = table[parameter + "_sigma"].xs((value1, value2), level=levels)
-                    except KeyError:
-                        error_bars = None
-                    if len(data.values):
-                        x_vals = data.index
+                    kwargs.update({levels[0]: value1, levels[1]: value2, x: range_dict[x]})
+                    if loop_kwargs is not None:
+                        kwargs.update(loop_kwargs)
+                    data = _loop_fit_data(loops, **kwargs)
+                    kwargs.update({"parameter": parameter + "_sigma"})
+                    error_bars = _loop_fit_data(loops, **kwargs)
+
+                    if len(data):
+                        x_vals = values_dict[x]
                         if x == "temperature":
-                            try:
-                                x_vals = table["temperature"].xs((value1, value2), level=levels) * 1000
-                            except KeyError:
-                                x_vals = data.index * 1000
+                            x_vals = data.index * 1000
                         if error_bars is not None:
-                            axes_list[index].errorbar(x_vals, data.values, error_bars.values * n_sigma, fmt='o')
+                            axes_list[index].errorbar(x_vals, data, error_bars * n_sigma, fmt='o')
                         else:
                             axes_list[index].plot(x_vals, data.values, 'o')
-                        sigma = parameter.split("_")[-1]
-                        if sigma == "sigma":
+                        if parameter.endswith("_sigma"):
                             axes_list[index].set_ylabel("_".join(parameter.split("_")[:-1]) + " sigma")
                         else:
                             axes_list[index].set_ylabel(parameter)
@@ -670,8 +690,8 @@ class Resonator:
                         axes_list[index].set_xlabel(x_label[x])
 
                         if plot_fit and parameter in self.lmfit_results.keys():
-                            if fit_label in self.lmfit_results[parameter].keys():
-                                result_dict = self.lmfit_results[parameter][fit_label]
+                            if label in self.lmfit_results[parameter].keys():
+                                result_dict = self.lmfit_results[parameter][label]
                                 result = result_dict['result']
                                 model = result_dict['model']
                                 parameters = inspect.signature(model.model).parameters
