@@ -427,6 +427,8 @@ def loop_fit_data(data, parameters=("chi2",), label='best', bounds=None, errorba
         parameters: tuple of strings
             The fit parameters to report. "chi2" can be used to retrieve
             the reduced chi squared values. The default is to just return chi2.
+            "_sigma" can be appended to any parameter name to retrieve the
+            standard error for the estimate.
         label: string (optional)
             The fit label to use.
         bounds: tuple of numbers or tuples
@@ -448,16 +450,16 @@ def loop_fit_data(data, parameters=("chi2",), label='best', bounds=None, errorba
             done. Note: fit success is typically a bad indicator on fit
             quality. It only ever fails when something really bad happens.
         power: tuple of two numbers or tuple of two number tuples
-            Inclusive range or ranges of powers to plot. A single number
-            will cause only that value to be plotted. The default is to
+            Inclusive range or ranges of powers to return. A single number
+            will cause only that value to be returned. The default is to
             include all of the powers.
         field: tuple of two numbers or tuple of two number tuples
-            Inclusive range or ranges of fields to plot. A single number
-            will cause only that value to be plotted. The default is to
+            Inclusive range or ranges of fields to return. A single number
+            will cause only that value to be returned. The default is to
             include all of the fields.
         temperature: tuple of two numbers or tuple of two number tuples
-            Inclusive range or ranges of temperatures to plot. A single
-            number will cause only that value to be plotted. The default is
+            Inclusive range or ranges of temperatures to return. A single
+            number will cause only that value to be returned. The default is
             to include all of the temperatures.
     Returns:
         outputs: tuple of numpy.ndarray objects

@@ -476,7 +476,13 @@ def _loop_fit_data(loops, parameters=("chi2",), label='best', bounds=None, error
                 if parameter == "chi2":
                     outputs[-1].append(result.redchi)
                 else:
-                    outputs[-1].append(result.params[parameter].value)
+                    try:
+                        outputs[-1].append(result.params[parameter].value)
+                    except KeyError as error:
+                        if parameter.endswith("_sigma"):
+                            outputs[-1].append(result.params[parameter[:-6]].stderr)
+                        else:
+                            raise error
     # turn outputs into a list of numpy arrays
     for index, output in enumerate(outputs):
         outputs[index] = np.array(output)
