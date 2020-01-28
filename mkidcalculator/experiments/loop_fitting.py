@@ -19,16 +19,33 @@ FIT_MESSAGE = "loop {:d} fit: label = '{:s}', reduced chi squared = {:g}"
 
 
 # TODO: loading and running in parallel breaks npz file loading ... running in new session from pickle load is fine
-def _parallel(function, data, pool=None, **kwargs):
+def _parallel(function, loops, pool=None, **kwargs):
     close = False
-    if not isinstance(pool, mp.pool.Pool):
-        pool = mp.Pool(mp.cpu_count() // 2)
-        close = True
-    fit = partial(function, parallel=False, **kwargs)
-    _replace(data, pool.map(fit, data))
-    if close:
-        pool.close()
-    return data
+    sweeps = []
+    try:
+        # make a pool if needed so it isn't done in each fit
+        if not isinstance(pool, mp.pool.Pool):
+            pool = mp.Pool(mp.cpu_count() // 2)
+            close = True
+        # disassociate the sweeps if parallel because they don't serialize fast enough
+        for loop in loops:
+            try:
+                sweeps.append(loop.resonator.sweep)
+                loop.resonator.sweep = None
+            except AttributeError:
+                sweeps.append(None)
+        # do the fit
+        fit = partial(function, parallel=False, **kwargs)
+        _replace(loops, pool.map(fit, loops))
+    finally:
+        # re-associate the sweeps
+        for index, sweep in enumerate(sweeps):
+            if sweep is not None:
+                loops[index].resonator.sweep = sweep
+        # close the pool if we made it
+        if close:
+            pool.close()
+    return loops
 
 
 def _replace(old, new):
@@ -56,28 +73,9 @@ def _get_loops(data):
     return loops
 
 
-def _get_resonators(data):
-    if not isinstance(data, Collection):
-        data = [data]
-    resonators = []
-    for datum in data:
-        if isinstance(datum, Loop):
-            resonators.append(data.resonator)
-        elif isinstance(datum, Resonator):
-            resonators.append(datum)
-        elif isinstance(datum, Sweep):
-            resonators += datum.resonators
-        else:
-            message = "'data' object ({}) is not a Loop, Resonator, Sweep, or a collection of those objects."
-            raise ValueError(message.format(type(data)))
-    return resonators
-
-
 def _get_good_fits(loop, target, fix=()):
     # find good fits from other loop
     good_guesses, powers, fields, temperatures = [], [], [], []
-    if loop.resonator is None:
-        raise ValueError("The loop object isn't associated with a resonator.")
     for potential_loop in loop.resonator.loops:
         if potential_loop is loop:  # don't use fits from this loop
             continue
@@ -155,7 +153,8 @@ def power_fit(data, label="power_fit", model=S21, parallel=False,
     Args:
         data: Loop, Resonator, Sweep, or collection of those objects
             The loop or loops to fit. If Resonator or Sweep objects are given
-            all of the contained loops are fit.
+            all of the contained loops are fit. The loops must be associated
+            with resonator objects.
         label: string (optional)
             The label to store the fit results under. The default is
             "power_fit".
@@ -224,7 +223,8 @@ def temperature_fit(data, label="temperature_fit", model=S21, parallel=False, **
     Args:
         data: Loop, Resonator, Sweep, or collection of those objects
             The loop or loops to fit. If Resonator or Sweep objects are given
-            all of the contained loops are fit.
+            all of the contained loops are fit. The loops must be associated
+            with resonator objects.
         label: string (optional)
             The label to store the fit results under. The default is
             "temperature_fit".
@@ -360,7 +360,9 @@ def multiple_fit(data, model=S21, extra_fits=(temperature_fit, power_fit, nonlin
         extra_fits: tuple of functions (optional)
             Extra functions to use to try to fit the loops. They must have
             the arguments of basic_fit(). The default is
-            (temperature_fit, power_fit, nonlinear_fit, linear_fit).
+            (temperature_fit, power_fit, nonlinear_fit, linear_fit). The loops
+            must be associated with resonator objects for the temperature_fit
+            and power_fit to work.
         fit_kwargs: dictionary or iterable of dictionaries (optional)
             Extra keyword arguments to send to the extra_fits. The default is
             None and no extra keywords are used. If a single dictionary is
@@ -378,49 +380,40 @@ def multiple_fit(data, model=S21, extra_fits=(temperature_fit, power_fit, nonlin
             Additional keyword arguments to pass to the basic_fit function
             before the extra fits are used.
     Returns:
-        resonators: list of mkidcalculator.Resonator objects
-            The resonator objects that were fit.
+        loops: a list of mkidcalculator.Loop objects
+            The loop objects that were fit.
     """
-    resonators = _get_resonators(data)
+    loops = _get_loops(data)
     close = False
-    sweeps = []
     try:
         # make a pool if needed so it isn't done in each fit
         if parallel and not isinstance(parallel, mp.pool.Pool):
             parallel = mp.Pool(mp.cpu_count() // 2)
             close = True
-        # disassociate the sweeps if parallel because they don't serialize fast enough
-        if parallel:
-            for resonator in resonators:
-                sweeps.append(resonator.sweep)
-                resonator.sweep = None  # don't carry all of the sweep info across processes
-        # setup fit kwargs
+        # fit the resonator loops with the basic fit
+        log.info("starting {}".format(basic_fit))
+        kwargs = {"model": model, "parallel": parallel}
+        kwargs.update(basic_fit_kwargs)
+        basic_fit(loops, **kwargs)
+        # setup extra fit kwargs
         if fit_kwargs is None:
             fit_kwargs = [{}] * len(extra_fits)
         if isinstance(fit_kwargs, dict):
             fit_kwargs = [fit_kwargs] * len(extra_fits)
-        for resonator in resonators:
-            # fit the resonator loops with the basic fit
-            log.info("fitting resonator: {}".format(id(resonator)))
-            kwargs = {"model": model, "parallel": parallel}
-            kwargs.update(basic_fit_kwargs)
-            basic_fit(resonator, **kwargs)
-            # fit the resonator loops with the extra fits
-            for iteration in range(iterations):
-                log.info("starting iteration: {}".format(iteration))
-                for extra_index, fit in enumerate(extra_fits):
-                    kwargs = {"label": fit.__name__ + str(iteration), "model": model, "parallel": parallel}
-                    kwargs.update(fit_kwargs[extra_index])
-                    fit(resonator, **kwargs)
+        # do the extra fits loop <iterations> times
+        for iteration in range(iterations):
+            log.info("starting iteration: {}".format(iteration))
+            # do the extra fits
+            for extra_index, fit in enumerate(extra_fits):
+                log.info("starting {}".format(fit))
+                kwargs = {"label": fit.__name__ + str(iteration), "model": model, "parallel": parallel}
+                kwargs.update(fit_kwargs[extra_index])
+                fit(loops, **kwargs)
     finally:
-        # re-associate the sweeps
-        if parallel:
-            for index, resonator in enumerate(resonators):
-                resonator.sweep = sweeps[index]
         # close the pool if it was generated in the code
         if close:
             parallel.close()
-    return resonators
+    return loops
 
 
 def loop_fit_data(data, parameters=("chi2",), label='best', bounds=None, errorbars=None, success=None, power=None,
