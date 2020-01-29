@@ -251,7 +251,7 @@ def structured_to_complex(array):
 
 
 def lmfit(lmfit_results, model, guess, label='default', residual_args=(), residual_kwargs=None, model_index=None,
-          **kwargs):
+          keep=True, **kwargs):
     if label == 'best':
         raise ValueError("'best' is a reserved label and cannot be used")
     # set up and do minimization
@@ -263,16 +263,21 @@ def lmfit(lmfit_results, model, guess, label='default', residual_args=(), residu
         residual_args = tuple([arg[model_index] if isinstance(arg, tuple) else arg for arg in residual_args])
         residual_kwargs = {key: value[model_index] if isinstance(value, tuple) else value
                            for key, value in residual_kwargs.items()}
-    save_lmfit(lmfit_results, model, result, label=label, residual_args=residual_args, residual_kwargs=residual_kwargs)
+    save_lmfit(lmfit_results, model, result, label=label, residual_args=residual_args, residual_kwargs=residual_kwargs,
+               keep=keep)
+    return result
 
 
-def save_lmfit(lmfit_results, model, result, label='default', residual_args=(), residual_kwargs=None):
-    if label in lmfit_results:
-        log.warning("'{}' has already been used as an lmfit label. The old data has been overwritten.".format(label))
-    lmfit_results[label] = {'result': result, 'model': model, 'kwargs': residual_kwargs, 'args': residual_args}
+def save_lmfit(lmfit_results, model, result, label='default', residual_args=(), residual_kwargs=None, keep=True):
+    save_dict = {'result': result, 'model': model, 'kwargs': residual_kwargs, 'args': residual_args}
+    if keep:
+        if label in lmfit_results:
+            message = "'{}' has already been used as an lmfit label. The old data has been overwritten."
+            log.warning(message.format(label))
+        lmfit_results[label] = save_dict
     # if the result is better than has been previously computed, add it to the 'best' key
     if 'best' not in lmfit_results.keys() or result.aic < lmfit_results['best']['result'].aic:
-        lmfit_results['best'] = lmfit_results[label]
+        lmfit_results['best'] = save_dict
         lmfit_results['best']['label'] = label
 
 

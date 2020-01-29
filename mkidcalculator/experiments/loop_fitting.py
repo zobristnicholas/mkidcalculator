@@ -18,27 +18,29 @@ FIT_MESSAGE = "loop {:d} fit: label = '{:s}', reduced chi squared = {:g}"
 
 
 # TODO: loading and running in parallel breaks npz file loading ... running in new session from pickle load is fine
-def _parallel(function, loops, pool, **kwargs):
+def _parallel(function, loops, pool, resonator=False, sweep=False, **kwargs):
     # make a pool if it hasn't been made
     if pool is True:
         with mp.Pool(mp.cpu_count() // 2, initializer=initialize_worker) as pool:
-            return _parallel(function, loops, pool=pool, **kwargs)
+            return _parallel(function, loops, pool=pool, resonator=resonator, sweep=sweep, **kwargs)
 
     sweeps = []
     resonators = []
     try:
         for loop in loops:
-            # track the resonator and sweep references so that they can be re-added
-            try:
-                resonators.append(loop.resonator)
-            except AttributeError:
-                resonators.append(None)
+            # remove resonator and sweep references if they are not needed to speed things up
             try:
                 sweeps.append(loop.resonator.sweep)
-                # disassociate the sweeps if parallel because they aren't needed and don't serialize fast enough
-                loop.resonator.sweep = None
+                if not sweep:
+                    loop.resonator.sweep = None
             except AttributeError:
                 sweeps.append(None)
+            try:
+                resonators.append(loop.resonator)
+                if not resonator:
+                    loop.resonator = None
+            except AttributeError:
+                resonators.append(None)
         # do the fit
         fit = partial(function, parallel=False, **kwargs)
         results = map_async_stoppable(pool, fit, loops)
@@ -150,8 +152,8 @@ def basic_fit(data, label="basic_fit", model=S21, calibration=True, guess_kwargs
         # do fit
         kwargs = {"label": label}
         kwargs.update(lmfit_kwargs)
-        loop.lmfit(model, guess, **kwargs)
-        log.info(FIT_MESSAGE.format(id(loop), label, loop.lmfit_results[label]['result'].redchi))
+        result = loop.lmfit(model, guess, **kwargs)
+        log.info(FIT_MESSAGE.format(id(loop), label, result.redchi))
     return loops
 
 
@@ -191,7 +193,7 @@ def power_fit(data, label="power_fit", model=S21, parallel=False,
     # convert file name to loop if needed
     loops = _get_loops(data)
     if parallel:
-        return _parallel(power_fit, loops, parallel, label=label, model=model, **lmfit_kwargs)
+        return _parallel(power_fit, loops, parallel, resonator=True, label=label, model=model, **lmfit_kwargs)
     for loop in loops:
         # check that at least one other fit has been done first
         if "best" not in loop.lmfit_results.keys():
@@ -221,8 +223,8 @@ def power_fit(data, label="power_fit", model=S21, parallel=False,
                 fit_label = label + "_" + str(len(used_powers) - 1)
                 kwargs = {"label": fit_label}
                 kwargs.update(lmfit_kwargs)
-                loop.lmfit(model, guess, **kwargs)
-                log.info(FIT_MESSAGE.format(id(loop), fit_label, loop.lmfit_results[fit_label]['result'].redchi))
+                result = loop.lmfit(model, guess, **kwargs)
+                log.info(FIT_MESSAGE.format(id(loop), fit_label, result.redchi))
     return loops
 
 
@@ -256,7 +258,7 @@ def temperature_fit(data, label="temperature_fit", model=S21, parallel=False, **
     # convert file name to loop if needed
     loops = _get_loops(data)
     if parallel:
-        return _parallel(temperature_fit, loops, parallel, label=label, model=model, **lmfit_kwargs)
+        return _parallel(temperature_fit, loops, parallel, resonator=True, label=label, model=model, **lmfit_kwargs)
     for loop in loops:
         # find good fits from other loop
         good_guesses, _, _, temperatures = _get_good_fits(loop, "temperature", fix=("power", "field"))
@@ -270,8 +272,8 @@ def temperature_fit(data, label="temperature_fit", model=S21, parallel=False, **
                 fit_label = label + "_" + str(iteration)
                 kwargs = {"label": fit_label}
                 kwargs.update(lmfit_kwargs)
-                loop.lmfit(model, guess, **kwargs)
-                log.info(FIT_MESSAGE.format(id(loop), fit_label, loop.lmfit_results[fit_label]['result'].redchi))
+                result = loop.lmfit(model, guess, **kwargs)
+                log.info(FIT_MESSAGE.format(id(loop), fit_label, result.redchi))
     return loops
 
 
@@ -350,8 +352,8 @@ def nonlinear_fit(data, label="nonlinear_fit", model=S21, parameter=("a_sqrt", 0
             # do fit
             kwargs = {"label": label}
             kwargs.update(lmfit_kwargs)
-            loop.lmfit(model, guess, **kwargs)
-            log.info(FIT_MESSAGE.format(id(loop), label, loop.lmfit_results[label]['result'].redchi))
+            result = loop.lmfit(model, guess, **kwargs)
+            log.info(FIT_MESSAGE.format(id(loop), label, result.redchi))
         else:
             raise AttributeError("loop does not have a previous fit on which to base the nonlinear fit.")
     return loops

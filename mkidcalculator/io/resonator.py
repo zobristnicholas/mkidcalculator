@@ -285,8 +285,8 @@ class Resonator:
         resonator.add_loops(loops, sort=sort)
         return resonator
 
-    def lmfit(self, parameter, model, guess, index=None, label='default', data_label="best", residual_args=(),
-              residual_kwargs=None, **kwargs):
+    def lmfit(self, parameter, model, guess, index=None, label='default', data_label="best", keep=True,
+              residual_args=(), residual_kwargs=None, **kwargs):
         """
         Compute a least squares fit using the supplied residual function and
         guess. The result and other useful information is stored in
@@ -318,6 +318,9 @@ class Resonator:
             data_label: string (optional)
                 The loop parameters table label to use for the fit. The default
                 is 'best'.
+            keep: boolean (optional)
+                Store the fit result in the object. The default is True. If
+                False, the fit will only be stored if it is the best so far.
             residual_args: tuple (optional)
                 A tuple of arguments to be passed to the residual function.
                 Note: these arguments are the non-mandatory ones after the
@@ -377,12 +380,11 @@ class Resonator:
             if p not in self.lmfit_results.keys():
                 self.lmfit_results[p] = {}
         # do the fit for the first parameter
-        lmfit(self.lmfit_results[parameter[0]], model, guess, label=label, residual_args=args,
-              residual_kwargs=kws, model_index=0 if len(parameter) != 1 else None, **kwargs)
-        result = self.lmfit_results[parameter[0]][label]['result']
+        result = lmfit(self.lmfit_results[parameter[0]], model, guess, label=label, keep=keep, residual_args=args,
+                       residual_kwargs=kws, model_index=0 if len(parameter) != 1 else None, **kwargs)
         # copy the result to the other parameters
         for ind, p in enumerate(parameter[1:]):
-            save_lmfit(self.lmfit_results[p], model.models[ind + 1], result, label=label,
+            save_lmfit(self.lmfit_results[p], model.models[ind + 1], result, label=label, keep=keep,
                        residual_args=args_list[ind + 1], residual_kwargs=kws_list[ind + 1])
         return result
 

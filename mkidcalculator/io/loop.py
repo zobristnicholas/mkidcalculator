@@ -375,7 +375,7 @@ class Loop:
         loop.add_pulses(pulses, sort=sort)
         return loop
 
-    def lmfit(self, model, guess, label='default', residual_args=(), residual_kwargs=None, **kwargs):
+    def lmfit(self, model, guess, label='default', keep=True, residual_args=(), residual_kwargs=None, **kwargs):
         """
         Compute a least squares fit using the supplied residual function and
         guess. The result and other useful information is stored in
@@ -395,6 +395,9 @@ class Loop:
             label: string (optional)
                 A label describing the fit, used for storing the results in the
                 self.lmfit_results dictionary. The default is 'default'.
+            keep: boolean (optional)
+                Store the fit result in the object. The default is True. If
+                False, the fit will only be stored if it is the best so far.
             residual_args: tuple (optional)
                 A tuple of arguments to be passed to the residual function.
                 Note: these arguments are the non-mandatory ones after the
@@ -412,9 +415,8 @@ class Loop:
                 also stored in self.lmfit_results[label]['result'].
         """
         residual_args = (self.z, self.f, *residual_args)
-        lmfit(self.lmfit_results, model, guess, label=label, residual_args=residual_args,
-              residual_kwargs=residual_kwargs, **kwargs)
-        result = self.lmfit_results[label]['result']
+        result = lmfit(self.lmfit_results, model, guess, label=label, keep=keep, residual_args=residual_args,
+                       residual_kwargs=residual_kwargs, **kwargs)
         return result
 
     def emcee(self, model, label='default', residual_args=(), residual_kwargs=None, **kwargs):
