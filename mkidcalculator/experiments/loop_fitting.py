@@ -1,6 +1,5 @@
 import logging
 import numpy as np
-import multiprocessing.pool
 import multiprocessing as mp
 from functools import partial
 from collections.abc import Collection
@@ -9,7 +8,7 @@ from mkidcalculator.models import S21
 from mkidcalculator.io.loop import Loop
 from mkidcalculator.io.sweep import Sweep
 from mkidcalculator.io.resonator import Resonator
-from mkidcalculator.io.utils import _loop_fit_data
+from mkidcalculator.io.utils import _loop_fit_data, initialize_worker, map_async_stoppable
 
 log = logging.getLogger(__name__)
 log.addHandler(logging.NullHandler())
@@ -19,40 +18,52 @@ FIT_MESSAGE = "loop {:d} fit: label = '{:s}', reduced chi squared = {:g}"
 
 
 # TODO: loading and running in parallel breaks npz file loading ... running in new session from pickle load is fine
-def _parallel(function, loops, pool=None, **kwargs):
-    close = False
+def _parallel(function, loops, pool, **kwargs):
+    # make a pool if it hasn't been made
+    if pool is True:
+        with mp.Pool(mp.cpu_count() // 2, initializer=initialize_worker) as pool:
+            return _parallel(function, loops, pool=pool, **kwargs)
+
     sweeps = []
+    resonators = []
     try:
-        # make a pool if needed so it isn't done in each fit
-        if not isinstance(pool, mp.pool.Pool):
-            pool = mp.Pool(mp.cpu_count() // 2)
-            close = True
-        # disassociate the sweeps if parallel because they don't serialize fast enough
         for loop in loops:
+            # track the resonator and sweep references so that they can be re-added
+            try:
+                resonators.append(loop.resonator)
+            except AttributeError:
+                resonators.append(None)
             try:
                 sweeps.append(loop.resonator.sweep)
+                # disassociate the sweeps if parallel because they aren't needed and don't serialize fast enough
                 loop.resonator.sweep = None
             except AttributeError:
                 sweeps.append(None)
         # do the fit
         fit = partial(function, parallel=False, **kwargs)
-        _replace(loops, pool.map(fit, loops))
+        results = map_async_stoppable(pool, fit, loops)
+        try:
+            results.wait()
+        except KeyboardInterrupt as error:
+            log.error("Keyboard Interrupt encountered: retrieving computed fits before exiting")
+            pool.terminate()
+            pool.join()
+            raise error
+        finally:
+            # classes returned by pool aren't the same instances as the input classes, so we copy over the attributes
+            for index, result in enumerate(results.get()):
+                if result is not None:
+                    # the copy is needed to prevent __dict__ from disappearing during garbage collection of new
+                    loops[index].__dict__ = result[0].__dict__.copy()
     finally:
-        # re-associate the sweeps
+        # add back in the resonator and sweep references since they have been changed by multiprocessing
+        for index, resonator in enumerate(resonators):
+            if resonator is not None:
+                loops[index].resonator = resonator
         for index, sweep in enumerate(sweeps):
             if sweep is not None:
                 loops[index].resonator.sweep = sweep
-        # close the pool if we made it
-        if close:
-            pool.close()
     return loops
-
-
-def _replace(old, new):
-    # classes returned by pool aren't the same instances as the input classes, so we copy over the attributes
-    for index, item in enumerate(old):
-        # the copy is needed to prevent __dict__ from disappearing during garbage collection of new
-        item.__dict__ = new[index][0].__dict__.copy()
 
 
 def _get_loops(data):
@@ -128,7 +139,7 @@ def basic_fit(data, label="basic_fit", model=S21, calibration=True, guess_kwargs
     # convert file name to loop if needed
     loops = _get_loops(data)
     if parallel:
-        return _parallel(basic_fit, loops, pool=parallel, label=label, model=model, calibration=calibration,
+        return _parallel(basic_fit, loops, parallel, label=label, model=model, calibration=calibration,
                          guess_kwargs=guess_kwargs, **lmfit_kwargs)
     for loop in loops:
         # make guess
@@ -180,7 +191,7 @@ def power_fit(data, label="power_fit", model=S21, parallel=False,
     # convert file name to loop if needed
     loops = _get_loops(data)
     if parallel:
-        return _parallel(power_fit, loops, pool=parallel, label=label, model=model, **lmfit_kwargs)
+        return _parallel(power_fit, loops, parallel, label=label, model=model, **lmfit_kwargs)
     for loop in loops:
         # check that at least one other fit has been done first
         if "best" not in loop.lmfit_results.keys():
@@ -245,7 +256,7 @@ def temperature_fit(data, label="temperature_fit", model=S21, parallel=False, **
     # convert file name to loop if needed
     loops = _get_loops(data)
     if parallel:
-        return _parallel(temperature_fit, loops, pool=parallel, label=label, model=model, **lmfit_kwargs)
+        return _parallel(temperature_fit, loops, parallel, label=label, model=model, **lmfit_kwargs)
     for loop in loops:
         # find good fits from other loop
         good_guesses, _, _, temperatures = _get_good_fits(loop, "temperature", fix=("power", "field"))
@@ -328,7 +339,7 @@ def nonlinear_fit(data, label="nonlinear_fit", model=S21, parameter=("a_sqrt", 0
     # convert file name to loop if needed
     loops = _get_loops(data)
     if parallel:
-        return _parallel(nonlinear_fit, loops, pool=parallel, label=label, model=model, parameter=parameter, vary=vary,
+        return _parallel(nonlinear_fit, loops, parallel, label=label, model=model, parameter=parameter, vary=vary,
                          **lmfit_kwargs)
     for loop in loops:
         # make guess
@@ -384,35 +395,25 @@ def multiple_fit(data, model=S21, extra_fits=(temperature_fit, power_fit, nonlin
             The loop objects that were fit.
     """
     loops = _get_loops(data)
-    close = False
-    try:
-        # make a pool if needed so it isn't done in each fit
-        if parallel and not isinstance(parallel, mp.pool.Pool):
-            parallel = mp.Pool(mp.cpu_count() // 2)
-            close = True
-        # fit the resonator loops with the basic fit
-        log.info("starting {}".format(basic_fit))
-        kwargs = {"model": model, "parallel": parallel}
-        kwargs.update(basic_fit_kwargs)
-        basic_fit(loops, **kwargs)
-        # setup extra fit kwargs
-        if fit_kwargs is None:
-            fit_kwargs = [{}] * len(extra_fits)
-        if isinstance(fit_kwargs, dict):
-            fit_kwargs = [fit_kwargs] * len(extra_fits)
-        # do the extra fits loop <iterations> times
-        for iteration in range(iterations):
-            log.info("starting iteration: {}".format(iteration))
-            # do the extra fits
-            for extra_index, fit in enumerate(extra_fits):
-                log.info("starting {}".format(fit))
-                kwargs = {"label": fit.__name__ + str(iteration), "model": model, "parallel": parallel}
-                kwargs.update(fit_kwargs[extra_index])
-                fit(loops, **kwargs)
-    finally:
-        # close the pool if it was generated in the code
-        if close:
-            parallel.close()
+    # fit the resonator loops with the basic fit
+    log.info("starting {}".format(basic_fit))
+    kwargs = {"model": model, "parallel": parallel}
+    kwargs.update(basic_fit_kwargs)
+    basic_fit(loops, **kwargs)
+    # setup extra fit kwargs
+    if fit_kwargs is None:
+        fit_kwargs = [{}] * len(extra_fits)
+    if isinstance(fit_kwargs, dict):
+        fit_kwargs = [fit_kwargs] * len(extra_fits)
+    # do the extra fits loop <iterations> times
+    for iteration in range(iterations):
+        log.info("starting iteration: {}".format(iteration))
+        # do the extra fits
+        for extra_index, fit in enumerate(extra_fits):
+            log.info("starting {}".format(fit))
+            kwargs = {"label": fit.__name__ + str(iteration), "model": model, "parallel": parallel}
+            kwargs.update(fit_kwargs[extra_index])
+            fit(loops, **kwargs)
     return loops
 
 
