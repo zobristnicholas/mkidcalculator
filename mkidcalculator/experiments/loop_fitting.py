@@ -1,4 +1,5 @@
 import logging
+import numbers
 import numpy as np
 import multiprocessing as mp
 from functools import partial
@@ -12,59 +13,40 @@ from mkidcalculator.io.utils import _loop_fit_data, initialize_worker, map_async
 
 log = logging.getLogger(__name__)
 log.addHandler(logging.NullHandler())
+_loops = None
 
 MAX_REDCHI = 100
 FIT_MESSAGE = "loop {:d} fit: label = '{:s}', reduced chi squared = {:g}"
 
 
 # TODO: loading and running in parallel breaks npz file loading ... running in new session from pickle load is fine
-def _parallel(function, loops, pool, resonator=False, sweep=False, **kwargs):
-    # make a pool if it hasn't been made
-    if pool is True:
-        with mp.Pool(mp.cpu_count() // 2, initializer=initialize_worker) as pool:
-            return _parallel(function, loops, pool=pool, resonator=resonator, sweep=sweep, **kwargs)
-
-    sweeps = []
-    resonators = []
+def _parallel(function, loops, n_cpu, **kwargs):
+    global _loops
+    if n_cpu is True:
+        n_cpu = mp.cpu_count() // 2
     try:
-        for loop in loops:
-            # remove resonator and sweep references if they are not needed to speed things up
+        # enforce fork since loop objects are too big to pickle over pipes
+        _loops = loops  # global _loops gets copied efficiently over into subprocesses
+        with mp.get_context("fork").Pool(n_cpu, initializer=initialize_worker) as pool:
+            # do the fit
+            fit = partial(function, parallel=False, return_dict=True, **kwargs)
+            results = map_async_stoppable(pool, fit, np.arange(len(loops)))
+            # wait for the results
             try:
-                sweeps.append(loop.resonator.sweep)
-                if not sweep:
-                    loop.resonator.sweep = None
-            except AttributeError:
-                sweeps.append(None)
-            try:
-                resonators.append(loop.resonator)
-                if not resonator:
-                    loop.resonator = None
-            except AttributeError:
-                resonators.append(None)
-        # do the fit
-        fit = partial(function, parallel=False, **kwargs)
-        results = map_async_stoppable(pool, fit, loops)
-        try:
-            results.wait()
-        except KeyboardInterrupt as error:
-            log.error("Keyboard Interrupt encountered: retrieving computed fits before exiting")
-            pool.terminate()
-            pool.join()
-            raise error
-        finally:
-            # classes returned by pool aren't the same instances as the input classes, so we copy over the attributes
-            for index, result in enumerate(results.get()):
-                if result is not None:
-                    # the copy is needed to prevent __dict__ from disappearing during garbage collection of new
-                    loops[index].__dict__ = result[0].__dict__.copy()
+                results.wait()
+            except KeyboardInterrupt as error:
+                log.error("Keyboard Interrupt encountered: retrieving computed fits before exiting")
+                pool.terminate()
+                pool.join()
+                raise error
+            finally:
+                # classes returned by pool are just the lmfit_results
+                for index, result in enumerate(results.get()):
+                    if result is not None:
+                        loops[index].lmfit_results = result[0]
+                log.info("Retrieved results from parallel computation")
     finally:
-        # add back in the resonator and sweep references since they have been changed by multiprocessing
-        for index, resonator in enumerate(resonators):
-            if resonator is not None:
-                loops[index].resonator = resonator
-        for index, sweep in enumerate(sweeps):
-            if sweep is not None:
-                loops[index].resonator.sweep = sweep
+        _loops = None
     return loops
 
 
@@ -73,7 +55,9 @@ def _get_loops(data):
         data = [data]
     loops = []
     for datum in data:
-        if isinstance(datum, Loop):
+        if isinstance(datum, numbers.Integral):
+            loops.append(_loops[datum])
+        elif isinstance(datum, Loop):
             loops.append(datum)
         elif isinstance(datum, Resonator):
             loops += datum.loops
@@ -107,7 +91,15 @@ def _get_good_fits(loop, target, fix=()):
     return good_guesses, powers, fields, temperatures
 
 
-def basic_fit(data, label="basic_fit", model=S21, calibration=True, guess_kwargs=None, parallel=False, **lmfit_kwargs):
+def _prepare_output(loops, return_dict=False):
+    if return_dict:
+        return [loop.lmfit_results for loop in loops]
+    else:
+        return loops
+
+
+def basic_fit(data, label="basic_fit", model=S21, calibration=True, guess_kwargs=None, parallel=False,
+              return_dict=False, **lmfit_kwargs):
     """
     Fit the loop using the standard model guess.
     Args:
@@ -127,16 +119,21 @@ def basic_fit(data, label="basic_fit", model=S21, calibration=True, guess_kwargs
         guess_kwargs: dictionary
             A dictionary of keyword arguments that can overwrite the default
             options for model.guess().
-        parallel: multiprocessing.Pool or boolean (optional)
-            A multiprocessing pool object to use for the computation. The
-            default is False, and the computation is done in serial. If True,
-            a Pool object is created with multiprocessing.cpu_count() // 2
-            CPUs.
+        parallel: boolean or integer (optional)
+            Compute the fit for each loop in parallel. The default is False,
+            and the computation is done in serial. If True, a Pool object is
+            created with multiprocessing.cpu_count() // 2 CPUs. If an integer,
+            that many CPUs will be used. This method will only work on systems
+            that can use os.fork().
+        return_dict: boolean (optional)
+            Return only the lmfit_results dictionary if True. The default is
+            False.
         lmfit_kwargs: optional keyword arguments
             Additional keyword arguments to pass to loop.lmfit()
     Returns:
-        loops: a list of mkidcalculator.Loop objects
-            The loop objects that were fit.
+        loops: a list of mkidcalculator.Loop objects or a list of dictionaries
+            The loop objects that were fit. If return_dict is True, the
+            loop.lmfit_results dictionaries are returned instead.
     """
     # convert file name to loop if needed
     loops = _get_loops(data)
@@ -154,10 +151,10 @@ def basic_fit(data, label="basic_fit", model=S21, calibration=True, guess_kwargs
         kwargs.update(lmfit_kwargs)
         result = loop.lmfit(model, guess, **kwargs)
         log.info(FIT_MESSAGE.format(id(loop), label, result.redchi))
-    return loops
+    return _prepare_output(loops, return_dict=return_dict)
 
 
-def power_fit(data, label="power_fit", model=S21, parallel=False,
+def power_fit(data, label="power_fit", model=S21, parallel=False, return_dict=False,
               baseline=("gain0", "gain1", "gain2", "phase0", "phase1", "phase2"), **lmfit_kwargs):
     """
     Fit the loop using the two nearest power data points of similar
@@ -174,11 +171,15 @@ def power_fit(data, label="power_fit", model=S21, parallel=False,
         model: class (optional)
             A model class to use for the fit. The default is
             mkidcalculator.models.S21.
-        parallel: multiprocessing.Pool or boolean (optional)
-            A multiprocessing pool object to use for the computation. The
-            default is False, and the computation is done in serial. If True,
-            a Pool object is created with multiprocessing.cpu_count() // 2
-            CPUs.
+        parallel: boolean or integer (optional)
+            Compute the fit for each loop in parallel. The default is False,
+            and the computation is done in serial. If True, a Pool object is
+            created with multiprocessing.cpu_count() // 2 CPUs. If an integer,
+            that many CPUs will be used. This method will only work on systems
+            that can use os.fork().
+        return_dict: boolean (optional)
+            Return only the lmfit_results dictionary if True. The default is
+            False.
         baseline: tuple of strings (optional)
             A list of parameter names corresponding to the baseline. They will
             use the model guess from the best fit done so far on this loop as a
@@ -187,13 +188,14 @@ def power_fit(data, label="power_fit", model=S21, parallel=False,
         lmfit_kwargs: optional keyword arguments
             Additional keyword arguments to pass to loop.lmfit()
      Returns:
-        loops: a list of mkidcalculator.Loop objects
-            The loop objects that were fit.
+        loops: a list of mkidcalculator.Loop objects or a list of dictionaries
+            The loop objects that were fit. If return_dict is True, the
+            loop.lmfit_results dictionaries are returned instead.
     """
     # convert file name to loop if needed
     loops = _get_loops(data)
     if parallel:
-        return _parallel(power_fit, loops, parallel, resonator=True, label=label, model=model, **lmfit_kwargs)
+        return _parallel(power_fit, loops, parallel, label=label, model=model, **lmfit_kwargs)
     for loop in loops:
         # check that at least one other fit has been done first
         if "best" not in loop.lmfit_results.keys():
@@ -225,10 +227,10 @@ def power_fit(data, label="power_fit", model=S21, parallel=False,
                 kwargs.update(lmfit_kwargs)
                 result = loop.lmfit(model, guess, **kwargs)
                 log.info(FIT_MESSAGE.format(id(loop), fit_label, result.redchi))
-    return loops
+    return _prepare_output(loops, return_dict=return_dict)
 
 
-def temperature_fit(data, label="temperature_fit", model=S21, parallel=False, **lmfit_kwargs):
+def temperature_fit(data, label="temperature_fit", model=S21, parallel=False, return_dict=False, **lmfit_kwargs):
     """
     Fit the loop using the two nearest temperature data points of the same
     power and field in the resonator as guesses. If there are no good guesses,
@@ -244,21 +246,26 @@ def temperature_fit(data, label="temperature_fit", model=S21, parallel=False, **
         model: class (optional)
             A model class to use for the fit. The default is
             mkidcalculator.models.S21.
-        parallel: multiprocessing.Pool or boolean (optional)
-            A multiprocessing pool object to use for the computation. The
-            default is False, and the computation is done in serial. If True,
-            a Pool object is created with multiprocessing.cpu_count() // 2
-            CPUs.
+        parallel: boolean or integer (optional)
+            Compute the fit for each loop in parallel. The default is False,
+            and the computation is done in serial. If True, a Pool object is
+            created with multiprocessing.cpu_count() // 2 CPUs. If an integer,
+            that many CPUs will be used. This method will only work on systems
+            that can use os.fork().
+        return_dict: boolean (optional)
+            Return only the lmfit_results dictionary if True. The default is
+            False.
         lmfit_kwargs: optional keyword arguments
             Additional keyword arguments to pass to loop.lmfit()
      Returns:
-        loops: a list of mkidcalculator.Loop objects
-            The loop objects that were fit.
+        loops: a list of mkidcalculator.Loop objects or a list of dictionaries
+            The loop objects that were fit. If return_dict is True, the
+            loop.lmfit_results dictionaries are returned instead.
     """
     # convert file name to loop if needed
     loops = _get_loops(data)
     if parallel:
-        return _parallel(temperature_fit, loops, parallel, resonator=True, label=label, model=model, **lmfit_kwargs)
+        return _parallel(temperature_fit, loops, parallel, label=label, model=model, **lmfit_kwargs)
     for loop in loops:
         # find good fits from other loop
         good_guesses, _, _, temperatures = _get_good_fits(loop, "temperature", fix=("power", "field"))
@@ -274,10 +281,11 @@ def temperature_fit(data, label="temperature_fit", model=S21, parallel=False, **
                 kwargs.update(lmfit_kwargs)
                 result = loop.lmfit(model, guess, **kwargs)
                 log.info(FIT_MESSAGE.format(id(loop), fit_label, result.redchi))
-    return loops
+    return _prepare_output(loops, return_dict=return_dict)
 
 
-def linear_fit(data, label="linear_fit", model=S21, parameter="a_sqrt", parallel=False, **lmfit_kwargs):
+def linear_fit(data, label="linear_fit", model=S21, parameter="a_sqrt", parallel=False, return_dict=False,
+               **lmfit_kwargs):
     """
     Fit the loop using a previous good fit, but with the nonlinearity turned
     off.
@@ -293,23 +301,28 @@ def linear_fit(data, label="linear_fit", model=S21, parameter="a_sqrt", parallel
             mkidcalculator.models.S21.
         parameter: string (optional)
             The nonlinear parameter name to use.
-        parallel: multiprocessing.Pool or boolean (optional)
-            A multiprocessing pool object to use for the computation. The
-            default is False, and the computation is done in serial. If True,
-            a Pool object is created with multiprocessing.cpu_count() // 2
-            CPUs.
+        parallel: boolean or integer (optional)
+            Compute the fit for each loop in parallel. The default is False,
+            and the computation is done in serial. If True, a Pool object is
+            created with multiprocessing.cpu_count() // 2 CPUs. If an integer,
+            that many CPUs will be used. This method will only work on systems
+            that can use os.fork().
+        return_dict: boolean (optional)
+            Return only the lmfit_results dictionary if True. The default is
+            False.
         lmfit_kwargs: optional keyword arguments
             Additional keyword arguments to pass to loop.lmfit()
     Returns:
-        loops: a list of mkidcalculator.Loop objects
-            The loop objects that were fit.
+        loops: a list of mkidcalculator.Loop objects or a list of dictionaries
+            The loop objects that were fit. If return_dict is True, the
+            loop.lmfit_results dictionaries are returned instead.
     """
     return nonlinear_fit(data, label=label, model=model, parameter=(parameter, 0.), vary=False, parallel=parallel,
-                         **lmfit_kwargs)
+                         return_dict=False, **lmfit_kwargs)
 
 
 def nonlinear_fit(data, label="nonlinear_fit", model=S21, parameter=("a_sqrt", 0.05), vary=True, parallel=False,
-                  **lmfit_kwargs):
+                  return_dict=False, **lmfit_kwargs):
     """
     Fit the loop using a previous good fit, but with the nonlinearity.
     Args:
@@ -327,16 +340,21 @@ def nonlinear_fit(data, label="nonlinear_fit", model=S21, parameter=("a_sqrt", 0
         vary: boolean (optional)
             Determines if the nonlinearity is varied in the fit. The default is
             True.
-        parallel: multiprocessing.Pool or boolean (optional)
-            A multiprocessing pool object to use for the computation. The
-            default is False, and the computation is done in serial. If True,
-            a Pool object is created with multiprocessing.cpu_count() // 2
-            CPUs.
+        parallel: boolean or integer (optional)
+            Compute the fit for each loop in parallel. The default is False,
+            and the computation is done in serial. If True, a Pool object is
+            created with multiprocessing.cpu_count() // 2 CPUs. If an integer,
+            that many CPUs will be used. This method will only work on systems
+            that can use os.fork().
+        return_dict: boolean (optional)
+            Return only the lmfit_results dictionary if True. The default is
+            False.
         lmfit_kwargs: optional keyword arguments
             Additional keyword arguments to pass to loop.lmfit()
     Returns:
-        loops: a list of mkidcalculator.Loop objects
-            The loop objects that were fit.
+        loops: a list of mkidcalculator.Loop objects or a list of dictionaries
+            The loop objects that were fit. If return_dict is True, the
+            loop.lmfit_results dictionaries are returned instead.
     """
     # convert file name to loop if needed
     loops = _get_loops(data)
@@ -356,11 +374,11 @@ def nonlinear_fit(data, label="nonlinear_fit", model=S21, parameter=("a_sqrt", 0
             log.info(FIT_MESSAGE.format(id(loop), label, result.redchi))
         else:
             raise AttributeError("loop does not have a previous fit on which to base the nonlinear fit.")
-    return loops
+    return _prepare_output(loops, return_dict=return_dict)
 
 
 def multiple_fit(data, model=S21, extra_fits=(temperature_fit, power_fit, nonlinear_fit, linear_fit), fit_kwargs=None,
-                 iterations=2, parallel=False, **basic_fit_kwargs):
+                 iterations=2, parallel=False, return_dict=False, **basic_fit_kwargs):
     """
     Fit the loops using multiple methods.
     Args:
@@ -384,17 +402,22 @@ def multiple_fit(data, model=S21, extra_fits=(temperature_fit, power_fit, nonlin
             Number of times to run the extra_fits. The default is 2. This is
             useful for when the extra_fits use fit information from other loops
             in the resonator.
-        parallel: multiprocessing.Pool or boolean (optional)
-            A multiprocessing pool object to use for the computation. The
-            default is False, and the computation is done in serial. If True,
-            a Pool object is created with multiprocessing.cpu_count() // 2
-            CPUs.
+        parallel: boolean or integer (optional)
+            Compute the fit for each loop in parallel. The default is False,
+            and the computation is done in serial. If True, a Pool object is
+            created with multiprocessing.cpu_count() // 2 CPUs. If an integer,
+            that many CPUs will be used. This method will only work on systems
+            that can use os.fork().
+        return_dict: boolean (optional)
+            Return only the lmfit_results dictionary if True. The default is
+            False.
         basic_fit_kwargs: optional keyword arguments
             Additional keyword arguments to pass to the basic_fit function
             before the extra fits are used.
     Returns:
-        loops: a list of mkidcalculator.Loop objects
-            The loop objects that were fit.
+        loops: a list of mkidcalculator.Loop objects or a list of dictionaries
+            The loop objects that were fit. If return_dict is True, the
+            loop.lmfit_results dictionaries are returned instead.
     """
     loops = _get_loops(data)
     # fit the resonator loops with the basic fit
@@ -416,7 +439,7 @@ def multiple_fit(data, model=S21, extra_fits=(temperature_fit, power_fit, nonlin
             kwargs = {"label": fit.__name__ + str(iteration), "model": model, "parallel": parallel}
             kwargs.update(fit_kwargs[extra_index])
             fit(loops, **kwargs)
-    return loops
+    return _prepare_output(loops, return_dict=return_dict)
 
 
 def loop_fit_data(data, parameters=("chi2",), label='best', bounds=None, errorbars=None, success=None, power=None,

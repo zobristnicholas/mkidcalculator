@@ -672,9 +672,9 @@ class Resonator:
                     kwargs.update({levels[0]: value1, levels[1]: value2, x: range_dict[x]})
                     if loop_kwargs is not None:
                         kwargs.update(loop_kwargs)
-                    data = _loop_fit_data(loops, **kwargs)
+                    data = _loop_fit_data(self.loops, **kwargs)
                     kwargs.update({"parameter": parameter + "_sigma"})
-                    error_bars = _loop_fit_data(loops, **kwargs)
+                    error_bars = _loop_fit_data(self.loops, **kwargs)
 
                     if len(data):
                         x_vals = values_dict[x]
