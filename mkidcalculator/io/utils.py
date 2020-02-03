@@ -522,7 +522,7 @@ def subplots_colorbar(mappable, axes_list, gridspec_kwargs=None, **kwargs):
     fraction = kwargs.pop('fraction', 0.05)  # fraction of total width to give to colorbar
     shrink = kwargs.pop('shrink', 1.0)  # colorbar height multiplicative factor
     aspect = kwargs.pop('aspect', 20)  # colorbar height / width
-    pad = kwargs.pop('pad', 0.05)  # distance between right plot and colorbar / figure width
+    pad = kwargs.pop('pad', 0.1)  # distance between right plot and colorbar / figure width
     subplot_pad = 0.2  # pad between subplots (not colorbar and over-ridden with tight_layout)
 
     x1 = 1 - fraction

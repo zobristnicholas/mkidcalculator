@@ -1059,10 +1059,11 @@ class Loop:
                       tick_kwargs=tick_kwargs, tighten=tighten)
         return axes
 
-    def plot_magnitude(self, data_kwargs=None, plot_fit=False, label="best", fit_type="lmfit", calibrate=False,
-                       fit_kwargs=None, fit_parameters=(), parameters_kwargs=None, plot_guess=None, guess_kwargs=None,
-                       x_label=None, y_label=None, label_kwargs=None, legend=True, legend_kwargs=None, title=True,
-                       title_kwargs=None, tick_kwargs=None, tighten=True, db=True, axes=None):
+    def plot_magnitude(self, data_kwargs=None, plot_fit=False, f_scale=1e3, label="best", fit_type="lmfit",
+                       calibrate=False, fit_kwargs=None, fit_parameters=(), parameters_kwargs=None, plot_guess=None,
+                       guess_kwargs=None, x_label=None, y_label=None, label_kwargs=None, legend=True,
+                       legend_kwargs=None, title=True, title_kwargs=None, tick_kwargs=None, tighten=True, db=True,
+                       axes=None):
         """
         Plot the magnitude data.
         Args:
@@ -1074,6 +1075,9 @@ class Loop:
                 Determines whether the fit is plotted or not. The default is
                 False. When False, label, fit_type, fit_kwargs,
                 fit_parameters, and parameter_kwargs are ignored.
+            f_scale: float
+                The frequency scale to use. e.g. 1e3 will plot the frequency in
+                kHz, which is the default.
             label: string
                 The label used to store the fit. The default is "best".
             fit_type: string
@@ -1148,7 +1152,7 @@ class Loop:
                 An Axes class with the plotted magnitude.
         """
         # parse inputs
-        _, axes = setup_axes(axes, x_label, y_label, label_kwargs, "frequency [GHz]",
+        _, axes = setup_axes(axes, x_label, y_label, label_kwargs, "frequency [kHz]",
                              "|S₂₁|" if not db else "|S₂₁| [dB]")
         # plot data
         kwargs = {"marker": 'o', "markersize": 2, "linestyle": 'None', "label": "data"}
@@ -1163,17 +1167,17 @@ class Loop:
             result = result_dict['result']
             model = result_dict['model']
             z = self.z if not calibrate else model.calibrate(result.params, self.z, self.f)
-            axes.plot(self.f, np.abs(z) if not db else 20 * np.log10(np.abs(z)), **kwargs)
+            axes.plot(self.f * 1e9 / f_scale, np.abs(z) if not db else 20 * np.log10(np.abs(z)), **kwargs)
             # calculate the model values
             f, m, kwargs = get_plot_model(self, fit_type, label, calibrate=calibrate, plot_kwargs=fit_kwargs,
                                           default_kwargs={"linestyle": '--', "label": "fit"})
-            axes.plot(f, np.abs(m) if not db else 20 * np.log10(np.abs(m)), **kwargs)
+            axes.plot(f * 1e9 / f_scale, np.abs(m) if not db else 20 * np.log10(np.abs(m)), **kwargs)
             string = "power: {:.0f} dBm, field: {:.2f} V, temperature: {:.2f} mK, '{}' fit"
             title = string.format(self.power, self.field, self.temperature * 1000, fit_name) if title is True else title
             if fit_parameters:
                 self._make_parameters_textbox(fit_parameters, result, axes, parameters_kwargs)
         else:
-            axes.plot(self.f, np.abs(self.z) if not db else 20 * np.log10(np.abs(self.z)), **kwargs)
+            axes.plot(self.f * 1e9 / f_scale, np.abs(self.z) if not db else 20 * np.log10(np.abs(self.z)), **kwargs)
             string = "power: {:.0f} dBm, field: {:.2f} V, temperature: {:.2f} mK"
             title = string.format(self.power, self.field, self.temperature * 1000) if title is True else title
         # plot guess
@@ -1187,13 +1191,16 @@ class Loop:
                       tick_kwargs=tick_kwargs, tighten=tighten)
         return axes
 
-    def plot_magnitude_residual(self, label="best", fit_type="lmfit", plot_kwargs=None, fit_parameters=(),
+    def plot_magnitude_residual(self, f_scale=1e3, label="best", fit_type="lmfit", plot_kwargs=None, fit_parameters=(),
                                 parameters_kwargs=None, x_label=None, y_label=None, label_kwargs=None, legend=False,
                                 legend_kwargs=None, title=True, title_kwargs=None, tick_kwargs=None, tighten=True,
                                 axes=None):
         """
         Plot the residual of the magnitude data (data - model).
         Args:
+            f_scale: float
+                The frequency scale to use. e.g. 1e3 will plot the frequency in
+                kHz, which is the default.
             label: string
                 The label used to store the fit. The default is "best".
             fit_type: string
@@ -1255,12 +1262,12 @@ class Loop:
                 An Axes class with the plotted residuals.
         """
         # parse inputs
-        _, axes = setup_axes(axes, x_label, y_label, label_kwargs, "frequency [GHz]", "|S₂₁| [V]")
+        _, axes = setup_axes(axes, x_label, y_label, label_kwargs, "frequency [kHz]", "|S₂₁| [V]")
         # get the model
         default_kwargs = {"marker": 'o', "markersize": 2, "linestyle": 'None', "label": "residual"}
         f, m, kwargs = get_plot_model(self, fit_type, label, plot_kwargs=plot_kwargs, default_kwargs=default_kwargs,
                                       n_factor=1)
-        axes.plot(self.f, np.abs(self.z) - np.abs(m), **kwargs)
+        axes.plot(self.f * 1e9 / f_scale, np.abs(self.z) - np.abs(m), **kwargs)
         # add fit parameters
         if fit_parameters:
             self._make_parameters_textbox(fit_parameters, result, axes, parameters_kwargs)
@@ -1271,7 +1278,7 @@ class Loop:
                       tick_kwargs=tick_kwargs, tighten=tighten)
         return axes
 
-    def plot_phase(self, data_kwargs=None, plot_fit=False, label="best", fit_type="lmfit", calibrate=False,
+    def plot_phase(self, data_kwargs=None, plot_fit=False, f_scale=1e3, label="best", fit_type="lmfit", calibrate=False,
                    fit_kwargs=None, fit_parameters=(), parameters_kwargs=None, plot_guess=None, guess_kwargs=None,
                    x_label=None, y_label=None, label_kwargs=None, legend=True, legend_kwargs=None, title=True,
                    title_kwargs=None, tick_kwargs=None, tighten=True, unwrap=True, axes=None):
@@ -1286,6 +1293,9 @@ class Loop:
                 Determines whether the fit is plotted or not. The default is
                 False. When False, label, fit_type, fit_kwargs,
                 fit_parameters, and parameter_kwargs are ignored.
+            f_scale: float
+                The frequency scale to use. e.g. 1e3 will plot the frequency in
+                kHz, which is the default.
             label: string
                 The label used to store the fit. The default is "best".
             fit_type: string
@@ -1360,7 +1370,7 @@ class Loop:
                 An Axes class with the plotted phase.
         """
         # parse inputs
-        _, axes = setup_axes(axes, x_label, y_label, label_kwargs, "frequency [GHz]", "phase [radians]")
+        _, axes = setup_axes(axes, x_label, y_label, label_kwargs, "frequency [kHz]", "phase [radians]")
         # plot data
         kwargs = {"marker": 'o', "markersize": 2, "linestyle": 'None', "label": "data"}
         if data_kwargs is not None:
@@ -1374,18 +1384,18 @@ class Loop:
             result = result_dict['result']
             model = result_dict['model']
             z = self.z if not calibrate else model.calibrate(result.params, self.z, self.f, center=True)
-            axes.plot(self.f, np.unwrap(np.angle(z)) if unwrap else np.angle(z), **kwargs)
+            axes.plot(self.f * 1e9 / f_scale, np.unwrap(np.angle(z)) if unwrap else np.angle(z), **kwargs)
             # calculate the model values
             f, m, kwargs = get_plot_model(self, fit_type, label, calibrate=calibrate, plot_kwargs=fit_kwargs,
                                           default_kwargs={"linestyle": '--', "label": "fit"}, center=True)
             offset = 2 * np.pi if np.angle(z[0]) - np.angle(m[0]) > np.pi else 0
-            axes.plot(f, np.unwrap(np.angle(m) + offset) if unwrap else np.angle(m), **kwargs)
+            axes.plot(f * 1e9 / f_scale, np.unwrap(np.angle(m) + offset) if unwrap else np.angle(m), **kwargs)
             string = "power: {:.0f} dBm, field: {:.2f} V, temperature: {:.2f} mK, '{}' fit"
             title = string.format(self.power, self.field, self.temperature * 1000, fit_name) if title is True else title
             if fit_parameters:
                 self._make_parameters_textbox(fit_parameters, result, axes, parameters_kwargs)
         else:
-            axes.plot(self.f, np.unwrap(np.angle(self.z)) if unwrap else np.angle(self.z), **kwargs)
+            axes.plot(self.f * 1e9 / f_scale, np.unwrap(np.angle(self.z)) if unwrap else np.angle(self.z), **kwargs)
             string = "power: {:.0f} dBm, field: {:.2f} V, temperature: {:.2f} mK"
             title = string.format(self.power, self.field, self.temperature * 1000) if title is True else title
         # plot guess
@@ -1399,13 +1409,16 @@ class Loop:
                       tick_kwargs=tick_kwargs, tighten=tighten)
         return axes
 
-    def plot_phase_residual(self, label="best", fit_type="lmfit", plot_kwargs=None, fit_parameters=(),
+    def plot_phase_residual(self, f_scale=1e3, label="best", fit_type="lmfit", plot_kwargs=None, fit_parameters=(),
                             parameters_kwargs=None, x_label=None, y_label=None, label_kwargs=None, legend=False,
                             legend_kwargs=None, title=True, title_kwargs=None, tick_kwargs=None, tighten=True,
                             axes=None):
         """
         Plot the residual of the phase data (data - model).
         Args:
+            f_scale: float
+                The frequency scale to use. e.g. 1e3 will plot the frequency in
+                kHz, which is the default.
             label: string
                 The label used to store the fit. The default is "best".
             fit_type: string
@@ -1467,12 +1480,12 @@ class Loop:
                 An Axes class with the plotted residuals.
         """
         # parse inputs
-        _, axes = setup_axes(axes, x_label, y_label, label_kwargs, "frequency [GHz]", "phase [radians]")
+        _, axes = setup_axes(axes, x_label, y_label, label_kwargs, "frequency [kHz]", "phase [radians]")
         # get the model
         default_kwargs = {"marker": 'o', "markersize": 2, "linestyle": 'None', "label": "residual"}
         f, m, kwargs = get_plot_model(self, fit_type, label, plot_kwargs=plot_kwargs, default_kwargs=default_kwargs,
                                       n_factor=1)
-        axes.plot(self.f, np.unwrap(np.angle(self.z)) - np.unwrap(np.angle(m)), **kwargs)
+        axes.plot(self.f * 1e9 / f_scale, np.unwrap(np.angle(self.z)) - np.unwrap(np.angle(m)), **kwargs)
         # add fit parameters
         if fit_parameters:
             self._make_parameters_textbox(fit_parameters, result, axes, parameters_kwargs)
