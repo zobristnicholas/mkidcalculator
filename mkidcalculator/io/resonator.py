@@ -450,15 +450,15 @@ class Resonator:
         Plot a subset of the loops in the resonator by combining multiple
         loop.plot() calls.
         Args:
-            power: tuple of two numbers or tuple of two number tuples
+            power: tuple of two number tuples or numbers
                 Inclusive range or ranges of powers to plot. A single number
                 will cause only that value to be plotted. The default is to
                 include all of the powers.
-            field: tuple of two numbers or tuple of two number tuples
+            field: tuple of two number tuples or numbers
                 Inclusive range or ranges of fields to plot. A single number
                 will cause only that value to be plotted. The default is to
                 include all of the fields.
-            temperature: tuple of two numbers or tuple of two number tuples
+            temperature: tuple of two number tuples or numbers
                 Inclusive range or ranges of temperatures to plot. A single
                 number will cause only that value to be plotted. The default is
                 to include all of the temperatures.

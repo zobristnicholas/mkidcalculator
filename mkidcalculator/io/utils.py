@@ -282,13 +282,17 @@ def save_lmfit(lmfit_results, model, result, label='default', residual_args=(), 
 
 
 def create_range(value):
+    # single input case
     if value is None:
-        value = ((-np.inf, np.inf),)
+        value = [(-np.inf, np.inf)]
     elif not isinstance(value, (tuple, list, np.ndarray)):
-        value = ((value, value),)
-    elif len(value) == 2 and (isinstance(value[0], numbers.Number) and isinstance(value[1], numbers.Number)):
-        value = (value,)
-    return value
+        value = [(value, value)]
+    value = list(value)
+    # check each span for single elements
+    for index, span in enumerate(value):
+        if isinstance(span, numbers.Number):
+            value[index] = (span, span)
+    return tuple(value)
 
 
 def create_ranges(power, field, temperature):
@@ -465,6 +469,8 @@ def collect_resonances(f, z, peaks, df):
 
 def _loop_fit_data(loops, parameters=("chi2",), label='best', bounds=None, errorbars=None, success=None,
                    power=None, field=None, temperature=None):
+    if isinstance(parameters, str):
+        parameters = [parameters]
     power, field, temperature = create_ranges(power, field, temperature)
     outputs = []
     for parameter in parameters:
@@ -476,16 +482,21 @@ def _loop_fit_data(loops, parameters=("chi2",), label='best', bounds=None, error
                     continue  # skip if wrong errorbars setting
                 if success is not None and result.success != success:
                     continue  # skip if wrong success setting
-                if parameter == "chi2":
-                    outputs[-1].append(result.redchi)
-                else:
-                    try:
-                        outputs[-1].append(result.params[parameter].value)
-                    except KeyError as error:
-                        if parameter.endswith("_sigma"):
-                            outputs[-1].append(result.params[parameter[:-6]].stderr)
-                        else:
-                            raise error
+                try:
+                    outputs[-1].append(result.params[parameter].value)
+                except KeyError as error:
+                    if parameter.endswith("_sigma"):
+                        outputs[-1].append(result.params[parameter[:-6]].stderr)
+                    elif parameter.startswith("chi2") or parameter.startswith("redchi"):
+                        outputs[-1].append(result.redchi)
+                    elif parameter == "power":
+                        outputs[-1].append(loop.power)
+                    elif parameter == "field":
+                        outputs[-1].append(loop.field)
+                    elif parameter == "temperature":
+                        outputs[-1].append(loop.temperature)
+                    else:
+                        raise error
     # turn outputs into a list of numpy arrays
     for index, output in enumerate(outputs):
         outputs[index] = np.array(output)

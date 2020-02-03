@@ -454,7 +454,9 @@ def loop_fit_data(data, parameters=("chi2",), label='best', bounds=None, errorba
             The fit parameters to report. "chi2" can be used to retrieve
             the reduced chi squared values. The default is to just return chi2.
             "_sigma" can be appended to any parameter name to retrieve the
-            standard error for the estimate.
+            standard error for the estimate. "power", "field", and
+            "temperature" can be used to return those values corresponding
+            to the other returned fit parameters.
         label: string (optional)
             The fit label to use.
         bounds: tuple of numbers or tuples
@@ -475,15 +477,15 @@ def loop_fit_data(data, parameters=("chi2",), label='best', bounds=None, errorba
             included. The default is None, and no filtering on fit success is
             done. Note: fit success is typically a bad indicator on fit
             quality. It only ever fails when something really bad happens.
-        power: tuple of two numbers or tuple of two number tuples
+        power: tuple of two number tuples or numbers
             Inclusive range or ranges of powers to return. A single number
             will cause only that value to be returned. The default is to
             include all of the powers.
-        field: tuple of two numbers or tuple of two number tuples
+        field: tuple of two number tuples or numbers
             Inclusive range or ranges of fields to return. A single number
             will cause only that value to be returned. The default is to
             include all of the fields.
-        temperature: tuple of two numbers or tuple of two number tuples
+        temperature: tuple of two number tuples or numbers
             Inclusive range or ranges of temperatures to return. A single
             number will cause only that value to be returned. The default is
             to include all of the temperatures.
