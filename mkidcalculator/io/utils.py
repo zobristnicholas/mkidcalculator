@@ -603,3 +603,16 @@ class MapResult(list):
     def wait(self, timeout=None):
         for r in self:
             r.wait(timeout)
+
+
+def _compute_sigma(z):
+    eps_real = np.std(detrend(z.real[0:10]), ddof=1)
+    eps_imag = np.std(detrend(z.imag[0:10]), ddof=1)
+    # make sure there are no zeros
+    if eps_real == 0:
+        log.warning("zero variance calculated and set to 1 when detrending I data")
+        eps_real = 1
+    if eps_imag == 0:
+        log.warning("zero variance calculated and set to 1 when detrending Q data")
+        eps_imag = 1
+    return eps_real + 1j * eps_imag

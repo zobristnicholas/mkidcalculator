@@ -9,7 +9,7 @@ from mkidcalculator.models import S21
 from mkidcalculator.io.loop import Loop
 from mkidcalculator.io.sweep import Sweep
 from mkidcalculator.io.resonator import Resonator
-from mkidcalculator.io.utils import _loop_fit_data, initialize_worker, map_async_stoppable
+from mkidcalculator.io.utils import _loop_fit_data, initialize_worker, map_async_stoppable, _compute_sigma
 
 log = logging.getLogger(__name__)
 log.addHandler(logging.NullHandler())
@@ -98,7 +98,7 @@ def _prepare_output(loops, return_dict=False):
         return loops
 
 
-def basic_fit(data, label="basic_fit", model=S21, calibration=True, guess_kwargs=None, parallel=False,
+def basic_fit(data, label="basic_fit", model=S21, calibration=True, sigma=True, guess_kwargs=None, parallel=False,
               return_dict=False, **lmfit_kwargs):
     """
     Fit the loop using the standard model guess.
@@ -116,6 +116,13 @@ def basic_fit(data, label="basic_fit", model=S21, calibration=True, guess_kwargs
             Automatically add 'offset' and 'imbalance' parameters to the guess
             keywords. The default is True, but if a model is used that doesn't
             have those keywords, it should be set to False.
+        sigma: boolean, complex number, or numpy.ndarray
+            If True, the standard deviation of the S21 data is computed from
+            the loop. It can also be specified with a complex number or an
+            array of complex numbers. The value is then passed to the model
+            residual with the sigma keyword argument. If the model does not
+            have this key word, this will not work and sigma should be set to
+            False.
         guess_kwargs: dictionary
             A dictionary of keyword arguments that can overwrite the default
             options for model.guess().
@@ -149,12 +156,15 @@ def basic_fit(data, label="basic_fit", model=S21, calibration=True, guess_kwargs
         # do fit
         kwargs = {"label": label}
         kwargs.update(lmfit_kwargs)
-        result = loop.lmfit(model, guess, **kwargs)
+        residual_kwargs = kwargs.pop("residual_kwargs", {})
+        if sigma:
+            residual_kwargs.update({"sigma": _compute_sigma(loop.z) if sigma is True else sigma})
+        result = loop.lmfit(model, guess, residual_kwargs=residual_kwargs, **kwargs)
         log.info(FIT_MESSAGE.format(id(loop), label, result.redchi))
     return _prepare_output(loops, return_dict=return_dict)
 
 
-def power_fit(data, label="power_fit", model=S21, parallel=False, return_dict=False,
+def power_fit(data, label="power_fit", model=S21, sigma=True, parallel=False, return_dict=False,
               baseline=("gain0", "gain1", "gain2", "phase0", "phase1", "phase2"), **lmfit_kwargs):
     """
     Fit the loop using the two nearest power data points of similar
@@ -171,6 +181,13 @@ def power_fit(data, label="power_fit", model=S21, parallel=False, return_dict=Fa
         model: class (optional)
             A model class to use for the fit. The default is
             mkidcalculator.models.S21.
+        sigma: boolean, complex number, or numpy.ndarray
+            If True, the standard deviation of the S21 data is computed from
+            the loop. It can also be specified with a complex number or an
+            array of complex numbers. The value is then passed to the model
+            residual with the sigma keyword argument. If the model does not
+            have this key word, this will not work and sigma should be set to
+            False.
         parallel: boolean or integer (optional)
             Compute the fit for each loop in parallel. The default is False,
             and the computation is done in serial. If True, a Pool object is
@@ -225,12 +242,16 @@ def power_fit(data, label="power_fit", model=S21, parallel=False, return_dict=Fa
                 fit_label = label + "_" + str(len(used_powers) - 1)
                 kwargs = {"label": fit_label}
                 kwargs.update(lmfit_kwargs)
-                result = loop.lmfit(model, guess, **kwargs)
+                residual_kwargs = kwargs.pop("residual_kwargs", {})
+                if sigma:
+                    residual_kwargs.update({"sigma": _compute_sigma(loop.z) if sigma is True else sigma})
+                result = loop.lmfit(model, guess, residual_kwargs=residual_kwargs, **kwargs)
                 log.info(FIT_MESSAGE.format(id(loop), fit_label, result.redchi))
     return _prepare_output(loops, return_dict=return_dict)
 
 
-def temperature_fit(data, label="temperature_fit", model=S21, parallel=False, return_dict=False, **lmfit_kwargs):
+def temperature_fit(data, label="temperature_fit", model=S21, sigma=True, parallel=False, return_dict=False,
+                    **lmfit_kwargs):
     """
     Fit the loop using the two nearest temperature data points of the same
     power and field in the resonator as guesses. If there are no good guesses,
@@ -246,6 +267,13 @@ def temperature_fit(data, label="temperature_fit", model=S21, parallel=False, re
         model: class (optional)
             A model class to use for the fit. The default is
             mkidcalculator.models.S21.
+        sigma: boolean, complex number, or numpy.ndarray
+            If True, the standard deviation of the S21 data is computed from
+            the loop. It can also be specified with a complex number or an
+            array of complex numbers. The value is then passed to the model
+            residual with the sigma keyword argument. If the model does not
+            have this key word, this will not work and sigma should be set to
+            False.
         parallel: boolean or integer (optional)
             Compute the fit for each loop in parallel. The default is False,
             and the computation is done in serial. If True, a Pool object is
@@ -279,12 +307,15 @@ def temperature_fit(data, label="temperature_fit", model=S21, parallel=False, re
                 fit_label = label + "_" + str(iteration)
                 kwargs = {"label": fit_label}
                 kwargs.update(lmfit_kwargs)
-                result = loop.lmfit(model, guess, **kwargs)
+                residual_kwargs = kwargs.pop("residual_kwargs", {})
+                if sigma:
+                    residual_kwargs.update({"sigma": _compute_sigma(loop.z) if sigma is True else sigma})
+                result = loop.lmfit(model, guess, residual_kwargs=residual_kwargs, **kwargs)
                 log.info(FIT_MESSAGE.format(id(loop), fit_label, result.redchi))
     return _prepare_output(loops, return_dict=return_dict)
 
 
-def linear_fit(data, label="linear_fit", model=S21, parameter="a_sqrt", parallel=False, return_dict=False,
+def linear_fit(data, label="linear_fit", model=S21, sigma=True, parameter="a_sqrt", parallel=False, return_dict=False,
                **lmfit_kwargs):
     """
     Fit the loop using a previous good fit, but with the nonlinearity turned
@@ -299,6 +330,13 @@ def linear_fit(data, label="linear_fit", model=S21, parameter="a_sqrt", parallel
         model: class (optional)
             A model class to use for the fit. The default is
             mkidcalculator.models.S21.
+        sigma: boolean, complex number, or numpy.ndarray
+            If True, the standard deviation of the S21 data is computed from
+            the loop. It can also be specified with a complex number or an
+            array of complex numbers. The value is then passed to the model
+            residual with the sigma keyword argument. If the model does not
+            have this key word, this will not work and sigma should be set to
+            False.
         parameter: string (optional)
             The nonlinear parameter name to use.
         parallel: boolean or integer (optional)
@@ -317,12 +355,12 @@ def linear_fit(data, label="linear_fit", model=S21, parameter="a_sqrt", parallel
             The loop objects that were fit. If return_dict is True, the
             loop.lmfit_results dictionaries are returned instead.
     """
-    return nonlinear_fit(data, label=label, model=model, parameter=(parameter, 0.), vary=False, parallel=parallel,
-                         return_dict=False, **lmfit_kwargs)
+    return nonlinear_fit(data, label=label, model=model, sigma=sigma, parameter=(parameter, 0.), vary=False,
+                         parallel=parallel, return_dict=return_dict, **lmfit_kwargs)
 
 
-def nonlinear_fit(data, label="nonlinear_fit", model=S21, parameter=("a_sqrt", 0.05), vary=True, parallel=False,
-                  return_dict=False, **lmfit_kwargs):
+def nonlinear_fit(data, label="nonlinear_fit", model=S21, sigma=True, parameter=("a_sqrt", 0.05), vary=True,
+                  parallel=False, return_dict=False, **lmfit_kwargs):
     """
     Fit the loop using a previous good fit, but with the nonlinearity.
     Args:
@@ -335,6 +373,13 @@ def nonlinear_fit(data, label="nonlinear_fit", model=S21, parameter=("a_sqrt", 0
         model: class (optional)
             A model class to use for the fit. The default is
             mkidcalculator.models.S21.
+        sigma: boolean, complex number, or numpy.ndarray
+            If True, the standard deviation of the S21 data is computed from
+            the loop. It can also be specified with a complex number or an
+            array of complex numbers. The value is then passed to the model
+            residual with the sigma keyword argument. If the model does not
+            have this key word, this will not work and sigma should be set to
+            False.
         parameter: tuple (string, float) (optional)
             The nonlinear parameter name and value to use.
         vary: boolean (optional)
@@ -370,7 +415,10 @@ def nonlinear_fit(data, label="nonlinear_fit", model=S21, parameter=("a_sqrt", 0
             # do fit
             kwargs = {"label": label}
             kwargs.update(lmfit_kwargs)
-            result = loop.lmfit(model, guess, **kwargs)
+            residual_kwargs = kwargs.pop("residual_kwargs", {})
+            if sigma:
+                residual_kwargs.update({"sigma": _compute_sigma(loop.z) if sigma is True else sigma})
+            result = loop.lmfit(model, guess, residual_kwargs=residual_kwargs, **kwargs)
             log.info(FIT_MESSAGE.format(id(loop), label, result.redchi))
         else:
             raise AttributeError("loop does not have a previous fit on which to base the nonlinear fit.")

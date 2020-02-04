@@ -1,8 +1,10 @@
 import logging
+import numbers
 import numpy as np
 import lmfit as lm
 import scipy.signal as sps
 
+from mkidcalculator.io.utils import _compute_sigma
 from mkidcalculator.models.utils import bandpass
 from mkidcalculator.models.nonlinearity import swenson
 
@@ -220,11 +222,12 @@ class S21:
                 Complex resonator scattering parameter.
             f: numpy.ndarray, dtype=real, shape=(N,)
                 Frequency points corresponding to z.
-            sigma: numpy.ndarray, dtype=complex, shape=(N,)
+            sigma: numpy.ndarray, dtype=complex, shape=(N,) or complex number
                 The standard deviation of the data z at f in the form
                 std(z.real) + i std(z.imag). The default is None. If None is
                 provided, the standard deviation is calculated from the first
-                10 points after being detrended.
+                10 points after being detrended. If a complex number, the same
+                sigma is used for each data point.
             return_real: boolean (optional)
                 Concatenate the real and imaginary parts of the residual into a
                 real 1D array of shape (2N,).
@@ -237,16 +240,9 @@ class S21:
         m = cls.model(params, f)
         # calculate constant error from standard deviation of the first 10 pts of the data if not supplied
         if sigma is None:
-            eps_real = np.std(sps.detrend(z.real[0:10]), ddof=1)
-            eps_imag = np.std(sps.detrend(z.imag[0:10]), ddof=1)
-            # make sure there are no zeros
-            if eps_real == 0:
-                log.warning("zero variance calculated and set to 1 when detrending I data")
-                eps_real = 1
-            if eps_imag == 0:
-                log.warning("zero variance calculated and set to 1 when detrending Q data")
-                eps_imag = 1
-            sigma = np.full_like(z, eps_real + 1j * eps_imag)
+            sigma = _compute_sigma(z)
+        if isinstance(sigma, numbers.Number):
+            sigma = np.broadcast_to(sigma, z.shape)
         if return_real:
             # convert model, data, and error into a real vector
             m_1d = np.concatenate((m.real, m.imag), axis=0)
