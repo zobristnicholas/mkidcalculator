@@ -649,7 +649,7 @@ def mkidreadout2_widesweep(file_name, field=np.nan, temperature=np.nan):
     return f, z, npz['atten'], field, temperature
 
 
-def mkidreadout2_widesweep_indices(f, z, metadata_file=None):
+def mkidreadout2_widesweep_indices(f, z, metadata_file=None, fr=None):
     """
     Returns an array of indices that correspond to the resonator locations from
     the data returned by mkidreadout2_widesweep().
@@ -660,7 +660,12 @@ def mkidreadout2_widesweep_indices(f, z, metadata_file=None):
         z: numpy.ndarray
             The complex scattering parameter data.
         metadata_file: string
-            The file name for the widesweep metadata file.
+            The file name for the widesweep metadata file. If not supplied, the
+            resonator frequencies are taken from fr.
+        fr: iterable of floats
+            The resonant frequencies in GHz for which to output the indices. If
+            not supplied, the resonator frequencies are loaded from the
+            metadata file.
 
     Returns:
         indices: numpy.ndarray
@@ -672,15 +677,18 @@ def mkidreadout2_widesweep_indices(f, z, metadata_file=None):
         raise ValueError(message)
 
     # load in the metadata
-    if metadata_file is None:
-        raise ValueError("Supply a metadata file.")  # must be a keyword to be loadable from Sweep.from_widesweep()
-    metadata = np.loadtxt(metadata_file)
-    if metadata.shape[1] == 3:
-        fr = metadata[:, 1] * 1e-9
-    elif metadata.shape[1] == 9:
-        fr = metadata[:, 5] * 1e-9
+    if metadata_file is None and fr is None:
+        raise ValueError("Supply a metadata file or frequency list.")
+    if fr is not None:
+        fr = np.array(fr)
     else:
-        raise IOError("Unknown file format for {}".format(metadata_file))
+        metadata = np.loadtxt(metadata_file)
+        if metadata.shape[1] == 3:
+            fr = metadata[:, 1] * 1e-9
+        elif metadata.shape[1] == 9:
+            fr = metadata[:, 5] * 1e-9
+        else:
+            raise IOError("Unknown file format for {}".format(metadata_file))
 
     # find the indices
     window_f_centers = f.reshape(z.base.shape)[0, :, z.base.shape[-1] // 2]

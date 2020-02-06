@@ -477,7 +477,10 @@ def _loop_fit_data(loops, parameters=("chi2",), label='best', bounds=None, error
         outputs.append([])
         for loop in loops:
             if valid_ranges(loop, power, field, temperature):
-                result = loop.lmfit_results[label]['result']
+                try:
+                    result = loop.lmfit_results[label]['result']
+                except KeyError:
+                    continue  # no fit for this label
                 if errorbars is not None and result.errorbars != errorbars:
                     continue  # skip if wrong errorbars setting
                 if success is not None and result.success != success:
