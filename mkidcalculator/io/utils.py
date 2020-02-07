@@ -462,8 +462,12 @@ def collect_resonances(f, z, peaks, df):
     # collect resonance data into arrays
     offset = np.arange(-dfii // 2 + 1, dfii // 2 + 1)[:, np.newaxis]
     index_array = (peaks + offset).T
-    f_array = f[..., index_array]
-    z_array = z[..., index_array]
+    try:
+        f_array = f[..., index_array]
+        z_array = z[..., index_array]
+    except IndexError:
+        raise IndexError("Some frequency windows are outside of the supplied data range. "
+                         "Either remove the offending peaks or make the bandwidth smaller.")
     return f_array, z_array
 
 
