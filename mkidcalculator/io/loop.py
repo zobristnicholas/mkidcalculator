@@ -764,6 +764,8 @@ class Loop:
                 A list of Axes classes with the plotted data.
         """
         # parse inputs
+        if isinstance(plot_types, str):
+            plot_types = [plot_types]
         n_plots = len(plot_types)
         n_columns = int(np.ceil(n_plots / n_rows))
         if axes_list is None:

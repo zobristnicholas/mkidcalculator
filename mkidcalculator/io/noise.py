@@ -4,7 +4,8 @@ import numpy as np
 from scipy.signal import welch, csd
 
 from mkidcalculator.io.data import AnalogReadoutNoise
-from mkidcalculator.io.utils import compute_phase_and_amplitude, offload_data, _loaded_npz_files, dump, load
+from mkidcalculator.io.utils import (compute_phase_and_amplitude, offload_data, _loaded_npz_files, dump, load,
+                                     setup_axes, finalize_axes)
 
 log = logging.getLogger(__name__)
 log.addHandler(logging.NullHandler())
@@ -450,13 +451,48 @@ class Noise:
         noise = np.fft.irfft(noise_fft, self._n_samples)
         return noise
 
-    def plot_psd(self, noise_type="iq", axes=None):
+    def plot_psd(self, noise_type="iq", x_label=None, y_label=None, label_kwargs=None, legend=True, legend_kwargs=None,
+                 title=False, title_kwargs=None, tick_kwargs=None, tighten=True, axes=None):
         """
         Plot the power spectral density of the trace data.
         Args:
             noise_type: string
                 Either "iq" or "pa" for I and Q data or phase and amplitude
                 data.
+            x_label: string
+                The label for the x axis. The default is None which uses the
+                default label. If x_label evaluates to False, parameter_kwargs
+                is ignored.
+            y_label: string
+                The label for the y axis. The default is None which uses the
+                default label. If y_label evaluates to False, parameter_kwargs
+                is ignored.
+            label_kwargs: dictionary
+                Keyword arguments for the axes labels in axes.set_*label(). The
+                default is None which uses default options. Keywords in this
+                dictionary override the default options.
+            legend: boolean
+                Determines whether the legend is used or not. The default is
+                True. If False, legend_kwargs is ignored.
+            legend_kwargs: dictionary
+                Keyword arguments for the legend in axes.legend(). The default
+                is None which uses default options. Keywords in this
+                dictionary override the default options.
+            title: boolean or string
+                If it is a boolean, it determines whether or not to add the
+                default title. If it is a string, that string is used as the
+                title. If False, title_kwargs is ignored. The default is False.
+            title_kwargs: dictionary
+                Keyword arguments for the axes title in axes.set_title(). The
+                default is None which uses default options. Keywords in this
+                dictionary override the default options.
+            tick_kwargs: dictionary
+                Keyword arguments for the ticks using axes.tick_params(). The
+                default is None which uses the default options. Keywords in
+                this dictionary override the default options.
+            tighten: boolean
+                Determines whether figure.tight_layout() is called. The default
+                is True.
             axes: matplotlib.axes.Axes class
                 An Axes class on which to put the plot. The default is None and
                 a new figure is made.
@@ -464,29 +500,25 @@ class Noise:
             axes: matplotlib.axes.Axes class
                 An Axes class with the plotted noise.
         """
-        if noise_type not in ["iq", "pa"]:
+        if noise_type.lower() not in ["iq", "pa"]:
             raise ValueError("Noise type must be one of 'iq' or 'pa'.")
-        # get the figure axes
-        if not axes:
-            import matplotlib.pyplot as plt
-            figure, axes = plt.subplots()
-        else:
-            figure = axes.figure
-        iq = (noise_type == "iq")
+        iq = (noise_type.lower() == "iq")
+        _, axes = setup_axes(axes, x_label, y_label, label_kwargs, 'frequency  [Hz]',
+                             'PSD [V² / Hz]' if iq else 'PSD [dBc / Hz]')
         psd11 = self.ii_psd if iq else 10 * np.log10(self.pp_psd)
         psd22 = self.qq_psd if iq else 10 * np.log10(self.aa_psd)
 
-        axes.step(self.f_psd[1:-1], psd22[1:-1], where='mid', label="Q" if iq else "dissipation", color="C1")
         axes.step(self.f_psd[1:-1], psd11[1:-1], where='mid', label="I" if iq else "phase", color="C0")
+        axes.step(self.f_psd[1:-1], psd22[1:-1], where='mid', label="Q" if iq else "amplitude", color="C1")
 
         axes.set_xlim(self.f_psd[1:-1].min(), self.f_psd[1:-1].max())
-        axes.set_ylabel('PSD [V² / Hz]' if iq else 'PSD [dBc / Hz]')
-        axes.set_xlabel('frequency  [Hz]')
         axes.set_xscale('log')
         if iq:
             axes.set_yscale('log')
-        axes.legend()
-        figure.tight_layout()
+        s = "power: {:.0f} dBm, field: {:.2f} V, temperature: {:.2f} mK"
+        title = s.format(self.loop.power, self.loop.field, self.loop.temperature * 1000) if title is True else title
+        finalize_axes(axes, title=title, title_kwargs=title_kwargs, legend=legend, legend_kwargs=legend_kwargs,
+                      tick_kwargs=tick_kwargs, tighten=tighten)
         return axes
 
     def _set_directory(self, directory):
