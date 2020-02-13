@@ -82,9 +82,9 @@ def _get_good_fits(loop, target, fix=()):
             continue
         if np.isnan(getattr(potential_loop, target)):  # no nans in the target loop attribute
             continue
-        for fixed in fix:  # don't use fits with a different fixed attribute
-            if getattr(potential_loop, fixed) != getattr(loop, fixed):
-                continue
+        different = [getattr(potential_loop, fixed) != getattr(loop, fixed) for fixed in fix]
+        if any(different):  # don't use fits with a different fixed attribute
+            continue
         # only use fits that have redchi < MAX_REDCHI
         results_dict = potential_loop.lmfit_results
         if "best" in results_dict.keys() and results_dict['best']['result'].redchi < MAX_REDCHI:
