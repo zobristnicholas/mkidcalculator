@@ -73,7 +73,11 @@ def _get_loops(data):
 def _get_good_fits(loop, target, fix=()):
     # find good fits from other loop
     good_guesses, powers, fields, temperatures = [], [], [], []
-    for potential_loop in loop.resonator.loops:
+    try:
+        loops = loop.resonator.loops
+    except AttributeError:  # no resonator defined
+        return good_guesses, powers, fields, temperatures
+    for potential_loop in loops:
         if potential_loop is loop:  # don't use fits from this loop
             continue
         if np.isnan(getattr(potential_loop, target)):  # no nans in the target loop attribute
