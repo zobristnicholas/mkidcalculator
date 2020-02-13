@@ -118,8 +118,17 @@ def compute_phase_and_amplitude(cls, label="best", fit_type="lmfit", fr="fr", un
     # calibrate the IQ data
     traces = model.calibrate(params, traces, f, center=True)
     z_fr = model.calibrate(params, z_fr, fr, center=True)  # should be real if no loop asymmetry
-    # compute the phase and amplitude traces from the centered traces
-    cls.p_trace = np.unwrap(np.angle(traces) - np.angle(z_fr)) if unwrap else np.angle(traces) - np.angle(z_fr)
+    # compute the phase from the centered traces
+    cls.p_trace = np.angle(traces)
+    # make the wrap angle as far from each trace median as possible to minimize wraps
+    wrap_angle = np.median(cls.p_trace, axis=1, keepdims=True) + np.pi
+    cls.p_trace = np.mod(cls.p_trace - wrap_angle, 2 * np.pi) - (2 * np.pi - wrap_angle)
+    # unwrap any data that is still crossing the wrap angle
+    if unwrap:
+        cls.p_trace = np.unwrap(cls.p_trace)
+    # reference the angle to the (properly wrapped) resonance frequency angle
+    cls.p_trace -= np.mod(np.angle(z_fr) - wrap_angle, 2 * np.pi) - (2 * np.pi - wrap_angle)
+    # compute the amplitude trace from the centered traces
     cls.a_trace = np.abs(traces) / np.abs(z_fr) - 1
 
 
