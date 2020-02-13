@@ -306,7 +306,7 @@ class Noise:
         noise._data = data(noise_file_name, **kwargs)
         return noise
 
-    def compute_phase_and_amplitude(self, label="best", fit_type="lmfit", fr="fr", unwrap=True):
+    def compute_phase_and_amplitude(self, label="best", fit_type="lmfit", fr="fr", unwrap=False):
         """
         Compute the phase and amplitude traces stored in noise.p_trace and
         noise.a_trace.
@@ -328,7 +328,7 @@ class Noise:
                 point for the traces.
             unwrap: boolean
                 Determines whether or not to unwrap the phase data. The default
-                is True.
+                is False.
         """
         compute_phase_and_amplitude(self, label=label, fit_type=fit_type, fr=fr, unwrap=unwrap)
 

@@ -447,7 +447,7 @@ class Pulse:
             except AttributeError:
                 pass
 
-    def compute_phase_and_amplitude(self, label="best", fit_type="lmfit", fr="fr", unwrap=True, noise=False):
+    def compute_phase_and_amplitude(self, label="best", fit_type="lmfit", fr="fr", unwrap=False, noise=False):
         """
         Compute the phase and amplitude traces stored in pulse.p_trace and
         pulse.a_trace.
@@ -469,7 +469,7 @@ class Pulse:
                 point for the traces.
             unwrap: boolean
                 Determines whether or not to unwrap the phase data. The default
-                is True.
+                is False.
             noise: boolean
                 Determines whether or not to also compute the phase and
                 amplitude for the noise. The default is false.

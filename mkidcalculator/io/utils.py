@@ -75,7 +75,7 @@ class NpzHolder:
 _loaded_npz_files = NpzHolder()  # cache of already loaded files
 
 
-def compute_phase_and_amplitude(cls, label="best", fit_type="lmfit", fr="fr", unwrap=True):
+def compute_phase_and_amplitude(cls, label="best", fit_type="lmfit", fr="fr", unwrap=False):
     """
     Compute the phase and amplitude traces stored in pulse.p_trace and
     pulse.a_trace.
@@ -100,7 +100,7 @@ def compute_phase_and_amplitude(cls, label="best", fit_type="lmfit", fr="fr", un
             point for the traces.
         unwrap: boolean
             Determines whether or not to unwrap the phase data. The default
-            is True.
+            is False.
     """
     # clear prior data
     cls.clear_traces()
