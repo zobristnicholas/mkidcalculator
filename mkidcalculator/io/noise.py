@@ -244,7 +244,6 @@ class Noise:
         """
         self.a_trace = None
         self.p_trace = None
-        self.free_memory()
         self._npz = None
 
     def free_memory(self, directory=None):

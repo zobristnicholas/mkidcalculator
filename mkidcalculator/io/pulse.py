@@ -362,7 +362,6 @@ class Pulse:
         self._prepulse_rms = None
         self._prepulse_mean = None
         self.clear_template()
-        self.free_memory()
 
     def clear_noise_data(self):
         """Remove all data calculated from the pulse.noise attribute."""
