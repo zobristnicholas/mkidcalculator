@@ -75,10 +75,10 @@ def real_cubic_roots(c3, c2, c1, c0, select='min'):
         roots: numpy.ndarray
             A numpy array of the real roots.
     """
-    c3 = np.array(c3, ndmin=1, dtype=float)
-    c2 = np.array(c2, ndmin=1, dtype=float)
-    c1 = np.array(c1, ndmin=1, dtype=float)
-    c0 = np.array(c0, ndmin=1, dtype=float)
+    c3 = np.array(c3, ndmin=1, dtype=float, copy=False)
+    c2 = np.array(c2, ndmin=1, dtype=float, copy=False)
+    c1 = np.array(c1, ndmin=1, dtype=float, copy=False)
+    c0 = np.array(c0, ndmin=1, dtype=float, copy=False)
     roots = np.empty_like(c3)
 
     quad = (c3 == 0)
