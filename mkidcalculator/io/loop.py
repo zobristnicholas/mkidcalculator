@@ -23,6 +23,7 @@ class Loop:
     def __init__(self):
         # loop data
         self._data = AnalogReadoutLoop()  # dummy class replaced by from_file()
+        self._mask = None
         # resonator reference
         self._resonator = None
         # noise and pulse classes
@@ -144,6 +145,60 @@ class Loop:
     @resonator.setter
     def resonator(self, resonator):
         self._resonator = resonator
+
+    @property
+    def mask(self):
+        """
+        A settable property that contains a boolean array that can select
+        frequency indices from loop.z and loop.f.
+        """
+        if self._mask is None:
+            self._mask = np.ones(self.f.size, dtype=bool)
+        return self._mask
+
+    @mask.setter
+    def mask(self, mask):
+        self._mask = mask
+
+    def mask_from_center(self, df, center=None):
+        """
+        Mask the loop data using a frequency window and a center frequency.
+        Args:
+            df: float
+                The frequency window in units of loop.f.
+            center: float, string (optional)
+                The center frequency to select around. If not provided, the
+                median of loop.f will be used as the center. If either "min" or
+                "max" are given, the min or max transmission point will be used
+                as the center.
+        """
+        if center is not None:
+            if isinstance(center, str):
+                if center.lower().startswith("min"):
+                    f0 = self.f[np.argmin(np.abs(self.z))]
+                elif center.lower().startswith("max"):
+                    f0 = self.f[np.argmax(np.abs(self.z))]
+                else:
+                    raise ValueError("'center' must be in [min, max, None] or be a float")
+            else:
+                f0 = center
+        else:
+            f0 = np.median(self.f)
+        self.mask = self.mask & (self.f >= f0 - df / 2) & (self.f <= f0 + df / 2)
+
+    def mask_from_bounds(self, lower=None, upper=None):
+        """
+        Mask the loop data using an upper or lower bound on the frequency.
+        Args:
+            lower: float (optional)
+                The lowest frequency to include in the data.
+            upper: float (optional)
+                The highest frequency to include in the data.
+        """
+        if lower is not None:
+            self.mask = self.mask & (self.f >= lower)
+        if upper is not None:
+            self.mask = self.mask & (self.f <= upper)
 
     def to_pickle(self, file_name):
         """Pickle and save the class as the file 'file_name'."""
@@ -375,7 +430,8 @@ class Loop:
         loop.add_pulses(pulses, sort=sort)
         return loop
 
-    def lmfit(self, model, guess, label='default', keep=True, residual_args=(), residual_kwargs=None, **kwargs):
+    def lmfit(self, model, guess, label='default', use_mask=True, keep=True, residual_args=(), residual_kwargs=None,
+              **kwargs):
         """
         Compute a least squares fit using the supplied residual function and
         guess. The result and other useful information is stored in
@@ -395,6 +451,9 @@ class Loop:
             label: string (optional)
                 A label describing the fit, used for storing the results in the
                 self.lmfit_results dictionary. The default is 'default'.
+            use_mask: boolean (optional)
+                Use the mask to select the frequency and complex transmission
+                data. The default is True.
             keep: boolean (optional)
                 Store the fit result in the object. The default is True. If
                 False, the fit will only be stored if it is the best so far.
@@ -414,7 +473,10 @@ class Loop:
                 An object containing the results of the minimization. It is
                 also stored in self.lmfit_results[label]['result'].
         """
-        residual_args = (self.z, self.f, *residual_args)
+        if use_mask:
+            residual_args = (self.z[self.mask], self.f[self.mask], *residual_args)
+        else:
+            residual_args = (self.z, self.f, *residual_args)
         result = lmfit(self.lmfit_results, model, guess, label=label, keep=keep, residual_args=residual_args,
                        residual_kwargs=residual_kwargs, **kwargs)
         return result
@@ -672,10 +734,10 @@ class Loop:
         template = np.fft.irfft(fft, self._template_size)
         return template
 
-    def plot(self, plot_types=("iq", "magnitude", "phase"), plot_fit=False, label="best", fit_type="lmfit",
-             calibrate=False, plot_guess=None, n_rows=2, title=True, title_kwargs=None, legend=True, legend_index=0,
-             legend_kwargs=None, fit_parameters=(), parameters_kwargs=None, tighten=True, db=True, unwrap=True,
-             plot_kwargs=None, axes_list=None):
+    def plot(self, plot_types=("iq", "magnitude", "phase"), plot_fit=False, use_mask=True, label="best",
+             fit_type="lmfit", calibrate=False, plot_guess=None, n_rows=2, title=True, title_kwargs=None, legend=True,
+             legend_index=0, legend_kwargs=None, fit_parameters=(), parameters_kwargs=None, tighten=True, db=True,
+             unwrap=True, plot_kwargs=None, axes_list=None):
         """
         Plot a variety of data representations in a matplotlib pyplot.subplots
         grid.
@@ -691,6 +753,9 @@ class Loop:
                 False. The residual plots can still be rendered if requested in
                 the plot_types. fit_parameters and parameters_kwargs are
                 ignored if False.
+            use_mask: boolean
+                Determines whether or not to use the mask for the plotted data.
+                The default is True.
             label: string
                 The label used to store the fit. The default is "best".
             fit_type: string
@@ -783,7 +848,8 @@ class Loop:
         # make main plots
         index = 0  # if plot_types = ()
         for index, plot_type in enumerate(plot_types):
-            kwargs = {"title": False, "legend": False, "axes": axes_list[index], "tighten": tighten}
+            kwargs = {"title": False, "legend": False, "axes": axes_list[index], "tighten": tighten,
+                      "use_mask": use_mask}
             if plot_type == "iq":
                 kwargs.update({"plot_fit": plot_fit, "plot_guess": plot_guess, "label": label, "fit_type": fit_type,
                                "calibrate": calibrate})
@@ -851,7 +917,7 @@ class Loop:
             figure.tight_layout()
         return axes_list
 
-    def plot_iq(self, data_kwargs=None, plot_fit=False, label="best", fit_type="lmfit", calibrate=False,
+    def plot_iq(self, data_kwargs=None, plot_fit=False, use_mask=True, label="best", fit_type="lmfit", calibrate=False,
                 fit_kwargs=None, fit_parameters=(), parameters_kwargs=None, plot_guess=None, guess_kwargs=None,
                 x_label=None, y_label=None, label_kwargs=None, legend=True, legend_kwargs=None, title=True,
                 title_kwargs=None, tick_kwargs=None, tighten=True, axes=None):
@@ -866,6 +932,9 @@ class Loop:
                 Determines whether the fit is plotted or not. The default is
                 False. When False, label, fit_type, fit_kwargs,
                 fit_parameters, and parameter_kwargs are ignored.
+            use_mask: boolean
+                Determines whether or not to use the mask for the plotted data.
+                The default is True.
             label: string
                 The label used to store the fit. The default is "best".
             fit_type: string
@@ -940,6 +1009,8 @@ class Loop:
         # parse inputs
         _, axes = setup_axes(axes, x_label, y_label, label_kwargs, "I [V]" if not calibrate else "I",
                              "Q [V]" if not calibrate else "Q", equal=True)
+        fd = self.f[self.mask] if use_mask else self.f
+        zd = self.z[self.mask] if use_mask else self.z
         # plot data
         kwargs = {"marker": 'o', "markersize": 2, "linestyle": 'None', "label": "data"}
         if data_kwargs is not None:
@@ -952,32 +1023,32 @@ class Loop:
                 raise ValueError("No fit of type '{}' with the label '{}' has been done".format(fit_type, label))
             result = result_dict['result']
             model = result_dict['model']
-            z = self.z if not calibrate else model.calibrate(result.params, self.z, self.f)
+            z = zd if not calibrate else model.calibrate(result.params, zd, fd)
             axes.plot(z.real, z.imag, **kwargs)
             # calculate the model values
             f, m, kwargs = get_plot_model(self, fit_type, label, calibrate=calibrate, plot_kwargs=fit_kwargs,
-                                          default_kwargs={"linestyle": '--', "label": "fit"})
+                                          use_mask=use_mask, default_kwargs={"linestyle": '--', "label": "fit"})
             axes.plot(m.real, m.imag, **kwargs)
             string = "power: {:.0f} dBm, field: {:.2f} V, temperature: {:.2f} mK, '{}' fit"
             title = string.format(self.power, self.field, self.temperature * 1000, fit_name) if title is True else title
             if fit_parameters:
                 self._make_parameters_textbox(fit_parameters, result, axes, parameters_kwargs)
         else:
-            axes.plot(self.z.real, self.z.imag, **kwargs)
+            axes.plot(zd.real, zd.imag, **kwargs)
             string = "power: {:.0f} dBm, field: {:.2f} V, temperature: {:.2f} mK"
             title = string.format(self.power, self.field, self.temperature * 1000) if title is True else title
         # plot guess
         if plot_guess is not None:
             default_kwargs = {"linestyle": '-.', "label": "guess", "color": "k"}
             f, m, kwargs = get_plot_model(self, fit_type, label, calibrate=calibrate, params=plot_guess,
-                                          plot_kwargs=guess_kwargs, default_kwargs=default_kwargs)
+                                          use_mask=use_mask, plot_kwargs=guess_kwargs, default_kwargs=default_kwargs)
             axes.plot(m.real, m.imag, **kwargs)
         # finalize the plot
         finalize_axes(axes, title=title, title_kwargs=title_kwargs, legend=legend, legend_kwargs=legend_kwargs,
                       tick_kwargs=tick_kwargs, tighten=tighten)
         return axes
 
-    def plot_iq_residual(self, label="best", fit_type="lmfit", plot_kwargs=None, fit_parameters=(),
+    def plot_iq_residual(self, label="best", fit_type="lmfit", use_mask=True, plot_kwargs=None, fit_parameters=(),
                          parameters_kwargs=None, x_label=None, y_label=None, label_kwargs=None, legend=False,
                          legend_kwargs=None, title=True, title_kwargs=None, tick_kwargs=None, tighten=True, axes=None):
         """
@@ -989,6 +1060,9 @@ class Loop:
                 The type of fit to use. Allowed options are "lmfit", "emcee",
                 and "emcee_mle" where MLE estimates are used instead of the
                 medians. The default is "lmfit".
+            use_mask: boolean
+                Determines whether or not to use the mask for the plotted data.
+                The default is True.
             plot_kwargs: dictionary
                 Keyword arguments for the plot in axes.plot(). The default is
                 None which uses default options. Keywords in this dictionary
@@ -1046,11 +1120,12 @@ class Loop:
         """
         # parse inputs
         _, axes = setup_axes(axes, x_label, y_label, label_kwargs, "I [V]", "Q [V]", equal=True)
+        zd = self.z[self.mask] if use_mask else self.z
         # get the model
         default_kwargs = {"marker": 'o', "markersize": 2, "linestyle": 'None', "label": "residual"}
         f, m, kwargs = get_plot_model(self, fit_type, label, plot_kwargs=plot_kwargs, default_kwargs=default_kwargs,
-                                      n_factor=1)
-        axes.plot(self.z.real - m.real, self.z.imag - m.imag, **kwargs)
+                                      use_mask=use_mask, n_factor=1)
+        axes.plot(zd.real - m.real, zd.imag - m.imag, **kwargs)
         # add fit parameters
         if fit_parameters:
             self._make_parameters_textbox(fit_parameters, result, axes, parameters_kwargs)
@@ -1061,9 +1136,9 @@ class Loop:
                       tick_kwargs=tick_kwargs, tighten=tighten)
         return axes
 
-    def plot_magnitude(self, data_kwargs=None, plot_fit=False, f_scale=1, label="best", fit_type="lmfit",
-                       calibrate=False, fit_kwargs=None, fit_parameters=(), parameters_kwargs=None, plot_guess=None,
-                       guess_kwargs=None, x_label=None, y_label=None, label_kwargs=None, legend=True,
+    def plot_magnitude(self, data_kwargs=None, plot_fit=False, use_mask=True, f_scale=1, label="best",
+                       fit_type="lmfit", calibrate=False, fit_kwargs=None, fit_parameters=(), parameters_kwargs=None,
+                       plot_guess=None, guess_kwargs=None, x_label=None, y_label=None, label_kwargs=None, legend=True,
                        legend_kwargs=None, title=True, title_kwargs=None, tick_kwargs=None, tighten=True, db=True,
                        axes=None):
         """
@@ -1077,6 +1152,9 @@ class Loop:
                 Determines whether the fit is plotted or not. The default is
                 False. When False, label, fit_type, fit_kwargs,
                 fit_parameters, and parameter_kwargs are ignored.
+            use_mask: boolean
+                Determines whether or not to use the mask for the plotted data.
+                The default is True.
             f_scale: float
                 The frequency scale to use. e.g. 1e3 will plot the frequency in
                 kHz. 1 corresponding to Hz is the default.
@@ -1156,6 +1234,8 @@ class Loop:
         # parse inputs
         _, axes = setup_axes(axes, x_label, y_label, label_kwargs, "frequency [Hz]",
                              "|S₂₁|" if not db else "|S₂₁| [dB]")
+        fd = self.f[self.mask] if use_mask else self.f
+        zd = self.z[self.mask] if use_mask else self.z
         # plot data
         kwargs = {"marker": 'o', "markersize": 2, "linestyle": 'None', "label": "data"}
         if data_kwargs is not None:
@@ -1168,35 +1248,35 @@ class Loop:
                 raise ValueError("No fit of type '{}' with the label '{}' has been done".format(fit_type, label))
             result = result_dict['result']
             model = result_dict['model']
-            z = self.z if not calibrate else model.calibrate(result.params, self.z, self.f)
-            axes.plot(self.f * 1e9 / f_scale, np.abs(z) if not db else 20 * np.log10(np.abs(z)), **kwargs)
+            z = zd if not calibrate else model.calibrate(result.params, zd, fd)
+            axes.plot(fd * 1e9 / f_scale, np.abs(z) if not db else 20 * np.log10(np.abs(z)), **kwargs)
             # calculate the model values
             f, m, kwargs = get_plot_model(self, fit_type, label, calibrate=calibrate, plot_kwargs=fit_kwargs,
-                                          default_kwargs={"linestyle": '--', "label": "fit"})
+                                          use_mask=use_mask, default_kwargs={"linestyle": '--', "label": "fit"})
             axes.plot(f * 1e9 / f_scale, np.abs(m) if not db else 20 * np.log10(np.abs(m)), **kwargs)
             string = "power: {:.0f} dBm, field: {:.2f} V, temperature: {:.2f} mK, '{}' fit"
             title = string.format(self.power, self.field, self.temperature * 1000, fit_name) if title is True else title
             if fit_parameters:
                 self._make_parameters_textbox(fit_parameters, result, axes, parameters_kwargs)
         else:
-            axes.plot(self.f * 1e9 / f_scale, np.abs(self.z) if not db else 20 * np.log10(np.abs(self.z)), **kwargs)
+            axes.plot(fd * 1e9 / f_scale, np.abs(zd) if not db else 20 * np.log10(np.abs(zd)), **kwargs)
             string = "power: {:.0f} dBm, field: {:.2f} V, temperature: {:.2f} mK"
             title = string.format(self.power, self.field, self.temperature * 1000) if title is True else title
         # plot guess
         if plot_guess is not None:
             default_kwargs = {"linestyle": '-.', "label": "guess", "color": "k"}
             f, m, kwargs = get_plot_model(self, fit_type, label, calibrate=calibrate, params=plot_guess,
-                                          plot_kwargs=guess_kwargs, default_kwargs=default_kwargs)
+                                          use_mask=use_mask, plot_kwargs=guess_kwargs, default_kwargs=default_kwargs)
             axes.plot(f, np.abs(m) if not db else 20 * np.log10(np.abs(m)), **kwargs)
         # finalize the plot
         finalize_axes(axes, title=title, title_kwargs=title_kwargs, legend=legend, legend_kwargs=legend_kwargs,
                       tick_kwargs=tick_kwargs, tighten=tighten)
         return axes
 
-    def plot_magnitude_residual(self, f_scale=1, label="best", fit_type="lmfit", plot_kwargs=None, fit_parameters=(),
-                                parameters_kwargs=None, x_label=None, y_label=None, label_kwargs=None, legend=False,
-                                legend_kwargs=None, title=True, title_kwargs=None, tick_kwargs=None, tighten=True,
-                                axes=None):
+    def plot_magnitude_residual(self, f_scale=1, label="best", fit_type="lmfit", use_mask=True, plot_kwargs=None,
+                                fit_parameters=(), parameters_kwargs=None, x_label=None, y_label=None,
+                                label_kwargs=None, legend=False, legend_kwargs=None, title=True, title_kwargs=None,
+                                tick_kwargs=None, tighten=True, axes=None):
         """
         Plot the residual of the magnitude data (data - model).
         Args:
@@ -1209,6 +1289,9 @@ class Loop:
                 The type of fit to use. Allowed options are "lmfit", "emcee",
                 and "emcee_mle" where MLE estimates are used instead of the
                 medians. The default is "lmfit".
+            use_mask: boolean
+                Determines whether or not to use the mask for the plotted data.
+                The default is True.
             plot_kwargs: dictionary
                 Keyword arguments for the plot in axes.plot(). The default is
                 None which uses default options. Keywords in this dictionary
@@ -1265,11 +1348,13 @@ class Loop:
         """
         # parse inputs
         _, axes = setup_axes(axes, x_label, y_label, label_kwargs, "frequency [Hz]", "|S₂₁| [V]")
+        fd = self.f[self.mask] if use_mask else self.f
+        zd = self.z[self.mask] if use_mask else self.z
         # get the model
         default_kwargs = {"marker": 'o', "markersize": 2, "linestyle": 'None', "label": "residual"}
         f, m, kwargs = get_plot_model(self, fit_type, label, plot_kwargs=plot_kwargs, default_kwargs=default_kwargs,
-                                      n_factor=1)
-        axes.plot(self.f * 1e9 / f_scale, np.abs(self.z) - np.abs(m), **kwargs)
+                                      use_mask=use_mask, n_factor=1)
+        axes.plot(fd * 1e9 / f_scale, np.abs(zd) - np.abs(m), **kwargs)
         # add fit parameters
         if fit_parameters:
             self._make_parameters_textbox(fit_parameters, result, axes, parameters_kwargs)
@@ -1280,10 +1365,10 @@ class Loop:
                       tick_kwargs=tick_kwargs, tighten=tighten)
         return axes
 
-    def plot_phase(self, data_kwargs=None, plot_fit=False, f_scale=1, label="best", fit_type="lmfit", calibrate=False,
-                   fit_kwargs=None, fit_parameters=(), parameters_kwargs=None, plot_guess=None, guess_kwargs=None,
-                   x_label=None, y_label=None, label_kwargs=None, legend=True, legend_kwargs=None, title=True,
-                   title_kwargs=None, tick_kwargs=None, tighten=True, unwrap=True, axes=None):
+    def plot_phase(self, data_kwargs=None, plot_fit=False, use_mask=True, f_scale=1, label="best", fit_type="lmfit",
+                   calibrate=False, fit_kwargs=None, fit_parameters=(), parameters_kwargs=None, plot_guess=None,
+                   guess_kwargs=None, x_label=None, y_label=None, label_kwargs=None, legend=True, legend_kwargs=None,
+                   title=True, title_kwargs=None, tick_kwargs=None, tighten=True, unwrap=True, axes=None):
         """
         Plot the phase data.
         Args:
@@ -1295,6 +1380,9 @@ class Loop:
                 Determines whether the fit is plotted or not. The default is
                 False. When False, label, fit_type, fit_kwargs,
                 fit_parameters, and parameter_kwargs are ignored.
+            use_mask: boolean
+                Determines whether or not to use the mask for the plotted data.
+                The default is True.
             f_scale: float
                 The frequency scale to use. e.g. 1e3 will plot the frequency in
                 kHz. 1 corresponding to Hz is the default.
@@ -1373,6 +1461,8 @@ class Loop:
         """
         # parse inputs
         _, axes = setup_axes(axes, x_label, y_label, label_kwargs, "frequency [Hz]", "phase [radians]")
+        fd = self.f[self.mask] if use_mask else self.f
+        zd = self.z[self.mask] if use_mask else self.z
         # plot data
         kwargs = {"marker": 'o', "markersize": 2, "linestyle": 'None', "label": "data"}
         if data_kwargs is not None:
@@ -1385,11 +1475,12 @@ class Loop:
                 raise ValueError("No fit of type '{}' with the label '{}' has been done".format(fit_type, label))
             result = result_dict['result']
             model = result_dict['model']
-            z = self.z if not calibrate else model.calibrate(result.params, self.z, self.f, center=True)
-            axes.plot(self.f * 1e9 / f_scale, np.unwrap(np.angle(z)) if unwrap else np.angle(z), **kwargs)
+            z = zd if not calibrate else model.calibrate(result.params, zd, fd, center=True)
+            axes.plot(fd * 1e9 / f_scale, np.unwrap(np.angle(z)) if unwrap else np.angle(z), **kwargs)
             # calculate the model values
             f, m, kwargs = get_plot_model(self, fit_type, label, calibrate=calibrate, plot_kwargs=fit_kwargs,
-                                          default_kwargs={"linestyle": '--', "label": "fit"}, center=True)
+                                          use_mask=use_mask, default_kwargs={"linestyle": '--', "label": "fit"},
+                                          center=True)
             offset = 2 * np.pi if np.angle(z[0]) - np.angle(m[0]) > np.pi else 0
             axes.plot(f * 1e9 / f_scale, np.unwrap(np.angle(m) + offset) if unwrap else np.angle(m), **kwargs)
             string = "power: {:.0f} dBm, field: {:.2f} V, temperature: {:.2f} mK, '{}' fit"
@@ -1397,24 +1488,24 @@ class Loop:
             if fit_parameters:
                 self._make_parameters_textbox(fit_parameters, result, axes, parameters_kwargs)
         else:
-            axes.plot(self.f * 1e9 / f_scale, np.unwrap(np.angle(self.z)) if unwrap else np.angle(self.z), **kwargs)
+            axes.plot(fd * 1e9 / f_scale, np.unwrap(np.angle(zd)) if unwrap else np.angle(zd), **kwargs)
             string = "power: {:.0f} dBm, field: {:.2f} V, temperature: {:.2f} mK"
             title = string.format(self.power, self.field, self.temperature * 1000) if title is True else title
         # plot guess
         if plot_guess is not None:
             default_kwargs = {"linestyle": '-.', "label": "guess", "color": "k"}
             f, m, kwargs = get_plot_model(self, fit_type, label, calibrate=calibrate, params=plot_guess,
-                                          plot_kwargs=guess_kwargs, default_kwargs=default_kwargs)
+                                          use_mask=use_mask, plot_kwargs=guess_kwargs, default_kwargs=default_kwargs)
             axes.plot(f, np.unwrap(np.angle(m)) if unwrap else np.angle(m), **kwargs)
         # finalize the plot
         finalize_axes(axes, title=title, title_kwargs=title_kwargs, legend=legend, legend_kwargs=legend_kwargs,
                       tick_kwargs=tick_kwargs, tighten=tighten)
         return axes
 
-    def plot_phase_residual(self, f_scale=1, label="best", fit_type="lmfit", plot_kwargs=None, fit_parameters=(),
-                            parameters_kwargs=None, x_label=None, y_label=None, label_kwargs=None, legend=False,
-                            legend_kwargs=None, title=True, title_kwargs=None, tick_kwargs=None, tighten=True,
-                            axes=None):
+    def plot_phase_residual(self, f_scale=1, label="best", fit_type="lmfit", use_mask=True, plot_kwargs=None,
+                            fit_parameters=(), parameters_kwargs=None, x_label=None, y_label=None, label_kwargs=None,
+                            legend=False, legend_kwargs=None, title=True, title_kwargs=None, tick_kwargs=None,
+                            tighten=True, axes=None):
         """
         Plot the residual of the phase data (data - model).
         Args:
@@ -1427,6 +1518,9 @@ class Loop:
                 The type of fit to use. Allowed options are "lmfit", "emcee",
                 and "emcee_mle" where MLE estimates are used instead of the
                 medians. The default is "lmfit".
+            use_mask: boolean
+                Determines whether or not to use the mask for the plotted data.
+                The default is True.
             plot_kwargs: dictionary
                 Keyword arguments for the plot in axes.plot(). The default is
                 None which uses default options. Keywords in this dictionary
@@ -1483,11 +1577,13 @@ class Loop:
         """
         # parse inputs
         _, axes = setup_axes(axes, x_label, y_label, label_kwargs, "frequency [Hz]", "phase [radians]")
+        fd = self.f[self.mask] if use_mask else self.f
+        zd = self.z[self.mask] if use_mask else self.z
         # get the model
         default_kwargs = {"marker": 'o', "markersize": 2, "linestyle": 'None', "label": "residual"}
         f, m, kwargs = get_plot_model(self, fit_type, label, plot_kwargs=plot_kwargs, default_kwargs=default_kwargs,
-                                      n_factor=1)
-        axes.plot(self.f * 1e9 / f_scale, np.unwrap(np.angle(self.z)) - np.unwrap(np.angle(m)), **kwargs)
+                                      use_mask=use_mask, n_factor=1)
+        axes.plot(fd * 1e9 / f_scale, np.unwrap(np.angle(zd)) - np.unwrap(np.angle(m)), **kwargs)
         # add fit parameters
         if fit_parameters:
             self._make_parameters_textbox(fit_parameters, result, axes, parameters_kwargs)

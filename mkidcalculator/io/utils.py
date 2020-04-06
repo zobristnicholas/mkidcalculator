@@ -372,14 +372,17 @@ def finalize_axes(axes, title=False, title_kwargs=None, legend=False, legend_kwa
 
 
 def get_plot_model(self, fit_type, label, params=None, calibrate=False, default_kwargs=None, plot_kwargs=None,
-                   center=False, n_factor=10):
+                   center=False, use_mask=True, n_factor=10):
     # get the model
     fit_name, result_dict = self._get_model(fit_type, label)
     if fit_name is None:
         raise ValueError("No fit of type '{}' with the label '{}' has been done".format(fit_type, label))
     model = result_dict['model']
     # calculate the model values
-    f = np.linspace(np.min(self.f), np.max(self.f), np.size(self.f) * n_factor)
+    if use_mask:
+        f = np.linspace(np.min(self.f[self.mask]), np.max(self.f[self.mask]), np.size(self.f[self.mask]) * n_factor)
+    else:
+        f = np.linspace(np.min(self.f), np.max(self.f), np.size(self.f) * n_factor)
     if params is None:
         params = result_dict['result'].params
     m = model.model(params, f)
