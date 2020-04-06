@@ -113,7 +113,7 @@ class S21:
         # find the fractional frequency shift
         x = cls.x(params, f)
         # find the scattering parameter
-        z = (1. / qi + 2j * (x - qi / (qi + qc) * df / f0)) / ((qi + qc) / (qi * qc) + 2j * x)
+        z = (qc + 2j * qi * qc * (x + df / f0)) / (qi + qc + 2j * qi * qc * x)
         return z
 
     @classmethod
@@ -185,7 +185,7 @@ class S21:
         else:
             z /= cls.baseline(params, f)
         if center:
-            center = params.eval("1 - q0 / (2 * qc) - 1j * q0**2 / qc * df / f0")
+            center = params.eval("1 - q0 / (2 * qc) + 1j * q0 * df / f0")
             z = center - z
         return z
 
