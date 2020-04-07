@@ -255,6 +255,84 @@ class S21:
         return res
 
     @classmethod
+    def phase_and_dissipation(cls, params, z, f, form='geometric', unwrap=False, fr_reference=False):
+        """
+        Return the phase and dissipation signals from measured IQ data.
+        Args:
+            params: lmfit.Parameters() object
+                The parameters for the model function.
+            z: numpy.ndarray, dtype=complex, shape=(N,)
+                Complex resonator scattering parameter.
+            f: numpy.ndarray, dtype=real, shape=(N,)
+                Frequency points corresponding to z.
+            form: string (optional)
+                Either 'geometric' or 'analytic'. The default is 'geometric'.
+                'geometric': use the polar decomposition from the loop center
+                'analytic': solve for xr and dqi_inv from the loop equation
+                            then scale to match the geometric version
+            unwrap: boolean (optional)
+                If form is 'geometric', unwrap can be set to True to remove
+                wraps introduced by numpy.angle(). The default is False, and
+                no unwrapping is done. This argument is ignored if form =
+                'analytic'.
+            fr_reference: boolean (optional)
+                If True, the phase is referenced to the phase of the resonance
+                frequency. Otherwise, the phase is referenced to the value
+                given by the model at f. The default is False.
+        Returns:
+            phase: numpy.ndarray, dtype=real, shape=(N,)
+                The phase signal.
+            dissipation: numpy.ndarray, dtype=real, shape=(N,)
+                The dissipation signal.
+        """
+        # make sure data is of the right type and shape
+        z = np.array(z, ndmin=1, dtype=complex, copy=False)
+        f = np.broadcast_to(f, z.shape)
+        if form.lower().startswith('geometric'):
+            # get loop z for the data at the reference frequency
+            f_ref = params['fr'].value if fr_reference else f
+            z_ref = cls.model(params, f_ref)
+            # calibrate the IQ data
+            z = cls.calibrate(params, z, f, center=True)
+            z_ref = cls.calibrate(params, z_ref, f_ref, center=True)  # real if f_ref = fr and no loop asymmetry
+            # compute the phase from the centered traces
+            phase = np.angle(z)
+            # make the wrap angle as far from each trace median as possible to minimize wraps
+            wrap_angle = np.median(phase, axis=-1, keepdims=True) + np.pi
+            phase = np.mod(phase - wrap_angle, 2 * np.pi) - (2 * np.pi - wrap_angle)
+            # unwrap any data that is still crossing the wrap angle
+            if unwrap:
+                phase = np.unwrap(phase)
+            # reference the angle to the (properly wrapped) z_ref angle
+            phase -= np.mod(np.angle(z_ref) - wrap_angle, 2 * np.pi) - (2 * np.pi - wrap_angle)
+            # compute the dissipation trace from the centered traces
+            dissipation = np.abs(z) / np.abs(z_fr) - 1
+        elif form.lower().startswith('analytic'):
+            # grab parameter values
+            qc = params['qc'].value
+            qi = params['qi'].value
+            df = params['df'].value
+            f0 = params['f0'].value
+            x = cls.x(params, f)
+            # calibrate IQ data
+            z = cls.calibrate(params, z, f, center=False)
+            i = z.real
+            q = z.imag
+            # compute phase
+            xr = x - (q + 2 * qc * df / f0 * (i - 1)) / (2 * qc * np.abs(1 - z)**2)
+            phase = 4 * q0 / (1 + 4 * q0**2 * x**2) * xr
+            if fr_reference:  # already referenced if not using resonance frequency
+                f_ref = params['fr'].value
+                z_ref = cls.calibrate(params, cls.model(params, f_ref), f_ref, center=True)
+                phase -= np.angle(z_ref)
+            # compute dissipation
+            dqi_inv = (i - np.abs(z)**2 + 2 * qc * df / f0 * q) / (qc * np.abs(1 - z)**2) - qi**-1
+            dissipation = - 2 * q0 / (1 + 4 * q0**2 * x**2) * dqi_inv
+        else:
+            raise ValueError("'form' must be one of ['geometric', 'analytic']")
+        return phase, dissipation
+
+    @classmethod
     def guess(cls, z, f, imbalance=None, offset=None, use_filter=False, filter_length=None, fit_resonance=True,
               nonlinear_resonance=False, fit_gain=True, quadratic_gain=True, fit_phase=True, quadratic_phase=False,
               fit_imbalance=False, fit_offset=False, alpha=1, gamma=0):

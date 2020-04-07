@@ -75,13 +75,13 @@ class NpzHolder:
 _loaded_npz_files = NpzHolder()  # cache of already loaded files
 
 
-def compute_phase_and_amplitude(cls, label="best", fit_type="lmfit", fr="fr", unwrap=False):
+def compute_phase_and_dissipation(cls, label="best", fit_type="lmfit", **kwargs):
     """
-    Compute the phase and amplitude traces stored in pulse.p_trace and
-    pulse.a_trace.
+    Compute the phase and dissipation traces stored in pulse.p_trace and
+    pulse.d_trace.
     Args:
         cls: Pulse or Noise class
-            The Pulse or Noise class used to create the phase and amplitude
+            The Pulse or Noise class used to create the phase and dissipation
             data.
         label: string
             Corresponds to the label in the loop.lmfit_results or
@@ -93,14 +93,9 @@ def compute_phase_and_amplitude(cls, label="best", fit_type="lmfit", fr="fr", un
             The type of fit to use. Allowed options are "lmfit", "emcee",
             and "emcee_mle" where MLE estimates are used instead of the
             medians. The default is "lmfit".
-        fr: string
-            The parameter name that corresponds to the resonance frequency.
-            The default is "fr" which gives the resonance frequency for the
-            mkidcalculator.S21 model. This parameter determines the zero
-            point for the traces.
-        unwrap: boolean
-            Determines whether or not to unwrap the phase data. The default
-            is False.
+        kwargs: optional keyword arguments
+            Optional keyword arguments to send to
+            model.phase_and_dissipation().
     """
     # clear prior data
     cls.clear_traces()
@@ -108,28 +103,10 @@ def compute_phase_and_amplitude(cls, label="best", fit_type="lmfit", fr="fr", un
     _, result_dict = cls.loop._get_model(fit_type, label)
     model = result_dict["model"]
     params = result_dict["result"].params
-    # get the resonance frequency and loop center
-    fr = params[fr].value
-    # get complex IQ data for the traces and loop at the resonance frequency
-    traces = cls.i_trace + 1j * cls.q_trace
-    z_fr = model.model(params, fr)
-    f = np.empty(traces.shape)
-    f.fill(cls.f_bias)
-    # calibrate the IQ data
-    traces = model.calibrate(params, traces, f, center=True)
-    z_fr = model.calibrate(params, z_fr, fr, center=True)  # should be real if no loop asymmetry
-    # compute the phase from the centered traces
-    cls.p_trace = np.angle(traces)
-    # make the wrap angle as far from each trace median as possible to minimize wraps
-    wrap_angle = np.median(cls.p_trace, axis=1, keepdims=True) + np.pi
-    cls.p_trace = np.mod(cls.p_trace - wrap_angle, 2 * np.pi) - (2 * np.pi - wrap_angle)
-    # unwrap any data that is still crossing the wrap angle
-    if unwrap:
-        cls.p_trace = np.unwrap(cls.p_trace)
-    # reference the angle to the (properly wrapped) resonance frequency angle
-    cls.p_trace -= np.mod(np.angle(z_fr) - wrap_angle, 2 * np.pi) - (2 * np.pi - wrap_angle)
-    # compute the amplitude trace from the centered traces
-    cls.a_trace = np.abs(traces) / np.abs(z_fr) - 1
+    # compute phase and dissipation
+    phase, dissipation = model.phase_and_dissipation(params, cls.i_trace + 1j * cls.q_trace, cls.f_bias, **kwargs)
+    cls.p_trace = phase
+    cls.d_trace = dissipation
 
 
 def offload_data(cls, excluded_keys=(), npz_key="_npz", prefix="", directory_key="_directory"):

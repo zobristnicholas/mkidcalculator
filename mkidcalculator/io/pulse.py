@@ -12,7 +12,7 @@ from scipy.signal import fftconvolve
 from scipy.interpolate import UnivariateSpline, InterpolatedUnivariateSpline
 
 from mkidcalculator.io.data import AnalogReadoutPulse
-from mkidcalculator.io.utils import (compute_phase_and_amplitude, offload_data, _loaded_npz_files,
+from mkidcalculator.io.utils import (compute_phase_and_dissipation, offload_data, _loaded_npz_files,
                                      quadratic_spline_roots, ev_nm_convert, dump, load)
 
 log = logging.getLogger(__name__)
@@ -24,13 +24,13 @@ class Pulse:
     def __init__(self):
         # pulse data
         self._data = AnalogReadoutPulse()  # dummy class replaced by from_file()
-        # loop reference for computing phase and amplitude
+        # loop reference for computing phase and dissipation
         self._loop = None
         # noise reference for computing energies
         self._noise = None
-        # phase and amplitude data
+        # phase and dissipation data
         self._p_trace = None
-        self._a_trace = None
+        self._d_trace = None
         # template attributes
         self._traces = None
         self._template = None
@@ -61,7 +61,7 @@ class Pulse:
         log.debug("Pulse object created. ID: {}".format(id(self)))
 
     def __getstate__(self):
-        return offload_data(self, excluded_keys=("_a_trace", "_p_trace"), prefix="pulse_data_")
+        return offload_data(self, excluded_keys=("_d_trace", "_p_trace"), prefix="pulse_data_")
 
     @property
     def f_bias(self):
@@ -109,7 +109,7 @@ class Pulse:
         A settable property that contains the phase trace information. Since it
         is derived from the i_trace and q_trace, it will raise an
         AttributeError if it is accessed before
-        pulse.compute_phase_and_amplitude() is run.
+        pulse.compute_phase_and_dissipation() is run.
         """
         if self._p_trace is None:
             raise AttributeError("The phase information has not been computed yet.")
@@ -123,29 +123,29 @@ class Pulse:
         self._p_trace = phase_trace
 
     @property
-    def a_trace(self):
+    def d_trace(self):
         """
-        A settable property that contains the amplitude trace information.
+        A settable property that contains the dissipation trace information.
         Since it is derived from the i_trace and q_trace, it will raise an
         AttributeError if it is accessed before
-        pulse.compute_phase_and_amplitude() is run.
+        pulse.compute_phase_and_dissipation() is run.
         """
-        if self._a_trace is None:
-            raise AttributeError("The amplitude information has not been computed yet.")
-        if isinstance(self._a_trace, str):
-            return _loaded_npz_files[self._npz][self._a_trace]
+        if self._d_trace is None:
+            raise AttributeError("The dissipation information has not been computed yet.")
+        if isinstance(self._d_trace, str):
+            return _loaded_npz_files[self._npz][self._d_trace]
         else:
-            return self._a_trace
+            return self._d_trace
 
-    @a_trace.setter
-    def a_trace(self, amplitude_trace):
-        self._a_trace = amplitude_trace
+    @d_trace.setter
+    def d_trace(self, dissipation_trace):
+        self._d_trace = dissipation_trace
 
     @property
     def loop(self):
         """
         A settable property that contains the Loop object required for doing
-        pulse calculations like computing the phase and amplitude traces. If
+        pulse calculations like computing the phase and dissipation traces. If
         the loop has not been set, it will raise an AttributeError. When the
         loop is set, all information created from the previous loop is deleted.
         """
@@ -217,7 +217,7 @@ class Pulse:
     @property
     def template(self):
         """
-        A settable property that contains the phase and amplitude templates
+        A settable property that contains the phase and dissipation templates
         made with pulse.make_template().
         """
         if self._template is None:
@@ -272,11 +272,11 @@ class Pulse:
     @property
     def a_filter(self):
         """
-        A property that contains the amplitude filter made with
+        A property that contains the dissipation filter made with
         pulse.make_filters().
         """
         if self._a_filter is None:
-            raise AttributeError("The amplitude filter for this pulse has not been calculated yet.")
+            raise AttributeError("The dissipation filter for this pulse has not been calculated yet.")
         return self._a_filter
 
     @property
@@ -286,7 +286,7 @@ class Pulse:
         pulse.make_filters().
         """
         if self._a_filter_var is None:
-            raise AttributeError("The amplitude filter for this pulse has not been calculated yet.")
+            raise AttributeError("The dissipation filter for this pulse has not been calculated yet.")
         return self._a_filter_var
 
     @property
@@ -294,7 +294,7 @@ class Pulse:
         """
         A settable property that contains a boolean array that can select trace
         indices from pulse.responses, pulse.i_trace, pulse.q_trace,
-        pulse.p_trace, or pulse.a_trace.
+        pulse.p_trace, or pulse.d_trace.
         """
         if self._mask is None:
             self._mask = np.ones(self.i_trace.shape[0], dtype=bool)
@@ -355,7 +355,7 @@ class Pulse:
         """
         Remove all trace data calculated from pulse.i_trace and pulse.q_trace.
         """
-        self._a_trace = None
+        self._d_trace = None
         self._p_trace = None
         self._npz = None
         self._postpulse_min_slope = None
@@ -418,7 +418,7 @@ class Pulse:
 
     def free_memory(self, directory=None, noise=True):
         """
-        Offloads a_traces and p_traces to an npz file if they haven't been
+        Offloads d_traces and p_traces to an npz file if they haven't been
         offloaded already and removes any npz file objects from memory, keeping
         just the file name. It doesn't do anything if they don't exist.
         Args:
@@ -433,7 +433,7 @@ class Pulse:
         """
         if directory is not None:
             self._set_directory(directory)
-        offload_data(self, excluded_keys=("_a_trace", "_p_trace"), prefix="pulse_data_")
+        offload_data(self, excluded_keys=("_d_trace", "_p_trace"), prefix="pulse_data_")
         if isinstance(self._npz, str):  # there might not be an npz file yet
             _loaded_npz_files.free_memory(self._npz)
         try:
@@ -446,10 +446,10 @@ class Pulse:
             except AttributeError:
                 pass
 
-    def compute_phase_and_amplitude(self, label="best", fit_type="lmfit", fr="fr", unwrap=False, noise=False):
+    def compute_phase_and_dissipation(self, label="best", fit_type="lmfit", noise=False, **kwargs):
         """
-        Compute the phase and amplitude traces stored in pulse.p_trace and
-        pulse.a_trace.
+        Compute the phase and dissipation traces stored in pulse.p_trace and
+        pulse.d_trace.
         Args:
             label: string
                 Corresponds to the label in the loop.lmfit_results or
@@ -461,21 +461,16 @@ class Pulse:
                 The type of fit to use. Allowed options are "lmfit", "emcee",
                 and "emcee_mle" where MLE estimates are used instead of the
                 medians. The default is "lmfit".
-            fr: string
-                The parameter name that corresponds to the resonance frequency.
-                The default is "fr" which gives the resonance frequency for the
-                mkidcalculator.S21 model. This parameter determines the zero
-                point for the traces.
-            unwrap: boolean
-                Determines whether or not to unwrap the phase data. The default
-                is False.
             noise: boolean
                 Determines whether or not to also compute the phase and
-                amplitude for the noise. The default is false.
+                dissipation for the noise. The default is false.
+            kwargs: optional keyword arguments
+                Optional keyword arguments to send to
+                model.phase_and_dissipation().
         """
-        compute_phase_and_amplitude(self, label=label, fit_type=fit_type, fr=fr, unwrap=unwrap)
+        compute_phase_and_dissipation(self, label=label, fit_type=fit_type, **kwargs)
         if noise:
-            compute_phase_and_amplitude(self.noise, label=label, fit_type=fit_type, fr=fr, unwrap=unwrap)
+            compute_phase_and_dissipation(self.noise, label=label, fit_type=fit_type, **kwargs)
 
     def to_pickle(self, file_name):
         """Pickle and save the class as the file 'file_name'."""
@@ -505,7 +500,7 @@ class Pulse:
                 default is the AnalogReadoutPulse class, which interfaces
                 with the data products from the analogreadout module.
             loop: Loop object (optional)
-                The Loop object needed for computing phase and amplitude. It
+                The Loop object needed for computing phase and dissipation. It
                 can be specified later or changed with pulse.loop = loop. The
                 default is None, which signifies that the loop has not been
                 set.
@@ -532,7 +527,7 @@ class Pulse:
 
     def make_template(self, use_mask=False):
         """
-        Make a template from phase and amplitude data. The template is needed
+        Make a template from phase and dissipation data. The template is needed
         for computing a filter.
         Args:
             use_mask: bool
@@ -541,18 +536,18 @@ class Pulse:
         """
         # create a rough template by cutting the noise traces and averaging
         if use_mask:
-            self._traces = self._remove_baseline(np.array([self.p_trace[self.mask, :], self.a_trace[self.mask, :]]))
+            self._traces = self._remove_baseline(np.array([self.p_trace[self.mask, :], self.d_trace[self.mask, :]]))
         else:
-            self._traces = self._remove_baseline(np.array([self.p_trace, self.a_trace]))
+            self._traces = self._remove_baseline(np.array([self.p_trace, self.d_trace]))
             self._threshold_cut()
         self._average_pulses()
         # make a filter with the template
         self.make_filters()
         # do a better job using a filter
         if use_mask:
-            self._traces = self._remove_baseline(np.array([self.p_trace[self.mask, :], self.a_trace[self.mask, :]]))
+            self._traces = self._remove_baseline(np.array([self.p_trace[self.mask, :], self.d_trace[self.mask, :]]))
         else:
-            self._traces = self._remove_baseline(np.array([self.p_trace, self.a_trace]))
+            self._traces = self._remove_baseline(np.array([self.p_trace, self.d_trace]))
         self._p_trace_filtered = self.apply_filter(self._traces[0], filter_type="phase_filter")
         if not use_mask:
             self._threshold_cut(use_filter=True)
@@ -564,7 +559,7 @@ class Pulse:
         """
         Make an optimal filter assuming a linear response and stationary noise.
         A full 2D filter is made as well as two 1D filters for the phase and
-        amplitude responses.
+        dissipation responses.
         """
         self.clear_filters()
         # pull out some parameters
@@ -574,10 +569,10 @@ class Pulse:
         if self.noise.pp_psd.size != shape[1]:
             raise ValueError("The noise data PSDs must have a shape compatible with the pulse data")
         # assemble noise matrix
-        s = np.array([[self.noise.pp_psd, self.noise.pa_psd],
-                      [np.conj(self.noise.pa_psd), self.noise.aa_psd]], dtype=np.complex)
+        s = np.array([[self.noise.pp_psd, self.noise.pd_psd],
+                      [np.conj(self.noise.pd_psd), self.noise.dd_psd]], dtype=np.complex)
 
-        # normalize the template for response = phase + amplitude
+        # normalize the template for response = phase + dissipation
         template = self.template / np.abs(self.template[0].min() + self.template[1].min())
         template_fft = fft.rfft(template)
         # compute the optimal filter: conj(template_fft) @ s_inv (single sided)
@@ -607,17 +602,17 @@ class Pulse:
         norm = self.apply_filter(template, filter_type="phase_filter").max()
         self._p_filter /= norm
 
-        # normalize the template for response = amplitude
+        # normalize the template for response = dissipation
         template = self.template[1, :] / np.abs(self.template[1].min())
         template_fft = fft.rfft(template)
-        # compute the amplitude only optimal filter: conj(amplitude_fft) / s (single sided)
-        amplitude_filter_fft = np.conj(template_fft) / self.noise.aa_psd
-        amplitude_filter_fft[0] = 0  # discard zero bin for AC coupled filter
-        self._a_filter = fft.irfft(amplitude_filter_fft, n_samples)
+        # compute the dissipation only optimal filter: conj(dissipation_fft) / s (single sided)
+        dissipation_filter_fft = np.conj(template_fft) / self.noise.dd_psd
+        dissipation_filter_fft[0] = 0  # discard zero bin for AC coupled filter
+        self._a_filter = fft.irfft(dissipation_filter_fft, n_samples)
         # compute the variance with the un-normalized filter
-        self._a_filter_var = (sample_rate * n_samples / (4 * (amplitude_filter_fft @ template_fft).real))
+        self._a_filter_var = (sample_rate * n_samples / (4 * (dissipation_filter_fft @ template_fft).real))
         # normalize
-        norm = self.apply_filter(template, filter_type="amplitude_filter").max()
+        norm = self.apply_filter(template, filter_type="dissipation_filter").max()
         self._a_filter /= norm
 
     def performance(self, calculation_type="optimal_filter", mode="variance", energy=None,
@@ -642,10 +637,10 @@ class Pulse:
                 "phase_filter_mc":
                     Monte Carlo simulation of the phase optimal filter
                     performance.
-                "amplitude_filter":
-                    Theoretical amplitude optimal filter performance.
-                "amplitude_filter_mc":
-                    Monte Carlo simulation of the amplitude optimal filter
+                "dissipation_filter":
+                    Theoretical dissipation optimal filter performance.
+                "dissipation_filter_mc":
+                    Monte Carlo simulation of the dissipation optimal filter
                     performance.
                 "optimal_fit":
                     Theoretical two dimensional optimal fit performance.
@@ -655,10 +650,10 @@ class Pulse:
                     Theoretical phase fit performance.
                 "phase_fit_mc":
                     Monte Carlo simulation of the phase fit performance.
-                "amplitude_fit":
-                    Theoretical amplitude fit performance.
-                "amplitude_fit_mc":
-                    Monte Carlo simulation of the amplitude fit performance.
+                "dissipation_fit":
+                    Theoretical dissipation fit performance.
+                "dissipation_fit_mc":
+                    Monte Carlo simulation of the dissipation fit performance.
             mode: string (optional)
                 Valid options are listed below the default is "variance".
                 "variance"
@@ -684,7 +679,7 @@ class Pulse:
             baseline: float or iterable of two floats (optional)
                 The baseline of the photon response. This is only used in Monte
                 Carlo methods. If a tuple, it corresponds to (phase baseline,
-                amplitude baseline). Otherwise, both are assumed to be the
+                dissipation baseline). Otherwise, both are assumed to be the
                 same. The default is (1, .1).
             distribution: bool (optional)
                 Determines if the measured energies are returned as well. This
@@ -708,9 +703,10 @@ class Pulse:
             raise ValueError("The baseline keyword must be a number or have length 2.")
         if energy is None and len(self.energies) > 0:
             energy = self.energies[0]
-        mc_types = ["optimal_filter_mc", "phase_filter_mc", "amplitude_filter_mc", "optimal_fit_mc", "phase_fit_mc",
-                    "amplitude_fit_mc"]
-        fit_types = ["optimal_fit_mc", "optimal_fit", "phase_fit_mc", "phase_fit", "amplitude_fit_mc", "amplitude_fit"]
+        mc_types = ["optimal_filter_mc", "phase_filter_mc", "dissipation_filter_mc", "optimal_fit_mc", "phase_fit_mc",
+                    "dissipation_fit_mc"]
+        fit_types = ["optimal_fit_mc", "optimal_fit", "phase_fit_mc", "phase_fit", "dissipation_fit_mc",
+                     "dissipation_fit"]
 
         # get the response from the calibration (not needed for fit calculations)
         response = None
@@ -724,7 +720,7 @@ class Pulse:
             response = opt.brentq(lambda x: self.loop.energy_calibration(x) - energy,
                                   self.loop._response_avg.max() * 1.01, self.loop._response_avg.min() * 0.99)
         # theory calculations
-        if calculation_type in ["optimal_filter", "phase_filter", "amplitude_filter"]:
+        if calculation_type in ["optimal_filter", "phase_filter", "dissipation_filter"]:
             if self._response_type != calculation_type:
                 raise RuntimeError("The response type '{}' does not match the calculation type"
                                    .format(self.loop._response_type))
@@ -742,18 +738,18 @@ class Pulse:
             elif mode == 'resolving_power':
                 result = energy / (2 * np.sqrt(2 * np.log(2) * result))
             responses = None
-        elif calculation_type in ["optimal_fit", "phase_fit", "amplitude_fit"]:
+        elif calculation_type in ["optimal_fit", "phase_fit", "dissipation_fit"]:
             # grab the normalized template, calibration, and parameters
             template_fft = self.loop.template_fft(energy).T[..., np.newaxis]  # n_frequencies x 2 x 1
             d_template_fft = self.loop.template_fft.derivative()(energy).T[..., np.newaxis]  # n_frequencies x 2 x 1
-            calibration = np.array([[self.loop.phase_calibration(energy)], [self.loop.amplitude_calibration(energy)]])
+            calibration = np.array([[self.loop.phase_calibration(energy)], [self.loop.dissipation_calibration(energy)]])
             d_calibration = np.array([[self.loop.phase_calibration.derivative()(energy)],  # 2 x 1
-                                      [self.loop.amplitude_calibration.derivative()(energy)]])
+                                      [self.loop.dissipation_calibration.derivative()(energy)]])
             sample_rate = self.sample_rate
             n_points = self.loop.template(energy).shape[1]
             if calculation_type == "optimal_fit":
-                s = np.array([[self.noise.pp_psd, self.noise.pa_psd],
-                              [np.conj(self.noise.pa_psd), self.noise.aa_psd]], dtype=np.complex)
+                s = np.array([[self.noise.pp_psd, self.noise.pd_psd],
+                              [np.conj(self.noise.pd_psd), self.noise.dd_psd]], dtype=np.complex)
                 s = s.transpose((2, 0, 1))[1:]  # n_frequencies x 2 x 2
                 s_inv = np.linalg.inv(s)
                 dm_fft = template_fft[1:, :, :] * d_calibration + d_template_fft[1:, :, :] * calibration
@@ -763,7 +759,7 @@ class Pulse:
                 dm_fft = template_fft[1:, 0, 0] * d_calibration[0, 0] + d_template_fft[1:, 0, 0] * calibration[0, 0]
                 result = sample_rate * n_points / (4 * np.abs(dm_fft)**2 / noise).sum()
             else:
-                noise = self.noise.aa_psd[1:]
+                noise = self.noise.dd_psd[1:]
                 dm_fft = template_fft[1:, 1, 0] * d_calibration[1, 0] + d_template_fft[1:, 1, 0] * calibration[1, 0]
                 result = sample_rate * n_points / (4 * np.abs(dm_fft)**2 / noise).sum()
             if mode == 'fwhm':
@@ -773,12 +769,12 @@ class Pulse:
             responses = None
         # Monte Carlo calculations
         elif calculation_type in mc_types:
-            if calculation_type in ["optimal_fit_mc", "phase_fit_mc", "amplitude_fit_mc"]:
-                response = self.loop.phase_calibration(energy) + self.loop.amplitude_calibration(energy)
+            if calculation_type in ["optimal_fit_mc", "phase_fit_mc", "dissipation_fit_mc"]:
+                response = self.loop.phase_calibration(energy) + self.loop.dissipation_calibration(energy)
             if calculation_type in ["optimal_filter_mc", "optimal_fit_mc"]:
                 # get noise traces
                 noise = self.noise.generate_noise(noise_type="pa", n_traces=10000)
-                # normalize the template for response = phase + amplitude
+                # normalize the template for response = phase + dissipation
                 template = self.template / np.abs(self.template[0].min() + self.template[1].min())
                 # make data traces
                 data = noise + response * template[:, np.newaxis, :] + baseline[:, np.newaxis, np.newaxis]
@@ -798,13 +794,13 @@ class Pulse:
             else:
                 # get noise traces
                 noise = self.noise.generate_noise(noise_type="a", n_traces=10000)
-                # normalize the template for response = amplitude
+                # normalize the template for response = dissipation
                 template = self.template[1] / np.abs(self.template[1].min())
                 data = noise + response * template + baseline[1]
                 # compute the responses
-                method = "amplitude_filter" if calculation_type == "amplitude_filter_mc" else "amplitude_fit"
+                method = "dissipation_filter" if calculation_type == "dissipation_filter_mc" else "dissipation_fit"
                 responses, _ = self.compute_responses(calculation_type=method, data=data)
-            if calculation_type in ["optimal_filter_mc", "phase_filter_mc", "amplitude_filter_mc"]:
+            if calculation_type in ["optimal_filter_mc", "phase_filter_mc", "dissipation_filter_mc"]:
                 responses = self.loop.energy_calibration(responses)  # responses are already in energy for fit types
             # compute the result
             if mode == 'variance':
@@ -834,25 +830,25 @@ class Pulse:
                 The calculation type used to compute the responses. Valid
                 options are listed below. The default is "optimal_filter".
                 "optimal_filter":
-                    Use a filter constructed with the phase/amplitude template
+                    Use a filter constructed with the phase/dissipation template
                     and noise.
                 "phase_filter":
                     Use a filter constructed with the phase template and noise.
-                "amplitude_filter":
-                    Use a filter constructed with the amplitude template and
+                "dissipation_filter":
+                    Use a filter constructed with the dissipation template and
                     noise.
                 "optimal_fit":
-                    Fit the data with a combined phase/amplitude template and
+                    Fit the data with a combined phase/dissipation template and
                     noise.
                 "phase_fit":
                     Fit the data with the phase template and noise.
-                "amplitude_fit":
-                    Fit the data with the amplitude template and noise.
+                "dissipation_fit":
+                    Fit the data with the dissipation template and noise.
                 "orthogonal_filter":
                     Work in progress
                 "phase_orthogonal_filter":
                     Work in progress
-                "amplitude_orthogonal_filter":
+                "dissipation_orthogonal_filter":
                     Work in progress
             data: numpy.ndarray (optional)
                 A numpy array for which to compute responses. The data must
@@ -874,31 +870,31 @@ class Pulse:
                 The response arrival time index for each trace.
         """
         save_values = data is None
-        if calculation_type in ["optimal_filter", "phase_filter", "amplitude_filter"]:
+        if calculation_type in ["optimal_filter", "phase_filter", "dissipation_filter"]:
             if data is None:
                 if calculation_type == "optimal_filter":
                     if mask_only:
-                        data = np.array([self.p_trace[self.mask, :], self.a_trace[self.mask, :]])
+                        data = np.array([self.p_trace[self.mask, :], self.d_trace[self.mask, :]])
                     else:
-                        data = np.array([self.p_trace, self.a_trace])
+                        data = np.array([self.p_trace, self.d_trace])
                 elif calculation_type == "phase_filter":
                     data = self.p_trace if not mask_only else self.p_trace[self.mask, :]
                 else:
-                    data = self.a_trace if not mask_only else self.a_trace[self.mask, :]
+                    data = self.d_trace if not mask_only else self.d_trace[self.mask, :]
             filtered_data = self.apply_filter(data, filter_type=calculation_type, filter_=filter_)
             responses = filtered_data.max(axis=1)
             peak_indices = np.argmax(filtered_data, axis=1)
-        elif calculation_type in ["optimal_fit", "phase_fit", "amplitude_fit"]:
+        elif calculation_type in ["optimal_fit", "phase_fit", "dissipation_fit"]:
             if data is None:
                 if calculation_type == "optimal_fit":
                     if mask_only:
-                        data = np.array([self.p_trace[self.mask, :], self.a_trace[self.mask, :]])
+                        data = np.array([self.p_trace[self.mask, :], self.d_trace[self.mask, :]])
                     else:
-                        data = np.array([self.p_trace, self.a_trace])
+                        data = np.array([self.p_trace, self.d_trace])
                 elif calculation_type == "phase_fit":
                     data = self.p_trace if not mask_only else self.p_trace[self.mask, :]
                 else:
-                    data = self.a_trace if not mask_only else self.a_trace[self.mask, :]
+                    data = self.d_trace if not mask_only else self.d_trace[self.mask, :]
             results = self.fit_traces(data, fit_type=calculation_type)
             responses = np.array([r.params["energy"].value if r.errorbars and r.success else np.nan for r in results])
             peak_indices = np.array([r.params["index"].value if r.errorbars and r.success else np.nan for r in results])
@@ -906,7 +902,7 @@ class Pulse:
             raise NotImplementedError
         elif calculation_type == "phase_orthogonal_filter":
             raise NotImplementedError
-        elif calculation_type == "amplitude_orthogonal_filter":
+        elif calculation_type == "dissipation_orthogonal_filter":
             raise NotImplementedError
         else:
             raise ValueError("'{}' is not a valid calculation_type".format(calculation_type))
@@ -927,24 +923,24 @@ class Pulse:
     def apply_filter(self, data, filter_type="optimal_filter", filter_=None):
         """
         Method for convolving the filters with the data. For the 2D filter the
-        first axis must be for the phase and amplitude. The filter is applied
+        first axis must be for the phase and dissipation. The filter is applied
         to the last axis.
         Args:
             data: numpy.ndarray
-                Pulse data to filter. For filtering both phase and amplitude
+                Pulse data to filter. For filtering both phase and dissipation
                 the shape must be either 2 x n_traces x n_points or
-                2 x n_points. For filtering just one of the phase or amplitude
-                the shape must be n_points or n_traces x n_points.
+                2 x n_points. For filtering just one of the phase or
+                dissipation the shape must be n_points or n_traces x n_points.
             filter_type: string (optional)
                 The type of filter to use. Valid options are listed below. The
                 default is "optimal_filter".
                 "optimal_filter":
-                    Use a filter constructed with the phase/amplitude template
+                    Use a filter constructed with the phase/dissipation template
                     and noise.
                 "phase_filter":
                     Use a filter constructed with the phase template and noise.
-                "amplitude_filter":
-                    Use a filter constructed with the amplitude template and
+                "dissipation_filter":
+                    Use a filter constructed with the dissipation template and
                     noise.
             filter_: numpy.ndarray (optional)
                 An optional filter can be specified to use instead of the
@@ -965,7 +961,7 @@ class Pulse:
             if filter_ is None:
                 filter_ = self.p_filter
             result = fftconvolve(np.atleast_2d(data), np.atleast_2d(filter_), **kwargs)
-        elif filter_type == "amplitude_filter":
+        elif filter_type == "dissipation_filter":
             if filter_ is None:
                 filter_ = self.a_filter
             result = fftconvolve(np.atleast_2d(data), np.atleast_2d(filter_), **kwargs)
@@ -978,20 +974,20 @@ class Pulse:
         Method for fitting the data to the template pulse model.
         Args:
             data: numpy.ndarray
-                Pulse data to fit. For fitting both phase and amplitude the
+                Pulse data to fit. For fitting both phase and dissipation the
                 shape must be either 2 x n_traces x n_points or 2 x n_points.
-                For fitting just one of the phase or amplitude the shape must
+                For fitting just one of the phase or dissipation the shape must
                 be n_points or n_traces x n_points.
             fit_type: string
                 The type of fit to perform. Valid options are listed below. The
                 default is "optimal_fit".
                 "optimal_fit":
-                    Fit the data with a combined phase/amplitude template and
+                    Fit the data with a combined phase/dissipation template and
                     noise.
                 "phase_fit":
                     Fit the data with the phase template and noise.
-                "amplitude_fit":
-                    Fit the data with the amplitude template and noise.
+                "dissipation_fit":
+                    Fit the data with the dissipation template and noise.
         Returns:
             results: numpy.ndarray
                 A numpy array of lmfit.ModelResults containing the fit results.
@@ -1009,8 +1005,8 @@ class Pulse:
             def template_fft(energy):
                 return self.loop.template_fft(energy).T[..., np.newaxis]  # n_frequencies x 2 x 1
             # assemble noise matrix
-            s = np.array([[self.noise.pp_psd, self.noise.pa_psd],
-                          [np.conj(self.noise.pa_psd), self.noise.aa_psd]], dtype=np.complex)
+            s = np.array([[self.noise.pp_psd, self.noise.pd_psd],
+                          [np.conj(self.noise.pd_psd), self.noise.dd_psd]], dtype=np.complex)
             s = s.transpose((2, 0, 1))  # n_frequencies x 2 x 2
             s_inv = np.linalg.inv(s)
             # coerce data into the right shape
@@ -1021,7 +1017,7 @@ class Pulse:
 
             # define the calibration
             def calibration(energy):
-                return np.array([[self.loop.phase_calibration(energy)], [self.loop.amplitude_calibration(energy)]])
+                return np.array([[self.loop.phase_calibration(energy)], [self.loop.dissipation_calibration(energy)]])
         elif fit_type == "phase_fit":
             # get the template
             def template_fft(energy):
@@ -1033,17 +1029,17 @@ class Pulse:
             data_fft = np.atleast_2d(data_fft)[..., np.newaxis, np.newaxis]  # n_traces x n_frequencies x 1 x 1
             # define the calibration
             calibration = self.loop.phase_calibration
-        elif fit_type == "amplitude_fit":
+        elif fit_type == "dissipation_fit":
             # get the template
             def template_fft(energy):
                 return self.loop.template_fft(energy)[1, ..., np.newaxis, np.newaxis]  # n_frequencies x 1 x 1
             # get noise
-            s = self.noise.aa_psd[..., np.newaxis, np.newaxis]  # n_frequencies x 1 x 1
+            s = self.noise.dd_psd[..., np.newaxis, np.newaxis]  # n_frequencies x 1 x 1
             s_inv = np.linalg.inv(s)
             # coerce data into the right shape
             data_fft = np.atleast_2d(data_fft)[..., np.newaxis, np.newaxis]  # n_traces x n_frequencies x 1 x 1
             # define the calibration
-            calibration = self.loop.amplitude_calibration
+            calibration = self.loop.dissipation_calibration
         else:
             raise ValueError("'{}' is not a valid fit_type".format(fit_type))
         # fit results
@@ -1060,12 +1056,12 @@ class Pulse:
             smoothing: boolean
                 Use smoothing splines to calculate the minimum of the
                 derivative after the peak. The pulse.noise must exist
-                and the phase and amplitude traces must have been
+                and the phase and dissipation traces must have been
                 computed.
         """
         n_samples = self.p_trace.shape[1]
         peak_offset = 10
-        data = np.array([self.p_trace, self.a_trace])
+        data = np.array([self.p_trace, self.d_trace])
         # subtract off the half the average prepulse mean for the data set (half because summing components later)
         peak_index = stats.mode(self.peak_indices).mode.item()
         data -= data[:, :, :peak_index - 2 * peak_offset].sum(axis=0).mean() / 2  # be extra lenient with peak offset
@@ -1089,7 +1085,7 @@ class Pulse:
 
         # determine the minimum slope after the pulse peak
         self._postpulse_min_slope = np.zeros(self.peak_indices.shape)
-        sigma = np.std(np.array([self.noise.p_trace, self.noise.a_trace]).sum(axis=0), ddof=1) if smoothing else None
+        sigma = np.std(np.array([self.noise.p_trace, self.noise.d_trace]).sum(axis=0), ddof=1) if smoothing else None
         for index, peak in enumerate(self.peak_indices):
             if peak + 2 * peak_offset > n_samples - 1:
                 self._postpulse_min_slope[index] = -np.inf
@@ -1105,7 +1101,7 @@ class Pulse:
                 self._postpulse_min_slope[index] = np.min(np.diff(postpulse)) * self.sample_rate * 1e6
 
         # determine the integrated area of the response
-        response = data.sum(axis=0)  # add phase and amplitude components for the response
+        response = data.sum(axis=0)  # add phase and dissipation components for the response
         self._integral = (response - np.median(response, axis=-1, keepdims=True)).sum(axis=-1)
 
     def mask_peak_indices(self, minimum, maximum):
@@ -1200,7 +1196,7 @@ class Pulse:
                 Optional arguments to scipy.stats.gaussian_kde
         """
         self.clear_spectrum()
-        # compute an estimate of the distribution function for the amplitude data
+        # compute an estimate of the distribution function for the dissipation data
         if use_calibration:
             calibration = self.loop.energy_calibration
             energies = calibration(self.responses[self.mask]) if use_mask else calibration(self.responses)
@@ -1299,7 +1295,7 @@ class Pulse:
 
         # loop through triggers and shift the peaks
         for index in range(len(data[0, :, 0])):
-            # pull out phase and amplitude
+            # pull out phase and dissipation
             phase_trace = self._traces[0, index, :]
             amp_trace = self._traces[1, index, :]
             # find the peak index of filtered phase data
@@ -1379,7 +1375,7 @@ class Pulse:
 
         ax2 = plt.subplot2grid((2, 2), (0, 1), rowspan=2)
         ax2.plot(time, self.template[1], 'b-', linewidth=2, label='template data')
-        ax2.set_ylabel('amplitude')
+        ax2.set_ylabel('dissipation')
         ax2.set_xlabel(r'time [$\mu$s]')
         figure.tight_layout()
 
@@ -1457,16 +1453,16 @@ class Pulse:
         if result_dict is not None and len(axes_list) > 1:
             try:
                 p_trace = self.p_trace[mask, :] * 180 / np.pi
-                a_trace = self.a_trace[mask, :]
+                d_trace = self.d_trace[mask, :]
                 axes_list[1].set_ylabel("phase [degrees]")
-                axes_list[2].set_ylabel("amplitude [radians]")
+                axes_list[2].set_ylabel("dissipation [radians]")
             except AttributeError:
                 p_trace = self.i_trace[mask, :]
-                a_trace = self.q_trace[mask, :]
+                d_trace = self.q_trace[mask, :]
                 axes_list[1].set_ylabel("I [V]")
                 axes_list[2].set_ylabel("Q [V]")
             phase, = axes_list[1].plot(time, p_trace[0, :])
-            amp, = axes_list[2].plot(time, a_trace[0, :])
+            amp, = axes_list[2].plot(time, d_trace[0, :])
             axes_list[2].set_xlabel(r"time [$\mu s$]")
 
         figure.tight_layout()
@@ -1504,7 +1500,7 @@ class Pulse:
                 loop.set_xdata(traces[i, :].real)
                 loop.set_ydata(traces[i, :].imag)
                 phase.set_ydata(p_trace[i, :])
-                amp.set_ydata(a_trace[i, :])
+                amp.set_ydata(d_trace[i, :])
 
                 axes_list[1].relim()
                 axes_list[1].autoscale()

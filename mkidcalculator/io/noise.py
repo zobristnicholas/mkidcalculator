@@ -4,7 +4,7 @@ import numpy as np
 from scipy.signal import welch, csd
 
 from mkidcalculator.io.data import AnalogReadoutNoise
-from mkidcalculator.io.utils import (compute_phase_and_amplitude, offload_data, _loaded_npz_files, dump, load,
+from mkidcalculator.io.utils import (compute_phase_and_dissipation, offload_data, _loaded_npz_files, dump, load,
                                      setup_axes, finalize_axes)
 
 log = logging.getLogger(__name__)
@@ -15,19 +15,19 @@ class Noise:
     """A class for manipulating the noise data."""
     def __init__(self):
         self._data = AnalogReadoutNoise()  # dummy class replaced by from_file()
-        # loop reference for computing phase and amplitude
+        # loop reference for computing phase and dissipation
         self._loop = None
-        # phase and amplitude data
+        # phase and dissipation data
         self._p_trace = None
-        self._a_trace = None
+        self._d_trace = None
         # noise data
         self._f_psd = None
         self._ii_psd = None
         self._qq_psd = None
         self._iq_psd = None
         self._pp_psd = None
-        self._aa_psd = None
-        self._pa_psd = None
+        self._dd_psd = None
+        self._pd_psd = None
         self._n_samples = None  # for generate_noise()
         # for holding large data
         self._npz = None
@@ -35,7 +35,7 @@ class Noise:
         log.debug("Noise object created. ID: {}".format(id(self)))
 
     def __getstate__(self):
-        return offload_data(self, excluded_keys=("_a_trace", "_p_trace"), prefix="noise_data_")
+        return offload_data(self, excluded_keys=("_d_trace", "_p_trace"), prefix="noise_data_")
 
     @property
     def f_bias(self):
@@ -71,7 +71,7 @@ class Noise:
     def loop(self):
         """
         A settable property that contains the Loop object required for doing
-        noise calculations like computing the phase and amplitude traces. If
+        noise calculations like computing the phase and dissipation traces. If
         the loop has not been set, it will raise an AttributeError. When the
         loop is set, all information created from the previous loop is deleted.
         """
@@ -91,7 +91,7 @@ class Noise:
         A settable property that contains the phase trace information. Since it
         is derived from the i_trace and q_trace, it will raise an
         AttributeError if it is accessed before
-        noise.compute_phase_and_amplitude() is run.
+        noise.compute_phase_and_dissipation() is run.
         """
         if self._p_trace is None:
             raise AttributeError("The phase information has not been computed yet.")
@@ -105,23 +105,23 @@ class Noise:
         self._p_trace = phase_trace
 
     @property
-    def a_trace(self):
+    def d_trace(self):
         """
-        A settable property that contains the amplitude trace information.
+        A settable property that contains the dissipation trace information.
         Since it is derived from the i_trace and q_trace, it will raise an
         AttributeError if it is accessed before
-        noise.compute_phase_and_amplitude() is run.
+        noise.compute_phase_and_dissipation() is run.
         """
-        if self._a_trace is None:
-            raise AttributeError("The amplitude information has not been computed yet.")
-        if isinstance(self._a_trace, str):
-            return _loaded_npz_files[self._npz][self._a_trace]
+        if self._d_trace is None:
+            raise AttributeError("The dissipation information has not been computed yet.")
+        if isinstance(self._d_trace, str):
+            return _loaded_npz_files[self._npz][self._d_trace]
         else:
-            return self._a_trace
+            return self._d_trace
 
-    @a_trace.setter
-    def a_trace(self, amplitude_trace):
-        self._a_trace = amplitude_trace
+    @d_trace.setter
+    def d_trace(self, dissipation_trace):
+        self._d_trace = dissipation_trace
 
     @property
     def f_psd(self):
@@ -189,10 +189,10 @@ class Noise:
         A settable property that contains the PP noise information.
         Since it is derived from the i_trace and q_trace and the loop, it will
         raise an AttributeError if it is accessed before
-        noise.compute_phase_and_amplitude() and noise.compute_psd() are run.
+        noise.compute_phase_and_dissipation() and noise.compute_psd() are run.
         """
         if self._pp_psd is None:
-            raise AttributeError("The phase and amplitude noise has not been computed yet.")
+            raise AttributeError("The phase and dissipation noise has not been computed yet.")
         return self._pp_psd
 
     @pp_psd.setter
@@ -200,55 +200,55 @@ class Noise:
         self._pp_psd = pp_psd
 
     @property
-    def aa_psd(self):
+    def dd_psd(self):
         """
-        A settable property that contains the AA noise information.
+        A settable property that contains the DD noise information.
         Since it is derived from the i_trace and q_trace and the loop, it will
         raise an AttributeError if it is accessed before
-        noise.compute_phase_and_amplitude() and noise.compute_psd() are run.
+        noise.compute_phase_and_dissipation() and noise.compute_psd() are run.
         """
-        if self._aa_psd is None:
-            raise AttributeError("The phase and amplitude noise has not been computed yet.")
-        return self._aa_psd
+        if self._dd_psd is None:
+            raise AttributeError("The phase and dissipation noise has not been computed yet.")
+        return self._dd_psd
 
-    @aa_psd.setter
-    def aa_psd(self, aa_psd):
-        self._aa_psd = aa_psd
+    @dd_psd.setter
+    def dd_psd(self, dd_psd):
+        self._dd_psd = dd_psd
 
     @property
-    def pa_psd(self):
+    def pd_psd(self):
         """
-        A settable property that contains the PA noise information.
+        A settable property that contains the PD noise information.
         Since it is derived from the i_trace and q_trace and the loop, it will
         raise an AttributeError if it is accessed before
-        noise.compute_phase_and_amplitude() and noise.compute_psd() are run.
+        noise.compute_phase_and_dissipation() and noise.compute_psd() are run.
         """
-        if self._pa_psd is None:
-            raise AttributeError("The phase and amplitude noise has not been computed yet.")
-        return self._pa_psd
+        if self._pd_psd is None:
+            raise AttributeError("The phase and dissipation noise has not been computed yet.")
+        return self._pd_psd
 
-    @pa_psd.setter
-    def pa_psd(self, pa_psd):
-        self._pa_psd = pa_psd
+    @pd_psd.setter
+    def pd_psd(self, pd_psd):
+        self._pd_psd = pd_psd
 
     def clear_loop_data(self):
         """Remove all data calculated from the noise.loop attribute."""
         self.clear_traces()
-        self.aa_psd = None
+        self.dd_psd = None
         self.pp_psd = None
-        self.pa_psd = None
+        self.pd_psd = None
 
     def clear_traces(self):
         """
         Remove all trace data calculated from noise.i_trace and noise.q_trace.
         """
-        self.a_trace = None
+        self.d_trace = None
         self.p_trace = None
         self._npz = None
 
     def free_memory(self, directory=None):
         """
-        Offloads a_traces and p_traces to an npz file if they haven't been
+        Offloads d_traces and p_traces to an npz file if they haven't been
         offloaded already and removes any npz file objects from memory, keeping
         just the file name. It doesn't do anything if they don't exist.
         Args:
@@ -259,7 +259,7 @@ class Noise:
         """
         if directory is not None:
             self._set_directory(directory)
-        offload_data(self, excluded_keys=("_a_trace", "_p_trace"), prefix="noise_data_")
+        offload_data(self, excluded_keys=("_d_trace", "_p_trace"), prefix="noise_data_")
         if isinstance(self._npz, str):  # there might not be an npz file yet
             _loaded_npz_files.free_memory(self._npz)
         try:
@@ -306,10 +306,10 @@ class Noise:
         noise._data = data(noise_file_name, **kwargs)
         return noise
 
-    def compute_phase_and_amplitude(self, label="best", fit_type="lmfit", fr="fr", unwrap=False):
+    def compute_phase_and_dissipation(self, label="best", fit_type="lmfit", **kwargs):
         """
-        Compute the phase and amplitude traces stored in noise.p_trace and
-        noise.a_trace.
+        Compute the phase and dissipation traces stored in noise.p_trace and
+        noise.d_trace.
         Args:
             label: string
                 Corresponds to the label in the loop.lmfit_results or
@@ -321,16 +321,11 @@ class Noise:
                 The type of fit to use. Allowed options are "lmfit", "emcee",
                 and "emcee_mle" where MLE estimates are used instead of the
                 medians. The default is "lmfit".
-            fr: string
-                The parameter name that corresponds to the resonance frequency.
-                The default is "fr" which gives the resonance frequency for the
-                mkidcalculator.S21 model. This parameter determines the zero
-                point for the traces.
-            unwrap: boolean
-                Determines whether or not to unwrap the phase data. The default
-                is False.
+            kwargs: optional keyword arguments
+                Optional keyword arguments to send to
+                model.phase_and_dissipation().
         """
-        compute_phase_and_amplitude(self, label=label, fit_type=fit_type, fr=fr, unwrap=unwrap)
+        compute_phase_and_dissipation(self, label=label, fit_type=fit_type, **kwargs)
 
     def compute_psd(self, **kwargs):
         """
@@ -361,24 +356,24 @@ class Noise:
         # record n_samples for generate_noise()
         self._n_samples = noise_kwargs['nperseg']
         try:
-            # compute phase and amplitude noise in rad^2 / Hz
+            # compute phase and dissipation noise in rad^2 / Hz
             _, pp_psd = welch(self.p_trace, **noise_kwargs)
-            _, aa_psd = welch(self.a_trace, **noise_kwargs)
-            _, pa_psd = csd(self.a_trace, self.p_trace, **noise_kwargs)
+            _, dd_psd = welch(self.d_trace, **noise_kwargs)
+            _, pd_psd = csd(self.d_trace, self.p_trace, **noise_kwargs)
             # average multiple PSDs together
             self.pp_psd = np.mean(pp_psd, axis=0)
-            self.aa_psd = np.mean(aa_psd, axis=0)
-            self.pa_psd = np.mean(pa_psd, axis=0)
+            self.dd_psd = np.mean(dd_psd, axis=0)
+            self.pd_psd = np.mean(pd_psd, axis=0)
         except AttributeError:
             pass
 
-    def generate_noise(self, noise_type="pa", n_traces=10000, psd=None):
+    def generate_noise(self, noise_type="pd", n_traces=10000, psd=None):
         """
         Generate fake noise traces from the computed PSDs.
         Args:
             noise_type: string
-                The type of noise to generate. Valid options are "pa", "p",
-                "a", "iq", "i", "q", which correspond to phase, amplitude, I,
+                The type of noise to generate. Valid options are "pd", "p",
+                "d", "iq", "i", "q", which correspond to phase, dissipation, I,
                 and Q.
             n_traces: integer
                 The number of noise traces to make.
@@ -388,14 +383,14 @@ class Noise:
                 set to None.
         Returns:
             noise: np.ndarray
-                If noise_type == "pa" (or "iq"), a 2 x n_traces x N array of
+                If noise_type == "pd" (or "iq"), a 2 x n_traces x N array of
                 noise is made where the first dimension is phase then
-                amplitude or (I then Q).
-                If noise_type == "p" or "a" or "i" or "q" a n_traces x N array
+                dissipation or (I then Q).
+                If noise_type == "p" or "d" or "i" or "q" a n_traces x N array
                 of noise is made.
         """
         # check parameters
-        noise_types = ["pa", "p", "a", "iq", "i", "q"]
+        noise_types = ["pd", "p", "d", "iq", "i", "q"]
         if noise_type not in noise_types:
             raise ValueError("'noise_type' is not in {}".format(noise_types))
         # get constants
@@ -406,10 +401,10 @@ class Noise:
                 n_frequencies = psd_00.size
             else:
                 n_frequencies = psd_11.size
-        elif noise_type in ["pa", "p", "a"]:
+        elif noise_type in ["pd", "p", "d"]:
             psd_00 = self.pp_psd
-            psd_01 = self.pa_psd
-            psd_11 = self.aa_psd
+            psd_01 = self.pd_psd
+            psd_11 = self.dd_psd
             n_frequencies = self.f_psd.size
         else:
             psd_00 = self.ii_psd
@@ -417,7 +412,7 @@ class Noise:
             psd_11 = self.qq_psd
             n_frequencies = self.f_psd.size
 
-        if noise_type in ["pa", "iq"]:
+        if noise_type in ["pd", "iq"]:
             # compute square root of covariance
             c = np.array([[psd_00, psd_01],  # 2 x 2 x n_frequencies
                           [np.conj(psd_01), psd_11]])
@@ -427,7 +422,7 @@ class Noise:
                           [np.zeros(s[:, 0].shape), s[:, 1]]])
             s = np.moveaxis(s, -1, 0)
             a = u @ np.sqrt(self._n_samples * s / (2 * dt)) @ vh  # divide by 2 for single sided noise
-            # get unit amplitude random phase noise in both quadratures
+            # get unit dissipation random phase noise in both quadratures
             phase_phi = 2 * np.pi * np.random.rand(n_traces, n_frequencies)
             phase_fft = np.exp(1j * phase_phi)
             amp_phi = 2 * np.pi * np.random.rand(n_traces, n_frequencies)
@@ -442,7 +437,7 @@ class Noise:
             # compute square root of covariance
             psd = psd_00 if noise_type in ["p", "i"] else psd_11
             a = np.sqrt(self._n_samples * psd / (2 * dt))
-            # get unit amplitude random phase noise
+            # get unit dissipation random phase noise
             noise_phi = 2 * np.pi * np.random.rand(n_traces, n_frequencies)
             noise_fft = np.exp(1j * noise_phi)  # n_traces x n_frequencies
             # rescale the noise to the covariance
@@ -456,7 +451,7 @@ class Noise:
         Plot the power spectral density of the trace data.
         Args:
             noise_type: string
-                Either "iq" or "pa" for I and Q data or phase and amplitude
+                Either "iq" or "pd" for I and Q data or phase and dissipation
                 data.
             x_label: string
                 The label for the x axis. The default is None which uses the
@@ -499,16 +494,16 @@ class Noise:
             axes: matplotlib.axes.Axes class
                 An Axes class with the plotted noise.
         """
-        if noise_type.lower() not in ["iq", "pa"]:
-            raise ValueError("Noise type must be one of 'iq' or 'pa'.")
+        if noise_type.lower() not in ["iq", "pd"]:
+            raise ValueError("Noise type must be one of 'iq' or 'pd'.")
         iq = (noise_type.lower() == "iq")
         _, axes = setup_axes(axes, x_label, y_label, label_kwargs, 'frequency  [Hz]',
                              'PSD [V² / Hz]' if iq else 'PSD [dBc / Hz]')
         psd11 = self.ii_psd if iq else 10 * np.log10(self.pp_psd)
-        psd22 = self.qq_psd if iq else 10 * np.log10(self.aa_psd)
+        psd22 = self.qq_psd if iq else 10 * np.log10(self.dd_psd)
 
         axes.step(self.f_psd[1:-1], psd11[1:-1], where='mid', label="I" if iq else "phase", color="C0")
-        axes.step(self.f_psd[1:-1], psd22[1:-1], where='mid', label="Q" if iq else "amplitude", color="C1")
+        axes.step(self.f_psd[1:-1], psd22[1:-1], where='mid', label="Q" if iq else "dissipation", color="C1")
 
         axes.set_xlim(self.f_psd[1:-1].min(), self.f_psd[1:-1].max())
         axes.set_xscale('log')

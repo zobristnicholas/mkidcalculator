@@ -46,11 +46,11 @@ class Loop:
         self._response_energies = None
         # energy calibrations
         self.phase_calibration = None
-        self.amplitude_calibration = None
+        self.dissipation_calibration = None
         self._phase_avg = None
         self._phase_energies = None
-        self._amplitude_avg = None
-        self._amplitude_energies = None
+        self._dissipation_avg = None
+        self._dissipation_energies = None
         # template calibration
         self.template_fft = None
         self._template_size = None
@@ -627,7 +627,7 @@ class Loop:
         """
         _, energies, indices, _ = self._calibration_points(pulse_indices=pulse_indices, fix_zero=fix_zero)
         assert len(energies) >= 2, "There must be at least 2 pulse data sets with unique, known, single energy lines."
-        # compute phase and amplitude responses
+        # compute phase and dissipation responses
         phase = []
         for pulse in itemgetter(*indices)(self.pulses):
             data = pulse.p_trace[pulse.mask] if use_mask else pulse.p_trace
@@ -640,10 +640,10 @@ class Loop:
 
         self.phase_calibration = make_interp_spline(energies, phase, k=k, bc_type=bc_type)
 
-    def compute_amplitude_calibration(self, pulse_indices=None, use_mask=True, fix_zero=True, k=2,
-                                      bc_type='not-a-knot'):
+    def compute_dissipation_calibration(self, pulse_indices=None, use_mask=True, fix_zero=True, k=2,
+                                        bc_type='not-a-knot'):
         """
-        Compute the energy to amplitude calibration from data in the pulse
+        Compute the energy to dissipation calibration from data in the pulse
         objects. There must be at least two distinct single energy pulses.
         Args:
             pulse_indices: iterable of integers
@@ -664,21 +664,21 @@ class Loop:
         """
         _, energies, indices, _ = self._calibration_points(pulse_indices=pulse_indices, fix_zero=fix_zero)
         assert len(energies) >= 2, "There must be at least 2 pulse data sets with unique, known, single energy lines."
-        # compute phase and amplitude responses
-        amplitude = []
+        # compute phase and dissipation responses
+        dissipation = []
         for pulse in itemgetter(*indices)(self.pulses):
-            data = pulse.a_trace[pulse.mask] if use_mask else pulse.a_trace
-            amplitude.append(np.median(pulse.compute_responses("amplitude_filter", data=data)[0]))
+            data = pulse.d_trace[pulse.mask] if use_mask else pulse.d_trace
+            dissipation.append(np.median(pulse.compute_responses("dissipation_filter", data=data)[0]))
         # sort them by increasing energy
-        amplitude, energies = sort_and_fix(amplitude, energies, fix_zero)
+        dissipation, energies = sort_and_fix(dissipation, energies, fix_zero)
         # store for future plotting
-        self._amplitude_avg = amplitude
-        self._amplitude_energies = energies
+        self._dissipation_avg = dissipation
+        self._dissipation_energies = energies
 
-        self.amplitude_calibration = make_interp_spline(energies, amplitude, k=k, bc_type=bc_type)
+        self.dissipation_calibration = make_interp_spline(energies, dissipation, k=k, bc_type=bc_type)
 
     def compute_template_calibration(self, pulse_indices=None, k=1, bc_type='not-a-knot', average_phase=False,
-                                     average_amplitude=False):
+                                     average_dissipation=False):
         """
         Compute the energy to template calibration from data in the pulse
         objects. Each component of the template is normalized to unit height,
@@ -697,8 +697,8 @@ class Loop:
             average_phase: boolean
                 Average all of the phase templates together to use as the
                 template for all energies. The default is False.
-            average_amplitude: boolean
-                Average all of the amplitude templates together to use as the
+            average_dissipation: boolean
+                Average all of the dissipation templates together to use as the
                 template for all energies. The default is False.
         """
         # find energies and order
@@ -710,7 +710,7 @@ class Loop:
         templates /= np.abs(np.min(templates, axis=-1, keepdims=True))  # normalize to unit height on both signals
         if average_phase:
             templates[:, 0, :] = templates[:, 0, :].mean(axis=0, keepdims=True)
-        if average_amplitude:
+        if average_dissipation:
             templates[:, 1, :] = templates[:, 1, :].mean(axis=0, keepdims=True)
         templates_fft = np.fft.rfft(templates, axis=-1)  # energies x 2 x frequencies
 
@@ -726,7 +726,7 @@ class Loop:
                 The energy at which to evaluate the template
         Returns:
             template: numpy.ndarray
-                A 2 x N array that represents the phase and amplitude template.
+                A 2 x N array that represents the phase and dissipation template.
         """
         if self.template_fft is None:
             raise AttributeError("The loop template has not been calculated yet.")
@@ -1637,7 +1637,7 @@ class Loop:
         finalize_axes(axes, legend=True, tighten=True)
         return axes
 
-    def plot_amplitude_calibration(self, axes=None):
+    def plot_dissipation_calibration(self, axes=None):
         """
         Plot the phase calibration.
         Args:
@@ -1648,10 +1648,10 @@ class Loop:
             axes: matplotlib.axes.Axes class
                 An Axes class with the plotted calibration.
         """
-        figure, axes = setup_axes(axes, 'energy [eV]', 'amplitude [radians]')
-        xx = np.linspace(np.min(self._amplitude_energies) * 0.8, np.max(self._amplitude_energies) * 1.2, 1000)
-        axes.plot(xx, self.amplitude_calibration(xx), label='calibration')
-        axes.plot(self._amplitude_energies, self._amplitude_avg, 'o', label='true')
+        figure, axes = setup_axes(axes, 'energy [eV]', 'dissipation [radians]')
+        xx = np.linspace(np.min(self._dissipation_energies) * 0.8, np.max(self._dissipation_energies) * 1.2, 1000)
+        axes.plot(xx, self.dissipation_calibration(xx), label='calibration')
+        axes.plot(self._dissipation_energies, self._dissipation_avg, 'o', label='true')
         finalize_axes(axes, legend=True, tighten=True)
         return axes
 
