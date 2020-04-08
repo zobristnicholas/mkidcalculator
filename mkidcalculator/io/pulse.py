@@ -1379,7 +1379,8 @@ class Pulse:
         ax2.set_xlabel(r'time [$\mu$s]')
         figure.tight_layout()
 
-    def plot_traces(self, calibrate=False, use_mask=True, label="best", fit_type="lmfit", axes_list=None):
+    def plot_traces(self, calibrate=False, use_mask=True, use_loop_mask=True, label="best", fit_type="lmfit",
+                    axes_list=None):
         """
         Plot the trace data.
         Args:
@@ -1389,6 +1390,9 @@ class Pulse:
             use_mask: boolean (optional)
                 Use the pulse.mask to determine which traces to plot. The
                 default is True.
+            use_loop_mask: boolean (optional)
+                Use the pulse.loop.mask to determine how much of the loop to
+                plot. The default is True.
             label: string
                 The label used to store the fit. The default is "best".
             fit_type: string
@@ -1410,8 +1414,8 @@ class Pulse:
         import matplotlib.pyplot as plt
         # get the time, loop, and traces in complex form for potential calibration
         time = np.linspace(0, self.i_trace.shape[1] / self.sample_rate, self.i_trace.shape[1]) * 1e6  # in µs
-        z = self.loop.z
-        f = self.loop.f
+        z = self.loop.z[self.loop.mask] if use_loop_mask else self.loop.z
+        f = self.loop.f[self.loop.mask] if use_loop_mask else self.loop.f
         mask = self.mask if use_mask else np.ones(self.mask.size, dtype=bool)
         traces = self.i_trace[mask, :] + 1j * self.q_trace[mask, :]
         # grab the model
