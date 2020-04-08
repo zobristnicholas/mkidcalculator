@@ -10,6 +10,7 @@ from mkidcalculator.models.nonlinearity import swenson
 
 log = logging.getLogger(__name__)
 log.addHandler(logging.NullHandler())
+EPS = np.finfo(np.float).eps
 
 
 class S21:
@@ -306,9 +307,10 @@ class S21:
             # reference the angle to the (properly wrapped) z_ref angle
             phase -= np.mod(np.angle(z_ref) - wrap_angle, 2 * np.pi) - (2 * np.pi - wrap_angle)
             # compute the dissipation trace from the centered traces
-            dissipation = np.abs(z) / np.abs(z_fr) - 1
+            dissipation = np.abs(z) / np.abs(z_ref) - 1
         elif form.lower().startswith('analytic'):
             # grab parameter values
+            q0 = params['q0'].value
             qc = params['qc'].value
             qi = params['qi'].value
             df = params['df'].value
@@ -319,6 +321,7 @@ class S21:
             i = z.real
             q = z.imag
             # compute phase
+            z[np.abs(1 - z) < EPS] = 1 - EPS  # avoid zero denominator
             xr = x - (q + 2 * qc * df / f0 * (i - 1)) / (2 * qc * np.abs(1 - z)**2)
             phase = 4 * q0 / (1 + 4 * q0**2 * x**2) * xr
             if fr_reference:  # already referenced if not using resonance frequency
