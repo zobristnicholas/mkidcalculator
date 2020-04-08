@@ -16,6 +16,7 @@ from mkidcalculator.io.utils import (ev_nm_convert, lmfit, sort_and_fix, setup_a
 
 log = logging.getLogger(__name__)
 log.addHandler(logging.NullHandler())
+EPS = np.finfo(np.float).eps
 
 
 class Loop:
@@ -1750,12 +1751,19 @@ class Loop:
                                   y_label_default='probability density')
         kwargs = {"bins": 10 * int((max_energy - min_energy) / min_bandwidth), "density": True}
         if norm is True:
-            prob_norm = 0
             weight = 0
+            prob_list = []
             for p in pulses:
-                prob_norm += p.spectrum['pdf'](energies)
-            for p in pulses:
-                weight += p.spectrum["pdf"](energies) / p.spectrum["energies"].size / prob_norm
+                prob = p.spectrum['interpolation'](energies)
+                # prob = p.spectrum['pdf'](energies)
+                peak = p.spectrum['peak']
+                fwhm = p.spectrum['fwhm']
+                # interpolation can go negative outside of validity
+                prob[(energies < peak - 3 * fwhm) | (energies > peak + 3 * fwhm) | (prob <= 0)] = EPS
+                prob_list.append(prob)
+            prob_norm = np.sum(prob_list, axis=0)
+            for index, p in enumerate(pulses):
+                weight += prob_list[index] / p.spectrum["energies"].size / prob_norm
             kwargs.update({"weights": weight})
         if hist_kwargs is not None:
             kwargs.update(hist_kwargs)
@@ -1773,7 +1781,7 @@ class Loop:
             bandwidth = pulse.spectrum["bandwidth"]
             # plot the data
             n_bins = 10 * int((max_energy - min_energy) / bandwidth)
-            xx = np.linspace(min_energy, max_energy,  10 * n_bins)
+            xx = np.linspace(min_energy, max_energy, 10 * n_bins)
             if not np.isnan(pulse.resolving_power):
                 label = "{:.0f} nm: R = {:.2f}".format(ev_nm_convert(pulse.energies[0]), pulse.resolving_power)
             else:
