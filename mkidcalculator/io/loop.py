@@ -1754,8 +1754,8 @@ class Loop:
             weight = 0
             prob_list = []
             for p in pulses:
+                # use interpolation instead of pdf because it's *much* faster
                 prob = p.spectrum['interpolation'](energies)
-                # prob = p.spectrum['pdf'](energies)
                 peak = p.spectrum['peak']
                 fwhm = p.spectrum['fwhm']
                 # interpolation can go negative outside of validity
