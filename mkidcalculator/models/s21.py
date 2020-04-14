@@ -320,17 +320,17 @@ class S21:
             z = cls.calibrate(params, z, f, center=False)
             i = z.real
             q = z.imag
-            # compute phase
             z[np.abs(1 - z) < EPS] = 1 - EPS  # avoid zero denominator
-            xr = x - (q + 2 * qc * df / f0 * (i - 1)) / (2 * qc * np.abs(1 - z)**2)
-            phase = 4 * q0 / (1 + 4 * q0**2 * x**2) * xr
+            # compute phase
+            dx = (q + 2 * qc * df / f0 * (i - 1)) / (2 * qc * np.abs(1 - z)**2) - x
+            phase = -4 * q0 / (1 + 4 * q0**2 * x**2) * dx
             if fr_reference:  # already referenced if not using resonance frequency
                 f_ref = params['fr'].value
                 z_ref = cls.calibrate(params, cls.model(params, f_ref), f_ref, center=True)
                 phase -= np.angle(z_ref)
             # compute dissipation
             dqi_inv = (i - np.abs(z)**2 + 2 * qc * df / f0 * q) / (qc * np.abs(1 - z)**2) - qi**-1
-            dissipation = - 2 * q0 / (1 + 4 * q0**2 * x**2) * dqi_inv
+            dissipation = -2 * q0 / (1 + 4 * q0**2 * x**2) * dqi_inv
         else:
             raise ValueError("'form' must be one of ['geometric', 'analytic']")
         return phase, dissipation
