@@ -40,8 +40,8 @@ class Pulse:
         self._optimal_filter_var = None
         self._p_filter = None
         self._p_filter_var = None
-        self._a_filter = None
-        self._a_filter_var = None
+        self._d_filter = None
+        self._d_filter_var = None
         # detector response
         self._responses = None
         self._peak_indices = None
@@ -270,24 +270,24 @@ class Pulse:
         return self._p_filter_var
 
     @property
-    def a_filter(self):
+    def d_filter(self):
         """
         A property that contains the dissipation filter made with
         pulse.make_filters().
         """
-        if self._a_filter is None:
+        if self._d_filter is None:
             raise AttributeError("The dissipation filter for this pulse has not been calculated yet.")
-        return self._a_filter
+        return self._d_filter
 
     @property
-    def a_filter_var(self):
+    def d_filter_var(self):
         """
         A property that contains the phase filter expected variance made with
         pulse.make_filters().
         """
-        if self._a_filter_var is None:
+        if self._d_filter_var is None:
             raise AttributeError("The dissipation filter for this pulse has not been calculated yet.")
-        return self._a_filter_var
+        return self._d_filter_var
 
     @property
     def mask(self):
@@ -385,8 +385,8 @@ class Pulse:
         self._optimal_filter_var = None
         self._p_filter = None
         self._p_filter_var = None
-        self._a_filter = None
-        self._a_filter_var = None
+        self._d_filter = None
+        self._d_filter_var = None
         self.clear_responses()
         self.clear_peak_indices()
 
@@ -608,12 +608,12 @@ class Pulse:
         # compute the dissipation only optimal filter: conj(dissipation_fft) / s (single sided)
         dissipation_filter_fft = np.conj(template_fft) / self.noise.dd_psd
         dissipation_filter_fft[0] = 0  # discard zero bin for AC coupled filter
-        self._a_filter = fft.irfft(dissipation_filter_fft, n_samples)
+        self._d_filter = fft.irfft(dissipation_filter_fft, n_samples)
         # compute the variance with the un-normalized filter
-        self._a_filter_var = (sample_rate * n_samples / (4 * (dissipation_filter_fft @ template_fft).real))
+        self._d_filter_var = (sample_rate * n_samples / (4 * (dissipation_filter_fft @ template_fft).real))
         # normalize
         norm = self.apply_filter(template, filter_type="dissipation_filter").max()
-        self._a_filter /= norm
+        self._d_filter /= norm
 
     def performance(self, calculation_type="optimal_filter", mode="variance", energy=None,
                     baseline=(1, .1), distribution=False):
@@ -732,7 +732,7 @@ class Pulse:
             elif calculation_type == "phase_filter":
                 result = self.p_filter_var * self.loop.energy_calibration.derivative()(response)**2
             else:
-                result = self.a_filter_var * self.loop.energy_calibration.derivative()(response)**2
+                result = self.d_filter_var * self.loop.energy_calibration.derivative()(response)**2
             if mode == 'fwhm':
                 result = 2 * np.sqrt(2 * np.log(2) * result)
             elif mode == 'resolving_power':
@@ -963,7 +963,7 @@ class Pulse:
             result = fftconvolve(np.atleast_2d(data), np.atleast_2d(filter_), **kwargs)
         elif filter_type == "dissipation_filter":
             if filter_ is None:
-                filter_ = self.a_filter
+                filter_ = self.d_filter
             result = fftconvolve(np.atleast_2d(data), np.atleast_2d(filter_), **kwargs)
         else:
             raise ValueError("'{}' is not a valid calculation_type".format(filter_type))
