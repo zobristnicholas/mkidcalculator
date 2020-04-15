@@ -351,12 +351,14 @@ class Loop:
         Args:
             loop_file_name: string
                 The file name for the loop data.
-            noise_file_names: tuple (optional)
+            noise_file_names: tuple of strings or string (optional)
                 Tuple of file name strings for the noise data. The default is
-                to not load any noise data.
-            pulse_file_names: tuple (optional)
+                to not load any noise data. A single string can be given if
+                only one noise data set is to be loaded.
+            pulse_file_names: tuple of strings or string (optional)
                 Tuple of file name strings for the pulse data. The default is
-                to not load any pulse data.
+                to not load any pulse data. A single string can be given if
+                only one pulse data set is to be loaded.
             data: object (optional)
                 Class or function whose return value allows dictionary-like
                 queries of the attributes required by the Loop class. The
@@ -380,18 +382,20 @@ class Loop:
                 Optional channel index which gets added to all of the kwarg
                 dictionaries under the key 'channel'. When the default, None,
                 is passed, nothing is added to the dictionaries.
-            noise_kwargs: tuple (optional)
+            noise_kwargs: tuple of dictionaries or dictionary (optional)
                 Tuple of dictionaries for extra keyword arguments to send to
                 noise_data. The order and length correspond to
                 noise_file_names. The default is None, which is equivalent to
                 a tuple of {'data': AnalogReadoutNoise}. The data keyword is
-                always set to this value unless specified.
-            pulse_kwargs: tuple (optional)
+                always set to this value unless specified. If a dictionary is
+                supplied it is used for all noise.
+            pulse_kwargs: tuple of dictionaries or dictionary (optional)
                 Tuple of dictionaries for extra keyword arguments to send to
                 pulse_data. The order and length correspond to
                 pulse_file_names. The default is None, which is equivalent to
                 a tuple of {'data': AnalogReadoutPulse}. The data keyword is
-                always set to this value unless specified.
+                always set to this value unless specified. If a dictionary is
+                supplied it is used for all pulses.
             kwargs: optional keyword arguments
                 Extra keyword arguments to send to loop_data.
         Returns:
@@ -401,10 +405,18 @@ class Loop:
         # create loop
         loop = cls()
         # update dictionaries
+        if isinstance(pulse_file_names, str):
+            pulse_file_names = [pulse_file_names]
+        if isinstance(noise_file_names, str):
+            noise_file_names = [noise_file_names]
         if noise_kwargs is None:
             noise_kwargs = [{} for _ in range(len(noise_file_names))]
+        if isinstance(noise_kwargs, dict):
+            noise_kwargs = [noise_kwargs] * len(noise_file_names)
         if pulse_kwargs is None:
             pulse_kwargs = [{} for _ in range(len(pulse_file_names))]
+        if isinstance(pulse_kwargs, dict):
+            pulse_kwargs = [pulse_kwargs] * len(pulse_file_names)
         if noise_data is not None:
             for kws in noise_kwargs:
                 kws.update({'data': noise_data})
