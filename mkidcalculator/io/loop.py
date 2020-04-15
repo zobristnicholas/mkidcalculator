@@ -581,6 +581,59 @@ class Loop:
         else:
             print(string)
 
+    def process_pulses(self, pulse_indices=None, associate_noise=True, label='best', fit_type='lmfit',
+                       calculation_type='optimal_filter', smoothing=True, free_memory=True):
+        """
+        Reduce the pulse data from traces in I and Q to responses by using a
+        filter created from the trace data in each data set.
+        Args:
+            pulse_indices: iterable of integers (optional)
+                Indices of pulse objects in loop.pulses to use for the
+                processing. The default is None and all are used.
+            associate_noise: boolean (optional)
+                Associate the each pulse with its corresponding noise in
+                loop.noise. The default is True. If False, there must already
+                exist a pulse.noise for each pulse in loop.pulses.
+            label: string (optional)
+                Corresponds to the label in the loop.lmfit_results or
+                loop.emcee_results dictionaries where the fit parameters are.
+                The default is "best", which gets the parameters from the best
+                fits. The loop chosen will be used to compute the phase and
+                dissipation coordinates.
+            fit_type: string (optional)
+                The type of fit to use. Allowed options are "lmfit", "emcee",
+                and "emcee_mle" where MLE estimates are used instead of the
+                medians. The default is "lmfit".
+            calculation_type: string (optional)
+                The calculation type used to compute the responses. See
+                 pulse.compute_responses() for valid options. The default is
+                "optimal_filter".
+            smoothing: boolean (optional)
+                Smooth the data in pulse.characterize_traces().
+            free_memory: boolean or string (optional)
+                Free the memory from each pulse after computing the responses.
+                This can be helpful if using large datasets. It will offload
+                the phase and dissipation traces to files in the directory
+                supplied if free_memory is a string. See pulse.free_memory for
+                more details.
+        """
+        if pulse_indices is None:
+            pulse_indices = range(len(self.pulses))
+        for index, pulse in enumerate(itemgetter(*pulse_indices)(self.pulses)):
+            if associate_noise:
+                if pulse_indices[index] < len(self.noise):
+                    pulse.noise = self.noise[pulse_indices[index]]
+                else:
+                    raise ValueError("pulse {} does not have a noise to associate".format(pulse_indices[index]))
+            pulse.compute_phase_and_dissipation(label=label, fit_type=fit_type, noise=True, **kwargs)
+            pulse.noise.compute_psd(nperseg=pulse.p_trace.shape[1])
+            pulse.make_template()
+            pulse.make_filters()
+            pulse.compute_responses(calculation_type=calculation_type)
+            pulse.characterize_traces(smoothing=smoothing)
+            if free_memory:
+                pulse.free_memory(directory=free_memory if isinstance(free_memory, str) else None)
+
     def compute_energy_calibration(self, pulse_indices=None, use_mask=True, fix_zero=True, k=2, bc_type='not-a-knot'):
         """
         Compute the response to energy calibration from data in the pulse

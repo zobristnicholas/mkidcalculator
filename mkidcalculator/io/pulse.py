@@ -454,9 +454,8 @@ class Pulse:
             label: string
                 Corresponds to the label in the loop.lmfit_results or
                 loop.emcee_results dictionaries where the fit parameters are.
-                The resulting DataFrame is stored in
-                self.loop_parameters[label]. The default is "best", which gets
-                the parameters from the best fits.
+                The default is "best", which gets the parameters from the best
+                fits.
             fit_type: string
                 The type of fit to use. Allowed options are "lmfit", "emcee",
                 and "emcee_mle" where MLE estimates are used instead of the
