@@ -625,6 +625,7 @@ class Loop:
         """
         if pulse_indices is None:
             pulse_indices = range(len(self.pulses))
+        log.info("processing {} pulse object(s)".format(len(pulse_indices)))
         for index, pulse in enumerate([self.pulses[ii] for ii in pulse_indices]):
             if associate_noise:
                 if pulse_indices[index] < len(self.noise):
@@ -632,11 +633,15 @@ class Loop:
                 else:
                     raise ValueError("pulse {} does not have a noise to associate".format(pulse_indices[index]))
             pulse.compute_phase_and_dissipation(label=label, fit_type=fit_type, noise=True, **kwargs)
+            log.info("pulse {}: phase and dissipation computed".format(index))
             pulse.noise.compute_psd(nperseg=pulse.p_trace.shape[1])
             pulse.make_template()
             pulse.make_filters()
+            log.info("pulse {}: filters computed".format(index))
             pulse.compute_responses(calculation_type=calculation_type)
+            log.info("pulse {}: responses computed".format(index))
             pulse.characterize_traces(smoothing=smoothing)
+            log.info("pulse {}: traces characterized".format(index))
             if free_memory:
                 pulse.free_memory(directory=free_memory if isinstance(free_memory, str) else None)
 
