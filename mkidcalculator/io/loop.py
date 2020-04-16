@@ -582,7 +582,7 @@ class Loop:
             print(string)
 
     def process_pulses(self, pulse_indices=None, associate_noise=True, label='best', fit_type='lmfit',
-                       calculation_type='optimal_filter', smoothing=True, free_memory=True):
+                       calculation_type='optimal_filter', smoothing=True, free_memory=True, **kwargs):
         """
         Reduce the pulse data from traces in I and Q to responses by using a
         filter created from the trace data in each data set.
@@ -616,10 +616,16 @@ class Loop:
                 the phase and dissipation traces to files in the directory
                 supplied if free_memory is a string. See pulse.free_memory for
                 more details.
+            kwargs: optional keyword arguments
+                Keyword arguments to pass to
+                pulse.compute_phase_and_dissipation(). These are loop model
+                specific. For example, in the S21 model form='geometric' or
+                'analytic' changes the type of transformation used to compute
+                the phase and dissipation.
         """
         if pulse_indices is None:
             pulse_indices = range(len(self.pulses))
-        for index, pulse in enumerate(itemgetter(*pulse_indices)(self.pulses)):
+        for index, pulse in enumerate([self.pulses[ii] for ii in pulse_indices]):
             if associate_noise:
                 if pulse_indices[index] < len(self.noise):
                     pulse.noise = self.noise[pulse_indices[index]]
