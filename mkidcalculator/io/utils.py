@@ -182,7 +182,7 @@ def ev_nm_convert(x):
     return c.speed_of_light * c.h / c.eV * 1e9 / x
 
 
-def load_legacy_binary_data(binary_file, channel, n_points, noise=True):
+def load_legacy_binary_data(binary_file, channel, n_points, noise=True, offset=0, chunk=None):
     """
     Load data from legacy Matlab code binary files (.ns or .dat).
     Args:
@@ -195,37 +195,50 @@ def load_legacy_binary_data(binary_file, channel, n_points, noise=True):
             should have the same number of points.
         noise: boolean (optional)
             A flag specifying if the data is in the noise or pulse format.
+        offset: integer (optional)
+            Ignore this many of the first triggers in the data set. The default
+            is 0, and all triggers are used.
+        chunk: integer (optional)
+            Only load this many triggers from the data set. The default is
+            None, and all of the triggers are loaded.
     Returns:
         i_trace: numpy.ndarray
             An N x n_points numpy array with N traces.
         q_trace: numpy.ndarray
             An N x n_points numpy array with N traces.
         f: float
-            The bias frequency for the noise data.
+            The bias frequency for the data.
     """
     # get the binary data from the file
-    data = np.fromfile(binary_file, dtype=np.int16)
+    data = np.memmap(binary_file, dtype=np.int16, mode='r')
     # grab the tone frequency (not a 16 bit integer)
     if noise:
         f = np.frombuffer(data[4 * channel: 4 * (channel + 1)].tobytes(), dtype=np.float64)[0]
     else:
         f = np.frombuffer(data[4 * (channel + 2): 4 * (channel + 3)].tobytes(), dtype=np.float64)[0]
-    # remove the header from the file
+    # remove the header from the array
     data = data[4 * 12:] if noise else data[4 * 14:]
-    # convert the data to voltages * 0.2 V / (2**15 - 1)
-    data = data.astype(np.float16) * 0.2 / 32767.0
     # check that we have an integer number of triggers
     n_triggers = data.size / n_points / 4.0
-    assert n_triggers.is_integer(), "non-integer number of noise traces found found in {0}".format(binary_file)
+    if not n_triggers.is_integer():
+        raise ValueError("non-integer number of traces found in {0}".format(binary_file))
     n_triggers = int(n_triggers)
+    if chunk is None:
+        chunk = n_triggers - offset
+    if offset + chunk > n_triggers:  # don't try to return chunk triggers if there aren't that many
+        chunk = n_triggers - offset
+    if chunk <= 0:
+        raise ValueError("offset exceeds the number of traces found in {0}".format(binary_file))
     # break noise data into I and Q data
-    i_trace = np.zeros((n_triggers, n_points), dtype=np.float16)
-    q_trace = np.zeros((n_triggers, n_points), dtype=np.float16)
-    for trigger_num in range(n_triggers):
-        trace_num = 4 * trigger_num
-        i_trace[trigger_num, :] = data[(trace_num + 2 * channel) * n_points: (trace_num + 2 * channel + 1) * n_points]
+    i_trace = np.zeros((chunk, n_points), dtype=np.float16)
+    q_trace = np.zeros((chunk, n_points), dtype=np.float16)
+    convert = 0.2 / 32767.0  # convert the data to voltages * 0.2 V / (2**15 - 1)
+    for trigger_num in range(chunk):
+        trace_num = 4 * (trigger_num + offset)
+        i_trace[trigger_num, :] = data[(trace_num + 2 * channel) * n_points:
+                                       (trace_num + 2 * channel + 1) * n_points].astype(np.float16) * convert
         q_trace[trigger_num, :] = data[(trace_num + 2 * channel + 1) * n_points:
-                                       (trace_num + 2 * channel + 2) * n_points]
+                                       (trace_num + 2 * channel + 2) * n_points].astype(np.float16) * convert
     return i_trace, q_trace, f
 
 

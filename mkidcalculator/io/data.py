@@ -338,18 +338,8 @@ class LegacyABC:
 
 class LegacyLoop(LegacyABC):
     """
-    Class for handling loop data from the legacy Matlab code.
-    Args:
-        config_file: string
-            A file path to the config file for the measurement.
-        channel: integer
-            An integer specifying which channel to load. The default is None
-            which will raise an error forcing the user to directly specify the
-            channel.
-        index: tuple of integers
-            An integer specifying which temperature and attenuation index to
-            load. The default is None will raise an error forcing the user to
-            directly specify the index.
+    Class for handling loop data from the legacy Matlab code. Use legacy_loop()
+    instead.
     """
     def __init__(self, config_file, channel, index):
         super().__init__(config_file, channel, index=index)
@@ -373,24 +363,13 @@ class LegacyLoop(LegacyABC):
 
 class LegacyNoise(LegacyABC):
     """
-    Class for handling noise data from the legacy Matlab code.
-    Args:
-        config_file: string
-            A file path to the config file for the measurement.
-        channel: integer
-            An integer specifying which channel to load.
-        index: tuple of integers (optional)
-            An integer specifying which temperature and attenuation index to
-            load. An additional third index may be included in the tuple to
-            specify additional noise points. This is only needed if the data
-            is from a resonator config.
-        on_res: boolean (optional)
-            A boolean specifying if the noise is on or off resonance. This is
-            only used when the noise comes from the Sweep GUI. The default is
-            True.
+    Class for handling noise data from the legacy Matlab code. Use
+    legacy_noise() instead.
     """
-    def __init__(self, config_file, channel, index=None, on_res=True):
+    def __init__(self, config_file, channel, index=None, on_res=True, offset=0, chunk=None):
         super().__init__(config_file, channel, index=index)
+        self.offset = offset
+        self.chunk = chunk
         # figure out the file specifics
         directory = os.path.dirname(os.path.abspath(config_file))
         self._sweep_gui = os.path.basename(config_file).split("_")[0] == "sweep"
@@ -426,29 +405,21 @@ class LegacyNoise(LegacyABC):
 
     def _load_data(self):
         # % 2 for resonator data
-        i_trace, q_trace, f = load_legacy_binary_data(self._bin, self.channel % 2, self._n_points)
+        i_trace, q_trace, f = load_legacy_binary_data(self._bin, self.channel % 2, self._n_points, offset=self.offset,
+                                                      chunk=self.chunk)
         self._data.update({"i_trace": i_trace, "q_trace": q_trace, 'f_bias': f})
 
 
 class LegacyPulse(LegacyABC):
     """
-    Class for handling pulse data from the legacy Matlab code.
-    Args:
-        config_file: string
-            A file path to the config file for the measurement.
-        channel: integer
-            An integer specifying which channel to load.
-        energies: number or iterable of numbers (optional)
-            The known energies in the pulse data. The default is an empty
-            tuple.
-        wavelengths number or iterable of numbers (optional)
-            If energies is not specified, wavelengths can be specified instead
-            which are internally converted to energies. The default is an empty
-            tuple.
+    Class for handling pulse data from the legacy Matlab code. Use
+    legacy_pulse() instead.
     """
-    def __init__(self, config_file, channel, energies=(), wavelengths=()):
+    def __init__(self, config_file, channel, energies=(), wavelengths=(), offset=0, chunk=None):
         channel = channel % 2  # channels can't be > 1
         super().__init__(config_file, channel=channel)
+        self.offset = offset
+        self.chunk = chunk
         # record the photon energies
         if energies != ():
             self._data["energies"] = tuple(np.atleast_1d(energies))
@@ -472,13 +443,118 @@ class LegacyPulse(LegacyABC):
         self._data.update({"i_trace": None, "q_trace": None})  # defer loading
 
     def _load_data(self):
-        i_trace, q_trace, _ = load_legacy_binary_data(self._bin, self.channel, self._n_points, noise=False)
+        i_trace, q_trace, _ = load_legacy_binary_data(self._bin, self.channel, self._n_points, noise=False,
+                                                      offset=self.offset, chunk=self.chunk)
         self._data.update({"i_trace": i_trace, "q_trace": q_trace})
+
+
+def legacy_noise(config_file, channel, index=None, on_res=True, chunk=None):
+    """
+    Function for handling noise data from the legacy Matlab code.
+    Args:
+        config_file: string
+            A file path to the config file for the measurement.
+        channel: integer
+            An integer specifying which channel to load.
+        index: tuple of integers (optional)
+            An integer specifying which temperature and attenuation index to
+            load. An additional third index may be included in the tuple to
+            specify additional noise points. This is only needed if the data
+            is from a sweep config.
+        on_res: boolean (optional)
+            A boolean specifying if the noise is on or off resonance. This is
+            only used when the noise comes from the Sweep GUI. The default is
+            True.
+        chunk: integer (optional)
+            Chunk the data objects into a list of objects each with this many
+            traces. The last object may have less traces. The default is None
+            and only one object is returned.
+    Returns:
+        data: object or list of objects
+            A data object used in Noise.from_file(). If chunk is used, a list
+            of objects is returned.
+    """
+    if chunk is None:
+        return LegacyNoise(config_file, channel, index=index, on_res=on_res)
+    else:
+        # get the number of triggers in the binary file
+        ln = LegacyNoise(config_file, channel)
+        bin_file = np.memmap(ln._bin, dtype=np.int16, mode='r')
+        n_triggers = bin_file[4 * 12:].size / ln._n_points / 4.0
+        data = []
+        # loop over chunks
+        offset = 0
+        while offset < n_triggers:
+            data.append(LegacyNoise(config_file, channel, index=index, on_res=on_res, offset=offset, chunk=chunk))
+            offset += chunk
+        return data
+
+
+def legacy_pulse(config_file, channel, energies=(), wavelengths=(), chunk=None):
+    """
+    Function for handling pulse data from the legacy Matlab code.
+    Args:
+        config_file: string
+            A file path to the config file for the measurement.
+        channel: integer
+            An integer specifying which channel to load.
+        energies: number or iterable of numbers (optional)
+            The known energies in the pulse data. The default is an empty
+            tuple.
+        wavelengths: number or iterable of numbers (optional)
+            If energies is not specified, wavelengths can be specified instead
+            which are internally converted to energies. The default is an empty
+            tuple.
+        chunk: integer (optional)
+            Chunk the data objects into a list of objects each with this many
+            traces. The last object may have less traces. The default is None
+            and only one object is returned.
+    Returns:
+        data: object or list of objects
+            A data object used in Pulse.from_file(). If chunk is used, a list
+            of objects is returned.
+    """
+    if chunk is None:
+        return LegacyPulse(config_file, channel, energies=energies, wavelengths=wavelengths)
+    else:
+        # get the number of triggers in the binary file
+        lp = LegacyPulse(config_file, channel, energies=energies, wavelengths=wavelengths)
+        bin_file = np.memmap(lp._bin, dtype=np.int16, mode='r')
+        n_triggers = bin_file[4 * 14:].size / lp._n_points / 4.0
+        data = []
+        # loop over chunks
+        offset = 0
+        while offset < n_triggers:
+            data.append(LegacyPulse(config_file, channel, energies=energies, wavelengths=wavelengths, offset=offset,
+                                    chunk=chunk))
+            offset += chunk
+        return data
+
+
+def legacy_loop(config_file, channel, index):
+    """
+    Function for handling loop data from the legacy Matlab code.
+    Args:
+        config_file: string
+            A file path to the config file for the measurement.
+        channel: integer
+            An integer specifying which channel to load. The default is None
+            which will raise an error forcing the user to directly specify the
+            channel.
+        index: tuple of integers
+            An integer specifying which temperature and attenuation index to
+            load. The default is None will raise an error forcing the user to
+            directly specify the index.
+    Returns:
+        data: object
+            A data object used in Loop.from_file().
+    """
+    return LegacyLoop(config_file, channel, index)
 
 
 def legacy_resonator(config_file, channel=None, noise=True):
     """
-    Class for loading in legacy matlab resonator data.
+    Function for loading in legacy matlab resonator data.
     Args:
         config_file: string
             The resonator configuration file name.
@@ -502,7 +578,7 @@ def legacy_resonator(config_file, channel=None, noise=True):
     loop_kwargs = []
     for t_index, temp in enumerate(temperatures):
         for a_index, atten in enumerate(attenuations):
-            loop_kwargs.append({"loop_file_name": config_file, "index": (t_index, a_index), "data": LegacyLoop,
+            loop_kwargs.append({"loop_file_name": config_file, "index": (t_index, a_index), "data": legacy_loop,
                                 "channel": channel})
             if config['donoise'] and noise:
                 group = channel // 2 + 1
@@ -514,7 +590,7 @@ def legacy_resonator(config_file, channel=None, noise=True):
                     base_name = os.path.basename(file_name)
                     index2 = base_name.split("a")[1].split("-")[0]
                     index = (t_index, a_index, int(index2)) if index2 else (t_index, a_index)
-                    noise_kwargs.append({"index": index, "on_res": True, "data": LegacyNoise, "channel": channel})
+                    noise_kwargs.append({"index": index, "on_res": True, "data": legacy_noise, "channel": channel})
                 # off resonance file names
                 off_res_names = glob.glob(os.path.join(directory, "{:g}-{:d}b*-{:g}.ns".format(temp, group, atten)))
                 for file_name in off_res_names:
@@ -522,7 +598,7 @@ def legacy_resonator(config_file, channel=None, noise=True):
                     base_name = os.path.basename(file_name)
                     index2 = base_name.split("b")[1].split("-")[0]
                     index = (t_index, a_index, int(index2)) if index2 else (t_index, a_index)
-                    noise_kwargs.append({"index": index, "on_res": False, "data": LegacyNoise, "channel": channel})
+                    noise_kwargs.append({"index": index, "on_res": False, "data": legacy_noise, "channel": channel})
                 loop_kwargs[-1].update({"noise_file_names": [config_file] * len(on_res + off_res_names),
                                         "noise_kwargs": noise_kwargs})
                 if not noise_kwargs:
@@ -532,7 +608,7 @@ def legacy_resonator(config_file, channel=None, noise=True):
 
 def legacy_sweep(config_file, noise=True):
     """
-    Class for loading in analogreadout sweep data.
+    Function for loading in analogreadout sweep data.
     Args:
         config_file: string
             The sweep configuration file name.
