@@ -434,12 +434,20 @@ class Loop:
         # load noise
         noise = []
         for index, noise_file_name in enumerate(noise_file_names):
-            noise.append(Noise.from_file(noise_file_name, **noise_kwargs[index]))
+            n = Noise.from_file(noise_file_name, **noise_kwargs[index])
+            try:
+                noise.extend(n)
+            except TypeError:  # n is not iterable
+                noise.append(n)
         loop.add_noise(noise, sort=sort)
         # load pulses
         pulses = []
         for index, pulse_file_name in enumerate(pulse_file_names):
-            pulses.append(Pulse.from_file(pulse_file_name, **pulse_kwargs[index]))
+            p = Pulse.from_file(pulse_file_name, **pulse_kwargs[index])
+            try:
+                pulses.extend(p)
+            except TypeError:  # p is not iterable
+                pulses.append(p)
         loop.add_pulses(pulses, sort=sort)
         return loop
 

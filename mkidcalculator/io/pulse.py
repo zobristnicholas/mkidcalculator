@@ -497,7 +497,8 @@ class Pulse:
                 Class or function whose return value allows dictionary-like
                 queries of the attributes required by the Pulse class. The
                 default is the AnalogReadoutPulse class, which interfaces
-                with the data products from the analogreadout module.
+                with the data products from the analogreadout module. The
+                return value may also be a list of these objects.
             loop: Loop object (optional)
                 The Loop object needed for computing phase and dissipation. It
                 can be specified later or changed with pulse.loop = loop. The
@@ -513,15 +514,23 @@ class Pulse:
                 the case of the AnalogReadout* data classes for picking the
                 channel and index.
         Returns:
-            pulse: object
-                A Pulse() object containing the loaded data.
+            pulse: object or list
+                A Pulse() or list of Pulse() objects containing the loaded
+                data.
         """
-        pulse = cls()
-        pulse._data = data(pulse_file_name, **kwargs)
-        if loop is not None:  # don't set loop unless needed.
-            pulse.loop = loop
-        if noise is not None:
-            pulse.noise = noise
+        _data = data(pulse_file_name, **kwargs)
+        if not isinstance(_data, list):
+            _data = [_data]
+        pulse = []
+        for d in _data:
+            pulse.append(cls())
+            pulse[-1]._data = d
+            if loop is not None:  # don't set loop unless needed.
+                pulse[-1].loop = loop
+            if noise is not None:
+                pulse[-1].noise = noise
+        if len(pulse) == 1:
+            pulse = pulse[0]
         return pulse
 
     def make_template(self, use_mask=False):

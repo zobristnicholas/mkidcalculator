@@ -293,17 +293,26 @@ class Noise:
                 Class or function whose return value allows dictionary-like
                 queries of the attributes required by the Noise class. The
                 default is the AnalogReadoutNoise class, which interfaces
-                with the data products from the analogreadout module.
+                with the data products from the analogreadout module. The
+                return value may also be a list of these objects.
             kwargs: optional keyword arguments
                 extra keyword arguments are sent to 'data'. This is useful in
                 the case of the AnalogReadout* data classes for picking the
                 channel and index.
         Returns:
-            noise: object
-                A Noise() object containing the loaded data.
+            noise: object or list
+                A Noise() or list of Noise() objects containing the loaded
+                data.
         """
-        noise = cls()
-        noise._data = data(noise_file_name, **kwargs)
+        _data = data(noise_file_name, **kwargs)
+        if not isinstance(_data, list):
+            _data = [_data]
+        noise = []
+        for d in _data:
+            noise.append(cls())
+            noise[-1]._data = d
+        if len(noise) == 1:
+            noise = noise[0]
         return noise
 
     def compute_phase_and_dissipation(self, label="best", fit_type="lmfit", **kwargs):
