@@ -1,7 +1,9 @@
 import os
 import logging
 import numpy as np
+from scipy.stats import norm
 from scipy.signal import welch, csd
+from scipy.ndimage import find_objects, binary_dilation, label as binary_label
 
 from mkidcalculator.io.data import AnalogReadoutNoise
 from mkidcalculator.io.utils import (compute_phase_and_dissipation, offload_data, _loaded_npz_files, dump, load,
@@ -335,39 +337,81 @@ class Noise:
         """
         compute_phase_and_dissipation(self, label=label, fit_type=fit_type, **kwargs)
 
-    def compute_psd(self, **kwargs):
+    def compute_psd(self, sigma_threshold=np.inf, grow=0, **kwargs):
         """
         Compute the noise power spectral density of the noise data in this
         object.
         Args:
+            sigma_threshold: float (optional)
+                Exclude data that deviates from the median at a level that
+                exceeds sigma_threshold * (noise standard deviation) assuming
+                stationary gaussian noise. The default is 0, and all data is
+                used. This keyword argument is useful for removing pulse
+                contamination from the computed noise.
+            grow: integer (optional)
+                If p_threshold is used, the regions of excluded points can be
+                expanded by grow time steps.
             kwargs: optional keyword arguments
                 keywords for the scipy.signal.welch and scipy.signal.csd
                 methods. The spectrum scaling and two-sided spectrum of the PSD
                 can not be changed since they are assumed in other methods.
         """
+        # mask data
+        if not np.isinf(sigma_threshold):
+            # compute the standard deviation from the median absolute deviation
+            abs_di = np.abs(self.i_trace - np.median(self.i_trace))
+            abs_dq = np.abs(self.q_trace - np.median(self.q_trace))
+            std_i = np.median(abs_di) / norm.ppf(0.75)
+            std_q = np.median(abs_dq) / norm.ppf(0.75)
+            exclude = (abs_di > sigma_threshold * std_i) | (abs_dq > sigma_threshold * std_q)
+            # grow the exclusion regions
+            if grow > 0:
+                exclude = binary_dilation(exclude, structure=[[1] * (1 + 2 * grow)])
+        else:
+            exclude = np.zeros_like(self.i_trace, dtype=bool)  # no exclusions
+        # get regions from excluded mask
+        include, n_regions = binary_label(~exclude, structure=[[0, 0, 0], [1, 1, 1], [0, 0, 0]])
+        regions = np.array(find_objects(include))
+        region_size = np.array([region[-1].stop - region[-1].start for region in regions])
+        if region_size.size == 0:
+            raise ValueError("There are no regions in the data with any good points")
         # update keyword arguments
-        noise_kwargs = {'nperseg': self.i_trace.shape[1], 'fs': self.sample_rate, 'return_onesided': True,
+        noise_kwargs = {'nperseg': max(region_size), 'fs': self.sample_rate, 'return_onesided': True,
                         'detrend': 'constant', 'scaling': 'density'}
         noise_kwargs.update(kwargs)
-        assert noise_kwargs['scaling'] == 'density', "The PSD scaling is not an allowed keyword."
-        assert noise_kwargs['return_onesided'], "A two-sided PSD is not an allowed keyword."
+        if noise_kwargs['scaling'] != 'density':
+            raise ValueError("The PSD scaling is not an allowed keyword.")
+        if not noise_kwargs['return_onesided']:
+            raise ValueError("A two-sided PSD is not an allowed keyword.")
+        # remove regions smaller than nperseg
+        nperseg = noise_kwargs['nperseg']
+        regions = regions[region_size >= nperseg, :]
+        if regions.size == 0:
+            raise ValueError("There are no regions in the data with at least {} (nperseg) good points".format(nperseg))
         # compute I/Q noise in V^2 / Hz
-        self.f_psd, ii_psd = welch(self.i_trace, **noise_kwargs)
-        _, qq_psd = welch(self.q_trace, **noise_kwargs)
-        # scipy has different order convention we use equation 5.2 from J. Gao's 2008 thesis.
-        # noise_iq = F(I) conj(F(Q))
-        _, iq_psd = csd(self.q_trace, self.i_trace, **noise_kwargs)
+        ii_psd, qq_psd, iq_psd = [], [], []
+        for region in regions:
+            self.f_psd, psd = welch(self.i_trace[tuple(region.tolist())].squeeze(), **noise_kwargs)
+            ii_psd.append(psd)
+            qq_psd.append(welch(self.q_trace[tuple(region.tolist())].squeeze(), **noise_kwargs)[1])
+            # scipy has different order convention we use equation 5.2 from J. Gao's 2008 thesis.
+            # noise_iq = F(I) conj(F(Q))
+            iq_psd.append(csd(self.q_trace[tuple(region.tolist())].squeeze(),
+                              self.i_trace[tuple(region.tolist())].squeeze(), **noise_kwargs)[1])
         # average multiple PSDs together
         self.ii_psd = np.mean(ii_psd, axis=0)
         self.qq_psd = np.mean(qq_psd, axis=0)
         self.iq_psd = np.mean(iq_psd, axis=0)
         # record n_samples for generate_noise()
-        self._n_samples = noise_kwargs['nperseg']
+        self._n_samples = nperseg
+        # compute phase and dissipation noise in rad^2 / Hz
         try:
-            # compute phase and dissipation noise in rad^2 / Hz
-            _, pp_psd = welch(self.p_trace, **noise_kwargs)
-            _, dd_psd = welch(self.d_trace, **noise_kwargs)
-            _, pd_psd = csd(self.d_trace, self.p_trace, **noise_kwargs)
+            pp_psd, dd_psd, pd_psd = [], [], []
+            for region in regions:
+                pp_psd.append(welch(self.p_trace[tuple(region.tolist())].squeeze(), **noise_kwargs)[1])
+                dd_psd.append(welch(self.d_trace[tuple(region.tolist())].squeeze(), **noise_kwargs)[1])
+                pd_psd.append(csd(self.d_trace[tuple(region.tolist())].squeeze(),
+                                  self.p_trace[tuple(region.tolist())].squeeze(), **noise_kwargs)[1])
             # average multiple PSDs together
             self.pp_psd = np.mean(pp_psd, axis=0)
             self.dd_psd = np.mean(dd_psd, axis=0)
