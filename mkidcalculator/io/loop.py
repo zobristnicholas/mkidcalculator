@@ -590,18 +590,20 @@ class Loop:
             print(string)
 
     def process_pulses(self, pulse_indices=None, associate_noise=True, label='best', fit_type='lmfit',
-                       calculation_type='optimal_filter', smoothing=True, free_memory=True, **kwargs):
+                       recompute_coordinates=False, smoothing=False, free_memory=True, **kwargs):
         """
-        Reduce the pulse data from traces in I and Q to responses by using a
-        filter created from the trace data in each data set.
+        Get the pulse data ready for masking and filtering by computing the
+        phase and dissipation, associating a noise object, and characterizing
+        the data.
         Args:
             pulse_indices: iterable of integers (optional)
                 Indices of pulse objects in loop.pulses to use for the
                 processing. The default is None and all are used.
-            associate_noise: boolean (optional)
+            associate_noise: boolean or mkidcalculator.Noise (optional)
                 Associate the each pulse with its corresponding noise in
                 loop.noise. The default is True. If False, there must already
-                exist a pulse.noise for each pulse in loop.pulses.
+                exist a pulse.noise for each pulse in loop.pulses. A noise
+                object also can be provided to use for all pulses.
             label: string (optional)
                 Corresponds to the label in the loop.lmfit_results or
                 loop.emcee_results dictionaries where the fit parameters are.
@@ -612,10 +614,10 @@ class Loop:
                 The type of fit to use. Allowed options are "lmfit", "emcee",
                 and "emcee_mle" where MLE estimates are used instead of the
                 medians. The default is "lmfit".
-            calculation_type: string (optional)
-                The calculation type used to compute the responses. See
-                 pulse.compute_responses() for valid options. The default is
-                "optimal_filter".
+            recompute_coordinates: boolean (optional)
+                If True, the phase and dissipation coordinates will be
+                computed even if they already exist. The default is False, and
+                the old values are maintained.
             smoothing: boolean (optional)
                 Smooth the data in pulse.characterize_traces().
             free_memory: boolean or string (optional)
@@ -635,21 +637,76 @@ class Loop:
             pulse_indices = range(len(self.pulses))
         log.info("processing {} pulse object(s)".format(len(pulse_indices)))
         for index, pulse in enumerate([self.pulses[ii] for ii in pulse_indices]):
-            if associate_noise:
+            if isinstance(associate_noise, Noise):
+                pulse.noise = associate_noise
+            elif associate_noise:
                 if pulse_indices[index] < len(self.noise):
                     pulse.noise = self.noise[pulse_indices[index]]
                 else:
                     raise ValueError("pulse {} does not have a noise to associate".format(pulse_indices[index]))
-            pulse.compute_phase_and_dissipation(label=label, fit_type=fit_type, noise=True, **kwargs)
+            if recompute_coordinates or (pulse._p_trace is None and pulse.noise._p_trace is None):
+                pulse.compute_phase_and_dissipation(label=label, fit_type=fit_type, noise=True, **kwargs)
+            elif pulse._p_trace is None:  # don't re-compute noise
+                pulse.compute_phase_and_dissipation(label=label, fit_type=fit_type, noise=False, **kwargs)
             log.info("pulse {}: phase and dissipation computed".format(index))
-            pulse.noise.compute_psd(nperseg=pulse.p_trace.shape[1])
-            pulse.make_template()
-            pulse.make_filters()
-            log.info("pulse {}: filters computed".format(index))
-            pulse.compute_responses(calculation_type=calculation_type)
-            log.info("pulse {}: responses computed".format(index))
             pulse.characterize_traces(smoothing=smoothing)
             log.info("pulse {}: traces characterized".format(index))
+            if free_memory:
+                pulse.free_memory(directory=free_memory if isinstance(free_memory, str) else None)
+
+    def filter_pulses(self, pulse_indices=None, filter_type="optimal_filter", filter_index=None, template_mask=False,
+                      response_mask=False, recompute_filters=False, shrink=0, free_memory=True):
+        """
+        Compute the detector responses by filtering the phase and dissipation data.
+        Args:
+            pulse_indices: iterable of integers (optional)
+                Indices of pulse objects in loop.pulses for which to calculate
+                the responses. The default is None and all are used.
+            filter_type: string (optional)
+                The type of filter to use. See pulse.apply_filter for valid
+                options. The default is "optimal_filter".
+            filter_index: integer (optional)
+                If supplied only one filter will be used for all of the pulse
+                objects. Otherwise, each pulse object will use it's own filter.
+            template_mask: boolean (optional)
+                Use the pulse mask to exclude data when making the template. If
+                False, the mask isn't used and the algorithm relies on internal
+                cuts on the data. The default is False.
+            response_mask: boolean (optional)
+                Use the pulse mask to exclude data when computing responses.
+                Masked data will get a response of numpy.nan. The default is
+                False.
+            recompute_filters: boolean (optional)
+                Recompute the filters even if they have already been made. The
+                default is False.
+            shrink: integer (optional)
+                Shrink the template by this many points so that multiple
+                arrival times can be considered. The default is zero, and no
+                shrinking is done.
+            free_memory: boolean or string (optional)
+                Free the memory from each pulse after computing the responses.
+                This can be helpful if using large datasets. It will offload
+                the phase and dissipation traces to files in the directory
+                supplied if free_memory is a string. See pulse.free_memory for
+                more details.
+        """
+        if pulse_indices is None:
+            pulse_indices = range(len(self.pulses))
+        log.info("filtering {} pulse object(s)".format(len(pulse_indices)))
+        for index, pulse in enumerate([self.pulses[ii] for ii in pulse_indices]):
+            if filter_index is None or pulse_indices[index] == filter_index:
+                if recompute_filters or pulse._optimal_filter is None:
+                    pulse.noise.compute_psd(nperseg=pulse.p_trace.shape[1] - shrink)
+                    log.info("pulse {}: psd computed".format(index))
+                    pulse.make_template(use_mask=template_mask, shrink=shrink)
+                    log.info("pulse {}: template computed".format(index))
+                    pulse.make_filters()
+                    log.info("pulse {}: filters computed".format(index))
+        attributes = {"optimal_filter": "optimal_filter", "phase_filter": "p_filter", "dissipation_filter": "d_filter"}
+        filter_ = getattr(self.pulses[filter_index], attributes[filter_type]) if filter_index is not None else None
+        for index, pulse in enumerate([self.pulses[ii] for ii in pulse_indices]):
+            pulse.compute_responses(use_mask=response_mask, calculation_type=filter_type, filter_=filter_)
+            log.info("pulse {}: responses computed".format(index))
             if free_memory:
                 pulse.free_memory(directory=free_memory if isinstance(free_memory, str) else None)
 

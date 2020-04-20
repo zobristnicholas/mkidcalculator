@@ -103,7 +103,7 @@ def compute_phase_and_dissipation(cls, label="best", fit_type="lmfit", **kwargs)
     _, result_dict = cls.loop._get_model(fit_type, label)
     model = result_dict["model"]
     params = result_dict["result"].params
-    # compute phase and dissipation
+    # compute phase and dissipation  # TODO: input I and Q separately to save memory
     phase, dissipation = model.phase_and_dissipation(params, cls.i_trace + 1j * cls.q_trace, cls.f_bias, **kwargs)
     cls.p_trace = phase
     cls.d_trace = dissipation
