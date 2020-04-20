@@ -512,7 +512,7 @@ class Pulse:
             pulse = pulse[0]
         return pulse
 
-    def make_template(self, use_mask=False):
+    def make_template(self, use_mask=False, shrink=0):
         """
         Make a template from phase and dissipation data. The template is needed
         for computing a filter.
@@ -520,6 +520,10 @@ class Pulse:
             use_mask: bool
                 A boolean that determines if the pulse.mask is used as an
                 initial filter on the data before creating the template.
+            shrink: integer (optional)
+                Shrink the template by this many points so that multiple
+                arrival times can be considered. The default is zero, and no
+                shrinking is done.
         """
         # create a rough template by cutting the noise traces and averaging
         if use_mask:
@@ -541,6 +545,7 @@ class Pulse:
         self._offset_correction()
         self._average_pulses()
         self._traces = None  # release the memory since we no longer need this
+        self.template = self.template[:, shrink // 2: -shrink // 2]  # removes tail first (artifacts usually there)
 
     def make_filters(self):
         """
