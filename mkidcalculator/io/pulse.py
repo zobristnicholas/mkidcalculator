@@ -8,7 +8,8 @@ import numpy.linalg as la
 from matplotlib.widgets import Button, Slider
 import scipy.stats as stats
 import scipy.optimize as opt
-from scipy.signal import fftconvolve
+from scipy.stats import norm
+from scipy.signal import fftconvolve, argrelmax
 from scipy.interpolate import UnivariateSpline, InterpolatedUnivariateSpline
 
 from mkidcalculator.io.data import AnalogReadoutPulse
@@ -44,10 +45,11 @@ class Pulse:
         self._d_filter_var = None
         # detector response
         self._responses = None
-        self._peak_indices = None
         self._response_type = None
-        # trace mask
+        # trace mask and characteristics
         self._mask = None
+        self._peak_index = None
+        self._rise_time = None
         self._prepulse_mean = None
         self._prepulse_rms = None
         self._postpulse_min_slope = None
@@ -198,21 +200,6 @@ class Pulse:
     def responses(self, responses):
         self.clear_responses()
         self._responses = responses
-
-    @property
-    def peak_indices(self):
-        """
-        A settable property that contains the indices of the trace pulse
-        arrivals made with pulse.compute_responses().
-        """
-        if self._peak_indices is None:
-            raise AttributeError("The peak indices for this pulse have not been calculated yet.")
-        return self._peak_indices
-
-    @peak_indices.setter
-    def peak_indices(self, peak_indices):
-        self.clear_peak_indices()
-        self._peak_indices = peak_indices
 
     @property
     def template(self):
@@ -388,7 +375,6 @@ class Pulse:
         self._d_filter = None
         self._d_filter_var = None
         self.clear_responses()
-        self.clear_peak_indices()
 
     def clear_mask(self):
         """
@@ -401,13 +387,6 @@ class Pulse:
         Clear the response data and any mask information associated with it.
         """
         self._responses = None
-        self.clear_spectrum()
-
-    def clear_peak_indices(self):
-        """
-        Clear the peak indices and any mask information associated with it.
-        """
-        self._peak_indices = None
         self.clear_spectrum()
 
     def clear_spectrum(self):
@@ -594,8 +573,8 @@ class Pulse:
         t_fft = template_fft[..., np.newaxis].transpose(1, 0, 2)
         self._optimal_filter_var = (sample_rate * n_samples / (4 * np.sum(f_fft @ t_fft).real))
         # normalize the optimal filter to unit response on the template
-        norm = self.apply_filter(template, filter_type="optimal_filter").max()
-        self._optimal_filter /= norm
+        normalize = self.apply_filter(template, filter_type="optimal_filter").max()
+        self._optimal_filter /= normalize
 
         # normalize the template for response = phase
         template = self.template[0, :] / np.abs(self.template[0].min())
@@ -607,8 +586,8 @@ class Pulse:
         # compute the variance with the un-normalized filter
         self._p_filter_var = (sample_rate * n_samples / (4 * (phase_filter_fft @ template_fft).real))
         # normalize
-        norm = self.apply_filter(template, filter_type="phase_filter").max()
-        self._p_filter /= norm
+        normalize = self.apply_filter(template, filter_type="phase_filter").max()
+        self._p_filter /= normalize
 
         # normalize the template for response = dissipation
         template = self.template[1, :] / np.abs(self.template[1].min())
@@ -620,8 +599,8 @@ class Pulse:
         # compute the variance with the un-normalized filter
         self._d_filter_var = (sample_rate * n_samples / (4 * (dissipation_filter_fft @ template_fft).real))
         # normalize
-        norm = self.apply_filter(template, filter_type="dissipation_filter").max()
-        self._d_filter /= norm
+        normalize = self.apply_filter(template, filter_type="dissipation_filter").max()
+        self._d_filter /= normalize
 
     def performance(self, calculation_type="optimal_filter", mode="variance", energy=None,
                     baseline=(1, .1), distribution=False):
@@ -788,7 +767,7 @@ class Pulse:
                 data = noise + response * template[:, np.newaxis, :] + baseline[:, np.newaxis, np.newaxis]
                 # compute the responses
                 method = "optimal_filter" if calculation_type == "optimal_filter_mc" else "optimal_fit"
-                responses, _ = self.compute_responses(calculation_type=method, data=data)
+                responses = self.compute_responses(calculation_type=method, data=data)
             elif calculation_type in ["phase_filter_mc", "phase_fit_mc"]:
                 # get noise traces
                 noise = self.noise.generate_noise(noise_type="p", n_traces=10000)
@@ -798,7 +777,7 @@ class Pulse:
                 data = noise + response * template + baseline[0]
                 # compute the responses
                 method = "phase_filter" if calculation_type == "phase_filter_mc" else "phase_fit"
-                responses, _ = self.compute_responses(calculation_type=method, data=data)
+                responses = self.compute_responses(calculation_type=method, data=data)
             else:
                 # get noise traces
                 noise = self.noise.generate_noise(noise_type="a", n_traces=10000)
@@ -807,7 +786,7 @@ class Pulse:
                 data = noise + response * template + baseline[1]
                 # compute the responses
                 method = "dissipation_filter" if calculation_type == "dissipation_filter_mc" else "dissipation_fit"
-                responses, _ = self.compute_responses(calculation_type=method, data=data)
+                responses = self.compute_responses(calculation_type=method, data=data)
             if calculation_type in ["optimal_filter_mc", "phase_filter_mc", "dissipation_filter_mc"]:
                 responses = self.loop.energy_calibration(responses)  # responses are already in energy for fit types
             # compute the result
@@ -832,7 +811,7 @@ class Pulse:
         """
         Compute the detector response responses and peak indices using a
         particular calculation method. The results are stored in
-        pulse.responses and pulse.peak_indices if data is not None.
+        pulse.responses if data is not None.
         Args:
             calculation_type: string (optional)
                 The calculation type used to compute the responses. Valid
@@ -874,8 +853,6 @@ class Pulse:
         Returns:
              responses: numpy.ndarray
                 The response in radians for each trace.
-             peak_indices: numpy.ndarray
-                The response arrival time index for each trace.
         """
         save_values = data is None
         if calculation_type in ["optimal_filter", "phase_filter", "dissipation_filter"]:
@@ -891,7 +868,6 @@ class Pulse:
                     data = self.d_trace if not mask_only else self.d_trace[self.mask, :]
             filtered_data = self.apply_filter(data, filter_type=calculation_type, filter_=filter_)
             responses = filtered_data.max(axis=1)
-            peak_indices = np.argmax(filtered_data, axis=1)
         elif calculation_type in ["optimal_fit", "phase_fit", "dissipation_fit"]:
             if data is None:
                 if calculation_type == "optimal_fit":
@@ -905,7 +881,6 @@ class Pulse:
                     data = self.d_trace if not mask_only else self.d_trace[self.mask, :]
             results = self.fit_traces(data, fit_type=calculation_type)
             responses = np.array([r.params["energy"].value if r.errorbars and r.success else np.nan for r in results])
-            peak_indices = np.array([r.params["index"].value if r.errorbars and r.success else np.nan for r in results])
         elif calculation_type == "orthogonal_filter":
             raise NotImplementedError
         elif calculation_type == "phase_orthogonal_filter":
@@ -920,13 +895,9 @@ class Pulse:
                 self.responses = np.empty(self.mask.shape)
                 self.responses[np.logical_not(self.mask)] = np.nan
                 self.responses[self.mask] = responses
-                self.peak_indices = np.empty(self.mask.shape)
-                self.peak_indices[np.logical_not(self.mask)] = np.nan
-                self.peak_indices[self.mask] = peak_indices
             else:
                 self.responses = responses
-                self.peak_indices = peak_indices
-        return responses, peak_indices
+        return responses
 
     def apply_filter(self, data, filter_type="optimal_filter", filter_=None):
         """
@@ -1005,7 +976,7 @@ class Pulse:
         f = np.fft.rfftfreq(n_points)[:, np.newaxis, np.newaxis]  # n_points x 1 x 1
         params = lm.Parameters()
         params.add("energy", value=self.energies[0] if len(self.energies) == 1 else 0)
-        params.add("index", self.peak_indices[self.mask].mean())
+        params.add("index", self._peak_index[self.mask].mean())
         # get fft of the data along the last axis
         data_fft = np.fft.rfft(data)
         if fit_type == "optimal_fit":
@@ -1067,52 +1038,62 @@ class Pulse:
                 and the phase and dissipation traces must have been
                 computed.
         """
-        n_samples = self.p_trace.shape[1]
-        peak_offset = 10
-        data = np.array([self.p_trace, self.d_trace])
-        # subtract off the half the average prepulse mean for the data set (half because summing components later)
-        peak_index = stats.mode(self.peak_indices).mode.item()
-        data -= data[:, :, :peak_index - 2 * peak_offset].sum(axis=0).mean() / 2  # be extra lenient with peak offset
-        # determine the mean of the trace prior to the pulse
-        self._prepulse_mean = np.zeros(self.peak_indices.shape)
-        for index, peak in enumerate(self.peak_indices):
+        # determine peak indices
+        self._peak_index = np.argmin(self.p_trace, axis=-1)
+
+        # determine an estimate of the rise time
+        self._rise_time = np.empty(self._peak_index.shape)
+        peak_offset = np.empty(self._peak_index.shape)
+        for index, peak in enumerate(self._peak_index):
+            maxima = argrelmax(self.p_trace[index, :peak])[0]
+            start = maxima[-1] if maxima.size else peak
+            peak_offset[index] = peak - start
+            self._rise_time[index] = (peak - start) / self.sample_rate * 1e6
+        peak_index = stats.mode(self._peak_index).mode.item()  # most common peak index
+        peak_offset = int(min(np.max(peak_offset), peak_index // 2 - 1))  # largest offset bounded by the peak index
+
+        # determine the mean of the trace's deviation from the overall median prior to the pulse
+        prepulse_median = np.median(self.p_trace[:, :peak_index - 2 * peak_offset])  # be extra lenient with peak offset
+        self._prepulse_mean = np.empty(self._peak_index.shape)
+        for index, peak in enumerate(self._peak_index):
             if peak < 2 * peak_offset:
                 self._prepulse_mean[index] = np.inf
             else:
-                prepulse = data[:, index, :peak - peak_offset].sum(axis=0)
-                self._prepulse_mean[index] = np.mean(prepulse)
+                prepulse = self.p_trace[index, :peak - peak_offset] - prepulse_median
+                self._prepulse_mean[index] = prepulse.mean()
 
         # determine the rms value of the trace prior to the pulse
-        self._prepulse_rms = np.zeros(self.peak_indices.shape)
-        for index, peak in enumerate(self.peak_indices):
+        self._prepulse_rms = np.empty(self._peak_index.shape)
+        for index, peak in enumerate(self._peak_index):
             if peak < 2 * peak_offset:
                 self._prepulse_rms[index] = np.inf
             else:
-                prepulse = data[:, index, :peak - peak_offset].sum(axis=0)
+                prepulse = self.p_trace[index, :peak - peak_offset]
                 self._prepulse_rms[index] = np.sqrt(np.mean((prepulse - np.mean(prepulse))**2))
 
         # determine the minimum slope after the pulse peak
-        self._postpulse_min_slope = np.zeros(self.peak_indices.shape)
-        sigma = np.std(np.array([self.noise.p_trace, self.noise.d_trace]).sum(axis=0), ddof=1) if smoothing else None
-        for index, peak in enumerate(self.peak_indices):
-            if peak + 2 * peak_offset > n_samples - 1:
+        self._postpulse_min_slope = np.empty(self._peak_index.shape)
+        if smoothing:  # sigma from MAD
+            sigma = np.median(np.abs(self.noise.p_trace - np.median(self.noise.p_trace))) / norm.ppf(0.75)
+        else:
+            sigma = None
+        for index, peak in enumerate(self._peak_index):
+            if peak + 2 * peak_offset > self.p_trace.shape[1] - 1:
                 self._postpulse_min_slope[index] = -np.inf
             elif smoothing:
-                postpulse = data[:, index, peak + peak_offset:].sum(axis=0)
-                weights = np.empty(postpulse.size)
-                weights.fill(1 / sigma)
-                time = np.linspace(0, postpulse.size / self.sample_rate, postpulse.size) * 1e6
+                postpulse = self.p_trace[index, peak + peak_offset:]
+                weights = np.broadcast_to(1 / sigma, postpulse.size)
+                time = np.linspace(0, postpulse.size / self.sample_rate * 1e6, postpulse.size)
                 s = UnivariateSpline(time, postpulse, w=weights)
                 self._postpulse_min_slope[index] = np.min(s.derivative()(time))
             else:
-                postpulse = data[:, index, peak + peak_offset:].sum(axis=0)
+                postpulse = self.p_trace[index, peak + peak_offset:]
                 self._postpulse_min_slope[index] = np.min(np.diff(postpulse)) * self.sample_rate * 1e6
 
-        # determine the integrated area of the response
-        response = data.sum(axis=0)  # add phase and dissipation components for the response
-        self._integral = (response - np.median(response, axis=-1, keepdims=True)).sum(axis=-1)
+        # determine the integrated area of the response using the median as a baseline
+        self._integral = (self.p_trace - np.median(self.p_trace, axis=-1, keepdims=True)).sum(axis=-1)
 
-    def mask_peak_indices(self, minimum, maximum):
+    def mask_peak_index(self, minimum=-np.inf, maximum=np.inf):
         """
         Add traces with peak indices outside of the minimum and maximum to the
         pulse.mask.
@@ -1122,10 +1103,25 @@ class Pulse:
             maximum: float
                 The maximum acceptable peak index
         """
-        logic = np.logical_or(self.peak_indices < minimum, self.peak_indices > maximum)
-        self.mask[logic] = False
+        if self._peak_index is None:
+            raise AttributeError("The pulse traces have not been characterized yet.")
+        self.mask[(self._peak_index < minimum) | (self._peak_index > maximum)] = False
 
-    def mask_prepulse_mean(self, minimum, maximum):
+    def mask_rise_time(self, minimum=-np.inf, maximum=np.inf):
+        """
+        Add traces with rise times outside of the minimum and maximum to the
+        pulse.mask.
+        Args:
+            minimum: float
+                The minimum acceptable rise time
+            maximum: float
+                The maximum acceptable rise time
+        """
+        if self._rise_time is None:
+            raise AttributeError("The pulse traces have not been characterized yet.")
+        self.mask[(self._rise_time < minimum) | (self._rise_time > maximum)] = False
+
+    def mask_prepulse_mean(self, minimum=-np.inf, maximum=np.inf):
         """
         Add traces with pre-pulse means outside of the minimum and maximum to
         the pulse.mask.
@@ -1137,10 +1133,9 @@ class Pulse:
         """
         if self._prepulse_mean is None:
             raise AttributeError("The pulse traces have not been characterized yet.")
-        logic = np.logical_or(self._prepulse_mean < minimum, self._prepulse_mean > maximum)
-        self.mask[logic] = False
+        self.mask[(self._prepulse_mean < minimum) | (self._prepulse_mean > maximum)] = False
 
-    def mask_prepulse_rms(self, maximum):
+    def mask_prepulse_rms(self, maximum=np.inf):
         """
         Add traces with pre-pulse RMSs larger than the maximum to the
         pulse.mask.
@@ -1150,10 +1145,9 @@ class Pulse:
         """
         if self._prepulse_rms is None:
             raise AttributeError("The pulse traces have not been characterized yet.")
-        logic = self._prepulse_rms > maximum
-        self.mask[logic] = False
+        self.mask[self._prepulse_rms > maximum] = False
 
-    def mask_postpulse_min_slope(self, minimum):
+    def mask_postpulse_min_slope(self, minimum=-np.inf):
         """
         Add traces with post-pulse minimum slopes smaller than the minimum to
         the pulse.mask.
@@ -1163,10 +1157,9 @@ class Pulse:
         """
         if self._postpulse_min_slope is None:
             raise AttributeError("The pulse traces have not been characterized yet.")
-        logic = self._postpulse_min_slope < minimum
-        self.mask[logic] = False
+        self.mask[self._postpulse_min_slope < minimum] = False
 
-    def mask_integral(self, minimum, maximum):
+    def mask_integral(self, minimum=-np.inf, maximum=np.inf):
         """
         Add traces with an area under the response outside of the minimum and
         maximum to the pulse.mask
@@ -1178,8 +1171,7 @@ class Pulse:
         """
         if self._integral is None:
             raise AttributeError("The pulse traces have not been characterized yet.")
-        logic = np.logical_or(self._integral < minimum, self._integral > maximum)
-        self.mask[logic] = False
+        self.mask[(self._integral < minimum) | (self._integral > maximum)] = False
 
     def compute_spectrum(self, use_mask=True, use_calibration=True, calibrated=None, **kwargs):
         """
@@ -1543,11 +1535,11 @@ class Pulse:
         if condition:
             raise AttributeError("Data metrics have not been computed yet.")
         if use_mask:
-            metrics = np.vstack([self.peak_indices[self.mask], self._prepulse_mean[self.mask],
+            metrics = np.vstack([self._peak_index[self.mask], self._prepulse_mean[self.mask],
                                  self._prepulse_rms[self.mask], self._postpulse_min_slope[self.mask],
                                  self._integral[self.mask]]).T
         else:
-            metrics = np.vstack([self.peak_indices, self._prepulse_mean,
+            metrics = np.vstack([self._peak_index, self._prepulse_mean,
                                  self._prepulse_rms, self._postpulse_min_slope, self._integral]).T
         # replace infinities with their nearest value because corner doesn't like them if they end up in the range
         for index in range(metrics.shape[1]):

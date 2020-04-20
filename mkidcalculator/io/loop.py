@@ -716,7 +716,7 @@ class Loop:
         phase = []
         for pulse in itemgetter(*indices)(self.pulses):
             data = pulse.p_trace[pulse.mask] if use_mask else pulse.p_trace
-            phase.append(np.median(pulse.compute_responses("phase_filter", data=data)[0]))
+            phase.append(np.median(pulse.compute_responses("phase_filter", data=data)))
         # sort them by increasing energy
         phase, energies = sort_and_fix(phase, energies, fix_zero)
         # store for future plotting
@@ -753,7 +753,7 @@ class Loop:
         dissipation = []
         for pulse in itemgetter(*indices)(self.pulses):
             data = pulse.d_trace[pulse.mask] if use_mask else pulse.d_trace
-            dissipation.append(np.median(pulse.compute_responses("dissipation_filter", data=data)[0]))
+            dissipation.append(np.median(pulse.compute_responses("dissipation_filter", data=data)))
         # sort them by increasing energy
         dissipation, energies = sort_and_fix(dissipation, energies, fix_zero)
         # store for future plotting
