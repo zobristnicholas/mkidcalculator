@@ -49,7 +49,7 @@ class Pulse:
         # trace mask and characteristics
         self._mask = None
         self._peak_index = None
-        self._rise_time = None
+        self._peak_height = None
         self._prepulse_mean = None
         self._prepulse_rms = None
         self._postpulse_min_slope = None
@@ -1046,14 +1046,15 @@ class Pulse:
         # determine peak indices
         self._peak_index = np.argmin(self.p_trace, axis=-1)
 
-        # determine an estimate of the rise time
-        self._rise_time = np.empty(self._peak_index.shape)
+        # determine peak height
+        self._peak_height = self.p_trace[:, self._peak_index]
+
+        # determine an estimate of the peak offset
         peak_offset = np.empty(self._peak_index.shape)
         for index, peak in enumerate(self._peak_index):
             maxima = argrelmax(self.p_trace[index, :peak])[0]
             start = maxima[-1] if maxima.size else peak
             peak_offset[index] = peak - start
-            self._rise_time[index] = (peak - start) / self.sample_rate * 1e6
         peak_index = stats.mode(self._peak_index).mode.item()  # most common peak index
         peak_offset = int(min(np.max(peak_offset), peak_index // 2 - 1))  # largest offset bounded by the peak index
 
@@ -1112,19 +1113,19 @@ class Pulse:
             raise AttributeError("The pulse traces have not been characterized yet.")
         self.mask[(self._peak_index < minimum) | (self._peak_index > maximum)] = False
 
-    def mask_rise_time(self, minimum=-np.inf, maximum=np.inf):
+    def mask_peak_height(self, minimum=-np.inf, maximum=np.inf):
         """
-        Add traces with rise times outside of the minimum and maximum to the
+        Add traces with peak heights outside of the minimum and maximum to the
         pulse.mask.
         Args:
             minimum: float
-                The minimum acceptable rise time
+                The minimum acceptable peak height
             maximum: float
-                The maximum acceptable rise time
+                The maximum acceptable peak height
         """
-        if self._rise_time is None:
+        if self._peak_height is None:
             raise AttributeError("The pulse traces have not been characterized yet.")
-        self.mask[(self._rise_time < minimum) | (self._rise_time > maximum)] = False
+        self.mask[(self._peak_height < minimum) | (self._peak_height > maximum)] = False
 
     def mask_prepulse_mean(self, minimum=-np.inf, maximum=np.inf):
         """
@@ -1540,22 +1541,24 @@ class Pulse:
         if condition:
             raise AttributeError("Data metrics have not been computed yet.")
         if use_mask:
-            metrics = np.vstack([self._peak_index[self.mask], self._prepulse_mean[self.mask],
-                                 self._prepulse_rms[self.mask], self._postpulse_min_slope[self.mask],
-                                 self._integral[self.mask]]).T
+            metrics = np.vstack([self._peak_index[self.mask], self._peak_height[self.mask],
+                                 self._integral[self.mask], self._prepulse_mean[self.mask],
+                                 self._prepulse_rms[self.mask], self._postpulse_min_slope[self.mask]]).T
         else:
-            metrics = np.vstack([self._peak_index, self._prepulse_mean,
-                                 self._prepulse_rms, self._postpulse_min_slope, self._integral]).T
+            metrics = np.vstack([self._peak_index, self._peak_height, self._integral,
+                                 self._prepulse_mean, self._prepulse_rms, self._postpulse_min_slope]).T
         # replace infinities with their nearest value because corner doesn't like them if they end up in the range
         for index in range(metrics.shape[1]):
             metrics[np.isposinf(metrics[:, index]), index] = np.max(metrics[~np.isposinf(metrics[:, index]), index])
-            metrics[np.isneginf(metrics[:, index]), index] = np.min(metrics[~np.isposinf(metrics[:, index]), index])
+            metrics[np.isneginf(metrics[:, index]), index] = np.min(metrics[~np.isneginf(metrics[:, index]), index])
 
         with warnings.catch_warnings():
             warnings.simplefilter(action='ignore', category=UserWarning)  # for singular axis limits
             corner.corner(metrics, quiet=True,
-                          labels=['peak times', 'prepulse mean', 'prepulse rms', 'postpulse min slope', 'integral'],
-                          plot_contours=False, plot_density=False, range=[.97] * 4 + [1], bins=[100, 20, 20, 100, 20])
+                          labels=['peak times', 'peak height', 'integral',
+                                  'prepulse mean', 'prepulse rms', 'postpulse min slope'],
+                          plot_contours=False, plot_density=False, range=[1, 1, 1, 0.97, 0.97, 0.97],
+                          bins=[100, 20, 20, 20, 20, 100])
 
     def plot_spectrum(self, x_limits=None, second_x_axis=False, axes=None):
         """
