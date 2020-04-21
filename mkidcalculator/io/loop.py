@@ -654,6 +654,53 @@ class Loop:
             if free_memory:
                 pulse.free_memory(directory=free_memory if isinstance(free_memory, str) else None)
 
+    def combine_pulses(self, pulse_indices=None, data_index=None, use_mask=True, append=True, free_memory=True):
+        """
+        Combine the phase and dissipation data from different Pulse objects
+        together. The trace size for each pulse must be the same.
+        Args:
+            pulse_indices: iterable of integers (optional)
+                Indices of pulse objects in loop.pulses to combine. The default
+                is None and all are used.
+            data_index: integer (optional)
+                Index of the pulse object from which the experimental data will
+                be taken. This data will not be a copy. The default is None,
+                and the first pulse specified by pulse_indices will be used.
+            use_mask: boolean (optional)
+                Use the pulse masks to select the phase and dissipation data
+                that gets copied into the new object. The default is True.
+            append: boolean (optional)
+                Append the pulse object to loop.pulses without re-sorting. The
+                default is True.
+            free_memory: boolean or string (optional)
+                Free the memory from each pulse after computing the responses.
+                This can be helpful if using large datasets. It will offload
+                the phase and dissipation traces to files in the directory
+                supplied if free_memory is a string. See pulse.free_memory for
+                more details.
+        Returns:
+            pulse: object
+                A Pulse() object containing the phase and dissipation data of
+                the requested pulses in loop.pulses.
+        """
+        if pulse_indices is None:
+            pulse_indices = range(len(self.pulses))
+        if data_index is None:
+            data_index = pulse_indices[0]
+        p_traces, d_traces = [], []
+        for index, pulse in enumerate([self.pulses[ii] for ii in pulse_indices]):
+            p_traces.append(pulse.p_trace[pulse.mask] if use_mask else pulse.p_trace)
+            d_traces.append(pulse.d_trace[pulse.mask] if use_mask else pulse.d_trace)
+            if free_memory:
+                pulse.free_memory(directory=free_memory if isinstance(free_memory, str) else None)
+        pulse = Pulse()
+        pulse._data = loop.pulses[data_index]._data
+        pulse.p_trace = np.concatenate(p_traces)
+        pulse.d_trace = np.concatenate(d_traces)
+        if append:
+            self.add_pulses(pulse, sort=False)  # don't sort because then we don't know where it ended up
+        return pulse
+
     def filter_pulses(self, pulse_indices=None, filter_type="optimal_filter", filter_index=None, template_mask=False,
                       response_mask=False, recompute_filters=False, shrink=0, free_memory=True):
         """
