@@ -5,7 +5,7 @@ from scipy.stats import norm
 from scipy.signal import welch, csd
 from scipy.ndimage import find_objects, binary_dilation, label as binary_label
 
-from mkidcalculator.io.data import AnalogReadoutNoise
+from mkidcalculator.io.data import AnalogReadoutNoise, NoData
 from mkidcalculator.io.utils import (compute_phase_and_dissipation, offload_data, _loaded_npz_files, dump, load,
                                      setup_axes, finalize_axes)
 
@@ -16,7 +16,7 @@ log.addHandler(logging.NullHandler())
 class Noise:
     """A class for manipulating the noise data."""
     def __init__(self):
-        self._data = AnalogReadoutNoise()  # dummy class replaced by from_file()
+        self._data = NoData()  # dummy class replaced by from_file()
         # loop reference for computing phase and dissipation
         self._loop = None
         # phase and dissipation data

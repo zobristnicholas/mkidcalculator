@@ -12,6 +12,11 @@ log = logging.getLogger(__name__)
 log.addHandler(logging.NullHandler())
 
 
+class NoData:
+    def __getitem__(self, item):
+        raise AttributeError("This object has no pre-processed data.")
+
+
 def analogreadout_temperature(metadata):
     """
     Returns the average temperature across all the temperatures taken during

@@ -12,7 +12,7 @@ from scipy.stats import norm
 from scipy.signal import fftconvolve, argrelmax
 from scipy.interpolate import UnivariateSpline, InterpolatedUnivariateSpline
 
-from mkidcalculator.io.data import AnalogReadoutPulse
+from mkidcalculator.io.data import AnalogReadoutPulse, NoData
 from mkidcalculator.io.utils import (compute_phase_and_dissipation, offload_data, _loaded_npz_files,
                                      quadratic_spline_roots, ev_nm_convert, dump, load)
 
@@ -24,7 +24,7 @@ class Pulse:
     """A class for manipulating the pulse data."""
     def __init__(self):
         # pulse data
-        self._data = AnalogReadoutPulse()  # dummy class replaced by from_file()
+        self._data = NoData()  # dummy class replaced by from_file()
         # loop reference for computing phase and dissipation
         self._loop = None
         # noise reference for computing energies

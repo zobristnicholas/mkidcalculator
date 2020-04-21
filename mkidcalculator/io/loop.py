@@ -10,7 +10,7 @@ from scipy.interpolate import make_interp_spline
 
 from mkidcalculator.io.noise import Noise
 from mkidcalculator.io.pulse import Pulse
-from mkidcalculator.io.data import AnalogReadoutLoop, AnalogReadoutNoise, AnalogReadoutPulse
+from mkidcalculator.io.data import AnalogReadoutLoop, AnalogReadoutNoise, AnalogReadoutPulse, NoData
 from mkidcalculator.io.utils import (ev_nm_convert, lmfit, sort_and_fix, setup_axes, finalize_axes, get_plot_model,
                                      dump, load)
 
@@ -23,7 +23,7 @@ class Loop:
     """A class for manipulating resonance loop scattering parameter data."""
     def __init__(self):
         # loop data
-        self._data = AnalogReadoutLoop()  # dummy class replaced by from_file()
+        self._data = NoData()  # dummy class replaced by from_file()
         self._mask = None
         # resonator reference
         self._resonator = None
