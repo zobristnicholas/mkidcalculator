@@ -135,14 +135,21 @@ def offload_data(cls, excluded_keys=(), npz_key="_npz", prefix="", directory_key
     # get the directory
     directory = "." if getattr(cls, directory_key, None) is None else getattr(cls, directory_key)
     directory = os.path.abspath(directory)
-    # if we've overloaded any excluded key, aren't using the npz file yet, or are changing directories (re)make npz
+    # default is to not export to a new npz file
     make_npz = False
+    # if any of the excluded keys are numpy arrays we will export to a new npz file
     for key in excluded_keys:
         make_npz = make_npz or isinstance(getattr(cls, key), np.ndarray)
     if isinstance(getattr(cls, npz_key), str):
         file_name = getattr(cls, npz_key)
+        # if the npz_key directory doesn't match we will export the excluded keys to a new npz file
         if os.path.dirname(file_name) != directory:
             make_npz = True
+        # if we are exporting and there already exists a npz file, ensure the real data is loaded into the class
+        if make_npz:
+            npz = _loaded_npz_files[file_name]
+            for key in excluded_keys:
+                setattr(cls, key, npz[key])
     if make_npz:
         # get the data to save
         excluded_data = {}
