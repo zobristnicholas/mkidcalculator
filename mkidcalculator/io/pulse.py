@@ -1047,7 +1047,7 @@ class Pulse:
         self._peak_index = np.argmin(self.p_trace, axis=-1)
 
         # determine peak height
-        self._peak_height = self.p_trace[:, self._peak_index]
+        self._peak_height = self.p_trace[range(self.p_trace.shape[0]), self._peak_index]
 
         # determine an estimate of the peak offset
         peak_offset = np.empty(self._peak_index.shape)
