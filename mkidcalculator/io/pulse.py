@@ -1041,8 +1041,8 @@ class Pulse:
                 Use smoothing splines to calculate the minimum of the
                 derivative after the peak. The pulse.noise must exist and the
                 phase and dissipation traces must have been computed. This is
-                only useful for high noise data. Splines can reduce usefulness
-                of this metric for data with low noise.
+                only useful for high noise data. Splines can reduce the
+                usefulness of this metric for data with low noise.
         """
         # determine peak indices
         self._peak_index = np.argmin(self.p_trace, axis=-1)
