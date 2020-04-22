@@ -698,17 +698,21 @@ class Loop:
         if data_index is None:
             data_index = pulse_indices[0]
         log.info("combining {} pulse object(s)".format(len(pulse_indices)))
-        p_traces, d_traces = [], []
+        p_traces, d_traces, i_traces, q_traces = [], [], [], []
         for index, pulse in enumerate([self.pulses[ii] for ii in pulse_indices]):
             p_traces.append(pulse.p_trace[pulse.mask] if use_mask else pulse.p_trace)
             d_traces.append(pulse.d_trace[pulse.mask] if use_mask else pulse.d_trace)
+            i_traces.append(pulse.i_trace[pulse.mask] if use_mask else pulse.i_trace)
+            q_traces.append(pulse.q_trace[pulse.mask] if use_mask else pulse.q_trace)
             log.info("pulse {}: data collected".format(index))
             if free_memory:
                 pulse.free_memory(directory=free_memory if isinstance(free_memory, str) else None)
         pulse = Pulse()
-        if append:  # append before adding data since it will delete phase and dissipation when setting the loop
-            self.add_pulses(pulse, sort=False)  # don't sort because then we don't know where it ended up
         pulse._data = self.pulses[data_index]._data
+        pulse.i_trace = np.concatenate(i_traces)
+        pulse.q_trace = np.concatenate(q_traces)
+        if append:  # append before adding phase and dissipation since it will delete them when setting the loop
+            self.add_pulses(pulse, sort=False)  # don't sort because then we don't know where it ended up
         pulse.p_trace = np.concatenate(p_traces)
         pulse.d_trace = np.concatenate(d_traces)
         return pulse

@@ -59,11 +59,19 @@ class Pulse:
         self._directory = None
         # response information
         self._spectrum = None
+        # variables for overwriting IQ data when combining pulses
+        self._i_trace = None
+        self._q_trace = None
 
         log.debug("Pulse object created. ID: {}".format(id(self)))
 
     def __getstate__(self):
-        return offload_data(self, excluded_keys=("_d_trace", "_p_trace"), prefix="pulse_data_")
+        excluded_keys = ["_d_trace", "_p_trace"]
+        if hasattr(self, "_i_trace") and self._i_trace is not None:
+            excluded_keys.append("_i_trace")
+        if hasattr(self, "_q_trace") and self._q_trace is not None:
+            excluded_keys.append("_q_trace")
+        return offload_data(self, excluded_keys=excluded_keys, prefix="pulse_data_")
 
     @property
     def f_bias(self):
@@ -73,12 +81,32 @@ class Pulse:
     @property
     def i_trace(self):
         """The mixer I output traces."""
-        return self._data["i_trace"]
+        if hasattr(self, "_i_trace") and self._i_trace is not None:
+            if isinstance(self._i_trace, str):
+                return _loaded_npz_files[self._npz][self._i_trace]
+            else:
+                return self._i_trace
+        else:
+            return self._data["i_trace"]
+
+    @i_trace.setter
+    def i_trace(self, in_phase_trace):
+        self._i_trace = in_phase_trace
 
     @property
     def q_trace(self):
         """The mixer Q output traces."""
-        return self._data["q_trace"]
+        if hasattr(self, "_q_trace") and self._q_trace is not None:
+            if isinstance(self._q_trace, str):
+                return _loaded_npz_files[self._npz][self._q_trace]
+            else:
+                return self._q_trace
+        else:
+            return self._data["q_trace"]
+
+    @q_trace.setter
+    def q_trace(self, quadrature_trace):
+        self._q_trace = quadrature_trace
 
     @property
     def offset(self):
@@ -1494,7 +1522,7 @@ class Pulse:
                 self.bnext.on_clicked(self.next)
                 self.bprev = Button(ax_prev, 'Previous')
                 self.bprev.on_clicked(self.prev)
-                self.slider = Slider(ax_slider, 'Trace Index: ', 0, self.num, valinit=0, valfmt='%d')
+                self.slider = Slider(ax_slider, 'Trace Index: ', 0, self.num - 1, valinit=0, valfmt='%d')
                 self.slider.on_changed(self.update)
 
                 self.slider.label.set_position((0.5, -0.5))
