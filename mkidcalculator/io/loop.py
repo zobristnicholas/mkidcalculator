@@ -706,11 +706,11 @@ class Loop:
             if free_memory:
                 pulse.free_memory(directory=free_memory if isinstance(free_memory, str) else None)
         pulse = Pulse()
+        if append:  # append before adding data since it will delete phase and dissipation when setting the loop
+            self.add_pulses(pulse, sort=False)  # don't sort because then we don't know where it ended up
         pulse._data = self.pulses[data_index]._data
         pulse.p_trace = np.concatenate(p_traces)
         pulse.d_trace = np.concatenate(d_traces)
-        if append:
-            self.add_pulses(pulse, sort=False)  # don't sort because then we don't know where it ended up
         return pulse
 
     def filter_pulses(self, pulse_indices=None, filter_type="optimal_filter", filter_index=None, template_mask=False,
