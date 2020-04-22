@@ -674,8 +674,10 @@ class Loop:
                 is None and all are used.
             data_index: integer (optional)
                 Index of the pulse object from which the experimental data will
-                be taken. This data will not be a copy. The default is None,
-                and the first pulse specified by pulse_indices will be used.
+                be taken. This data will not be a copy except for the I and Q
+                trace data. The default is None,  and the first pulse specified
+                by pulse_indices will be used. The noise reference will also be
+                set to loop.pulses[data_index].noise if it exists.
             use_mask: boolean (optional)
                 Use the pulse masks to select the phase and dissipation data
                 that gets copied into the new object. The default is True.
@@ -715,6 +717,10 @@ class Loop:
             self.add_pulses(pulse, sort=False)  # don't sort because then we don't know where it ended up
         pulse.p_trace = np.concatenate(p_traces)
         pulse.d_trace = np.concatenate(d_traces)
+        try:
+            pulse.noise = self.pulses[data_index].noise
+        except AttributeError:
+            pass
         return pulse
 
     def filter_pulses(self, pulse_indices=None, filter_type="optimal_filter", filter_index=None, template_mask=False,

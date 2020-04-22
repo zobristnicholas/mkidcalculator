@@ -560,6 +560,8 @@ class Pulse:
             self._traces = self._remove_baseline(np.array([self.p_trace, self.d_trace]))
             self._threshold_cut()
         self._average_pulses()
+        if shrink != 0:
+            self.template = self.template[:, shrink // 2: -shrink // 2]  # removes tail first (artifacts usually there)
         # make a filter with the template
         self.make_filters()
         # do a better job using a filter
@@ -573,7 +575,8 @@ class Pulse:
         self._offset_correction()
         self._average_pulses()
         self._traces = None  # release the memory since we no longer need this
-        self.template = self.template[:, shrink // 2: -shrink // 2]  # removes tail first (artifacts usually there)
+        if shrink != 0:
+            self.template = self.template[:, shrink // 2: -shrink // 2]  # removes tail first (artifacts usually there)
 
     def make_filters(self):
         """
@@ -962,7 +965,7 @@ class Pulse:
                 A numpy array of the same shape as the input that has been
                 filtered.
         """
-        data = self._pad_data(data)
+        data = self._pad_data(data, self.optimal_filter.shape[-1] if filter_ is None else filter_.shape[-1])
         kwargs = {"mode": "valid", "axes": -1}
         if filter_type == "optimal_filter":
             if filter_ is None:
@@ -1381,8 +1384,7 @@ class Pulse:
         return traces
 
     @staticmethod
-    def _pad_data(data):
-        size = data.shape[-1]
+    def _pad_data(data, size):
         pad_back = size // 2
         pad_front = size - pad_back - 1
         pad = [(0, 0)] * (data.ndim - 1)
@@ -1408,7 +1410,7 @@ class Pulse:
         Plot the template.
         """
         import matplotlib.pyplot as plt
-        time = np.linspace(0, self.i_trace.shape[1] / self.sample_rate, self.i_trace.shape[1]) * 1e6
+        time = np.linspace(0, self.template.shape[1] / self.sample_rate, self.template.shape[1]) * 1e6
         figure = plt.figure(figsize=(12, 4))
         ax0 = plt.subplot2grid((2, 2), (0, 0), rowspan=2)
         ax0.plot(time, self.template[0], 'b-', linewidth=2, label='template data')
