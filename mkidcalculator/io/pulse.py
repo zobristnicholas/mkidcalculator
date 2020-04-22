@@ -67,9 +67,9 @@ class Pulse:
 
     def __getstate__(self):
         excluded_keys = ["_d_trace", "_p_trace"]
-        if hasattr(self, "_i_trace") and self._i_trace is not None:
+        if self._i_trace is not None:
             excluded_keys.append("_i_trace")
-        if hasattr(self, "_q_trace") and self._q_trace is not None:
+        if self._q_trace is not None:
             excluded_keys.append("_q_trace")
         return offload_data(self, excluded_keys=excluded_keys, prefix="pulse_data_")
 
@@ -81,7 +81,7 @@ class Pulse:
     @property
     def i_trace(self):
         """The mixer I output traces."""
-        if hasattr(self, "_i_trace") and self._i_trace is not None:
+        if self._i_trace is not None:
             if isinstance(self._i_trace, str):
                 return _loaded_npz_files[self._npz][self._i_trace]
             else:
@@ -96,7 +96,7 @@ class Pulse:
     @property
     def q_trace(self):
         """The mixer Q output traces."""
-        if hasattr(self, "_q_trace") and self._q_trace is not None:
+        if self._q_trace is not None:
             if isinstance(self._q_trace, str):
                 return _loaded_npz_files[self._npz][self._q_trace]
             else:
