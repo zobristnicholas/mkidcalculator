@@ -697,14 +697,16 @@ class Loop:
             pulse_indices = range(len(self.pulses))
         if data_index is None:
             data_index = pulse_indices[0]
+        log.info("combining {} pulse object(s)".format(len(pulse_indices)))
         p_traces, d_traces = [], []
         for index, pulse in enumerate([self.pulses[ii] for ii in pulse_indices]):
             p_traces.append(pulse.p_trace[pulse.mask] if use_mask else pulse.p_trace)
             d_traces.append(pulse.d_trace[pulse.mask] if use_mask else pulse.d_trace)
+            log.info("pulse {}: data collected".format(index))
             if free_memory:
                 pulse.free_memory(directory=free_memory if isinstance(free_memory, str) else None)
         pulse = Pulse()
-        pulse._data = loop.pulses[data_index]._data
+        pulse._data = self.pulses[data_index]._data
         pulse.p_trace = np.concatenate(p_traces)
         pulse.d_trace = np.concatenate(d_traces)
         if append:
