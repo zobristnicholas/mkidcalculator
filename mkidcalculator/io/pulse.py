@@ -1045,9 +1045,11 @@ class Pulse:
         """
         # determine peak indices
         self._peak_index = np.argmin(self.p_trace, axis=-1)
+        log.debug("peak index metric computed")
 
         # determine peak height
         self._peak_height = self.p_trace[range(self.p_trace.shape[0]), self._peak_index]
+        log.debug("peak height metric computed")
 
         # determine an estimate of the peak offset
         peak_offset = np.empty(self._peak_index.shape)
@@ -1057,6 +1059,7 @@ class Pulse:
             peak_offset[index] = peak - start
         peak_index = stats.mode(self._peak_index).mode.item()  # most common peak index
         peak_offset = int(min(np.max(peak_offset), peak_index // 2 - 1))  # largest offset bounded by the peak index
+        log.debug("peak offset computed")
 
         # determine the mean of the trace's deviation from the overall median prior to the pulse
         prepulse_median = np.median(self.p_trace[:, :peak_index - 2 * peak_offset])  # be extra lenient with peak offset
@@ -1067,6 +1070,7 @@ class Pulse:
             else:
                 prepulse = self.p_trace[index, :peak - peak_offset] - prepulse_median
                 self._prepulse_mean[index] = prepulse.mean()
+        log.debug("prepulse mean metric computed")
 
         # determine the rms value of the trace prior to the pulse
         self._prepulse_rms = np.empty(self._peak_index.shape)
@@ -1076,6 +1080,7 @@ class Pulse:
             else:
                 prepulse = self.p_trace[index, :peak - peak_offset]
                 self._prepulse_rms[index] = np.sqrt(np.mean((prepulse - np.mean(prepulse))**2))
+        log.debug("prepulse rms metric computed")
 
         # determine the minimum slope after the pulse peak
         self._postpulse_min_slope = np.empty(self._peak_index.shape)
@@ -1095,9 +1100,11 @@ class Pulse:
             else:
                 postpulse = self.p_trace[index, peak + peak_offset:]
                 self._postpulse_min_slope[index] = np.min(np.diff(postpulse)) * self.sample_rate * 1e6
+        log.debug("postpulse min slope metric computed")
 
         # determine the integrated area of the response using the median as a baseline
         self._integral = (self.p_trace - np.median(self.p_trace, axis=-1, keepdims=True)).sum(axis=-1)
+        log.debug("integral metric computed")
 
     def mask_peak_index(self, minimum=-np.inf, maximum=np.inf):
         """

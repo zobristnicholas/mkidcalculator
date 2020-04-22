@@ -34,19 +34,20 @@ class NpzHolder:
                 self._check_size()
                 npz = np.load(item, allow_pickle=True)
                 log.debug("loaded: {}".format(item))
-                self._files[item] = npz
+                self._files[item] = dict(**npz)
                 log.debug("saved to cache: {}".format(item))
                 return self._files[item]
         # if NpzFile skip loading but save if it hasn't been loaded before
         elif isinstance(item, np.lib.npyio.NpzFile):
             file_name = os.path.abspath(item.fid.name)
-            if file_name not in _loaded_npz_files.keys():
+            if file_name not in self._files.keys():
                 self._check_size()
                 log.debug("loaded: {}".format(file_name))
-                self._files[file_name] = item
+                self._files[file_name] = dict(**item)
                 log.debug("saved to cache: {}".format(file_name))
             else:
                 log.debug("loaded from cache: {}".format(file_name))
+                item = self._files[file_name]
             return item
         elif item is None:
             return None
