@@ -590,7 +590,8 @@ class Loop:
             print(string)
 
     def process_pulses(self, pulse_indices=None, associate_noise=True, label='best', fit_type='lmfit',
-                       recompute_coordinates=False, initialize_mask=True, smoothing=False, free_memory=True, **kwargs):
+                       unwrap_pulses=False, recompute_coordinates=False, initialize_mask=True, smoothing=False,
+                       free_memory=True, **kwargs):
         """
         Get the pulse data ready for masking and filtering by computing the
         phase and dissipation, associating a noise object, and characterizing
@@ -614,6 +615,11 @@ class Loop:
                 The type of fit to use. Allowed options are "lmfit", "emcee",
                 and "emcee_mle" where MLE estimates are used instead of the
                 medians. The default is "lmfit".
+            unwrap_pulses: boolean (optional)
+                If True, the pulse phase data is unwrapped and the noise data
+                is not. The default is False and nothing happens. This keyword
+                argument will not work when set to True if a model other than
+                the default is used for the loop fit.
             recompute_coordinates: boolean (optional)
                 If True, the phase and dissipation coordinates will be
                 computed even if they already exist. The default is False, and
@@ -651,10 +657,12 @@ class Loop:
                 else:
                     raise ValueError("pulse {} does not have a noise to associate".format(pulse_indices[index]))
             if recompute_coordinates or (pulse._p_trace is None and pulse.noise._p_trace is None):
-                pulse.compute_phase_and_dissipation(label=label, fit_type=fit_type, noise=True, **kwargs)
+                pulse.compute_phase_and_dissipation(label=label, fit_type=fit_type, noise=True,
+                                                    unwrap_pulses=unwap_pulses, **kwargs)
                 log.info("pulse {}: phase and dissipation computed".format(index))
             elif pulse._p_trace is None:  # don't re-compute noise
-                pulse.compute_phase_and_dissipation(label=label, fit_type=fit_type, noise=False, **kwargs)
+                pulse.compute_phase_and_dissipation(label=label, fit_type=fit_type, noise=False,
+                                                    unwrap_pulses=unwrap_pulses, **kwargs)
                 log.info("pulse {}: phase and dissipation computed".format(index))
             if initialize_mask:
                 pulse.mask = np.ones(pulse.i_trace.shape[0], dtype=bool)
@@ -724,7 +732,8 @@ class Loop:
         return pulse
 
     def filter_pulses(self, pulse_indices=None, filter_type="optimal_filter", filter_index=None, template_mask=False,
-                      response_mask=False, recompute_filters=False, shrink=0, free_memory=True):
+                      response_mask=False, recompute_filters=False, shrink=0, sigma_threshold=np.inf, grow=0,
+                      free_memory=True):
         """
         Compute the detector responses by filtering the phase and dissipation data.
         Args:
@@ -752,6 +761,15 @@ class Loop:
                 Shrink the template by this many points so that multiple
                 arrival times can be considered. The default is zero, and no
                 shrinking is done.
+            sigma_threshold: float (optional)
+                Exclude noise data that deviates from the median at a level
+                that exceeds sigma_threshold * (noise standard deviation)
+                assuming stationary gaussian noise. The default is 0, and all
+                data is used. This keyword argument is useful for removing
+                pulse contamination from the computed noise.
+            grow: integer (optional)
+                If p_threshold is used, the regions of excluded noise can be
+                expanded by grow time steps.
             free_memory: boolean or string (optional)
                 Free the memory from each pulse after computing the responses.
                 This can be helpful if using large datasets. It will offload
@@ -765,7 +783,8 @@ class Loop:
         for index, pulse in enumerate([self.pulses[ii] for ii in pulse_indices]):
             if filter_index is None or pulse_indices[index] == filter_index:
                 if recompute_filters or pulse._optimal_filter is None:
-                    pulse.noise.compute_psd(nperseg=pulse.p_trace.shape[1] - shrink)
+                    nperseg = pulse.p_trace.shape[1] - shrink
+                    pulse.noise.compute_psd(nperseg=nperseg, sigma_threshold=sigma_threshold, grow=grow)
                     log.info("pulse {}: psd computed".format(index))
                     pulse.make_template(use_mask=template_mask, shrink=shrink)
                     log.info("pulse {}: template computed".format(index))

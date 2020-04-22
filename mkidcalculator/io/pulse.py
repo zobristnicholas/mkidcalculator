@@ -453,30 +453,36 @@ class Pulse:
             except AttributeError:
                 pass
 
-    def compute_phase_and_dissipation(self, label="best", fit_type="lmfit", noise=False, **kwargs):
+    def compute_phase_and_dissipation(self, label="best", fit_type="lmfit", noise=False, unwrap_pulses=False, **kwargs):
         """
         Compute the phase and dissipation traces stored in pulse.p_trace and
         pulse.d_trace.
         Args:
-            label: string
+            label: string (optional)
                 Corresponds to the label in the loop.lmfit_results or
                 loop.emcee_results dictionaries where the fit parameters are.
                 The default is "best", which gets the parameters from the best
                 fits.
-            fit_type: string
+            fit_type: string (optional)
                 The type of fit to use. Allowed options are "lmfit", "emcee",
                 and "emcee_mle" where MLE estimates are used instead of the
                 medians. The default is "lmfit".
-            noise: boolean
+            noise: boolean (optional)
                 Determines whether or not to also compute the phase and
-                dissipation for the noise. The default is false.
+                dissipation for the noise. The default is False.
+            unwrap_pulses: boolean (optional)
+                If True, the keyword argument unwrap=True is sent to the pulse
+                computation, but not the noise computation. The default is
+                False and no extra keyword is used.
             kwargs: optional keyword arguments
                 Optional keyword arguments to send to
                 model.phase_and_dissipation().
         """
+        if unwrap_pulses:
+            kwargs['unwrap'] = True
         compute_phase_and_dissipation(self, label=label, fit_type=fit_type, **kwargs)
         if noise:
-            compute_phase_and_dissipation(self.noise, label=label, fit_type=fit_type, **kwargs)
+            self.noise.compute_phase_and_dissipation(label=label, fit_type=fit_type, **kwargs)
 
     def to_pickle(self, file_name):
         """Pickle and save the class as the file 'file_name'."""
