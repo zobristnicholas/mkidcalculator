@@ -590,7 +590,7 @@ class Loop:
             print(string)
 
     def process_pulses(self, pulse_indices=None, associate_noise=True, label='best', fit_type='lmfit',
-                       recompute_coordinates=False, smoothing=False, free_memory=True, **kwargs):
+                       recompute_coordinates=False, initialize_mask=True, smoothing=False, free_memory=True, **kwargs):
         """
         Get the pulse data ready for masking and filtering by computing the
         phase and dissipation, associating a noise object, and characterizing
@@ -618,6 +618,12 @@ class Loop:
                 If True, the phase and dissipation coordinates will be
                 computed even if they already exist. The default is False, and
                 the old values are maintained.
+            initialize_mask: boolean (optional)
+                If True (default), the mask is initialized to the correct shape
+                during processing to avoid unnecessary access to the original
+                data during later analysis steps. Any pre-existing mask will be
+                overwritten. If this behavior is unwanted, set this keyword
+                argument to False.
             smoothing: boolean (optional)
                 Smooth the data in pulse.characterize_traces().
             free_memory: boolean or string (optional)
@@ -646,9 +652,13 @@ class Loop:
                     raise ValueError("pulse {} does not have a noise to associate".format(pulse_indices[index]))
             if recompute_coordinates or (pulse._p_trace is None and pulse.noise._p_trace is None):
                 pulse.compute_phase_and_dissipation(label=label, fit_type=fit_type, noise=True, **kwargs)
+                log.info("pulse {}: phase and dissipation computed".format(index))
             elif pulse._p_trace is None:  # don't re-compute noise
                 pulse.compute_phase_and_dissipation(label=label, fit_type=fit_type, noise=False, **kwargs)
-            log.info("pulse {}: phase and dissipation computed".format(index))
+                log.info("pulse {}: phase and dissipation computed".format(index))
+            if initialize_mask:
+                pulse.mask = np.ones(pulse.i_trace.shape[0], dtype=bool)
+                log.info("pulse {}: mask initialized".format(index))
             pulse.characterize_traces(smoothing=smoothing)
             log.info("pulse {}: traces characterized".format(index))
             if free_memory:
