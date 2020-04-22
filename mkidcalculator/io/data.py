@@ -67,7 +67,7 @@ class AnalogReadoutABC:
         self.channel = channel
         self.index = index
         if isinstance(npz_handle, str):
-            self._npz = npz_handle
+            self._npz = os.path.abspath(npz_handle)
         elif isinstance(npz_handle, np.lib.npyio.NpzFile):
             self._npz = os.path.abspath(npz_handle.fid.name)
         else:
@@ -352,7 +352,7 @@ class LegacyLoop(LegacyABC):
         time = os.path.basename(config_file).split('_')[2:]
         directory = os.path.dirname(config_file)
         mat_file = "sweep_data.mat" if not time else "sweep_data_" + "_".join(time)
-        self._mat = os.path.join(directory, mat_file)
+        self._mat = os.path.abspath(os.path.join(directory, mat_file))
         self._empty_fields += ["imbalance"]
         self._data.update({"f": None, "z": None, "imbalance": None, "offset": None, "field": None, "temperature": None,
                            "attenuation": None})  # defer loading
@@ -405,7 +405,7 @@ class LegacyNoise(LegacyABC):
         # load the data
         assert n_points.is_integer(), "The noise adtime and sample rate do not give an integer number of data points"
         self._n_points = int(n_points)
-        self._bin = os.path.join(directory, file_name)
+        self._bin = os.path.abspath(os.path.join(directory, file_name))
         self._data.update({"i_trace": None, "q_trace": None, "f_bias": None})  # defer loading
 
     def _load_data(self):
@@ -443,7 +443,7 @@ class LegacyPulse(LegacyABC):
         directory = os.path.dirname(os.path.abspath(config_file))
         time = os.path.basename(config_file).split('.')[0].split('_')[2:]
         file_name = "pulse_data.dat" if not time else "pulse_data_" + "_".join(time) + ".dat"
-        self._bin = os.path.join(directory, file_name)
+        self._bin = os.path.abspath(os.path.join(directory, file_name))
         self._n_points = int(self._data['metadata']['numpts'])
         self._data.update({"i_trace": None, "q_trace": None})  # defer loading
 
