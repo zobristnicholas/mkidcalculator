@@ -658,7 +658,7 @@ class Loop:
                     raise ValueError("pulse {} does not have a noise to associate".format(pulse_indices[index]))
             if recompute_coordinates or (pulse._p_trace is None and pulse.noise._p_trace is None):
                 pulse.compute_phase_and_dissipation(label=label, fit_type=fit_type, noise=True,
-                                                    unwrap_pulses=unwap_pulses, **kwargs)
+                                                    unwrap_pulses=unwrap_pulses, **kwargs)
                 log.info("pulse {}: phase and dissipation computed".format(index))
             elif pulse._p_trace is None:  # don't re-compute noise
                 pulse.compute_phase_and_dissipation(label=label, fit_type=fit_type, noise=False,

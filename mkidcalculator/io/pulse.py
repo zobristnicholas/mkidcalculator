@@ -478,9 +478,10 @@ class Pulse:
                 Optional keyword arguments to send to
                 model.phase_and_dissipation().
         """
+        pulse_kwargs = kwargs.copy()
         if unwrap_pulses:
-            kwargs['unwrap'] = True
-        compute_phase_and_dissipation(self, label=label, fit_type=fit_type, **kwargs)
+            pulse_kwargs['unwrap'] = True
+        compute_phase_and_dissipation(self, label=label, fit_type=fit_type, **pulse_kwargs)
         if noise:
             self.noise.compute_phase_and_dissipation(label=label, fit_type=fit_type, **kwargs)
 
