@@ -12,6 +12,7 @@ from scipy.stats import norm
 from scipy.signal import fftconvolve, argrelmax
 from scipy.interpolate import UnivariateSpline, InterpolatedUnivariateSpline
 
+from mkidcalculator.models import TripleExponential
 from mkidcalculator.io.data import AnalogReadoutPulse, NoData
 from mkidcalculator.io.utils import (compute_phase_and_dissipation, offload_data, _loaded_npz_files,
                                      quadratic_spline_roots, ev_nm_convert, dump, load)
@@ -850,7 +851,8 @@ class Pulse:
         else:
             return result
 
-    def compute_responses(self, calculation_type="optimal_filter", data=None, mask_only=False, filter_=None):
+    def compute_responses(self, calculation_type="optimal_filter", data=None, mask_only=False, filter_=None,
+                          model=TripleExponential, guess=None, weight=True):
         """
         Compute the detector response responses and peak indices using a
         particular calculation method. The results are stored in
@@ -868,12 +870,12 @@ class Pulse:
                     Use a filter constructed with the dissipation template and
                     noise.
                 "optimal_fit":
-                    Fit the data with a combined phase/dissipation template and
+                    Fit the data with a combined phase/dissipation model and
                     noise.
                 "phase_fit":
-                    Fit the data with the phase template and noise.
+                    Fit the data with a phase model and noise.
                 "dissipation_fit":
-                    Fit the data with the dissipation template and noise.
+                    Fit the data with the dissipation model and noise.
                 "orthogonal_filter":
                     Work in progress
                 "phase_orthogonal_filter":
@@ -893,6 +895,16 @@ class Pulse:
             filter_: numpy.ndarray (optional)
                 An optional filter can be specified to use instead of the
                 pre-computed one for calculation types that use them.
+            model: object (optional)
+                An optional model class for the calculation types that use
+                pulse models. The default is a triple exponential model.
+            guess: lmfit.Parameters (optional)
+                A guess for the pulse model parameters for the calculation
+                types that use pulse models. The default is None and the
+                model guess() method will be called to determine the guess.
+            weight: boolean (optional)
+                For the calculation types that use pulse models, weight the
+                residual by the noise. The default is True.
         Returns:
              responses: numpy.ndarray
                 The response in radians for each trace.
@@ -922,8 +934,9 @@ class Pulse:
                     data = self.p_trace if not mask_only else self.p_trace[self.mask, :]
                 else:
                     data = self.d_trace if not mask_only else self.d_trace[self.mask, :]
-            results = self.fit_traces(data, fit_type=calculation_type)
-            responses = np.array([r.params["energy"].value if r.errorbars and r.success else np.nan for r in results])
+            results = self.fit_traces(data, model=model, guess=guess, fit_type=calculation_type, weight=weight)
+            responses = np.array([r.params.eval(model.RESPONSE)
+                                  if r.errorbars and r.success else np.nan for r in results])
         elif calculation_type == "orthogonal_filter":
             raise NotImplementedError
         elif calculation_type == "phase_orthogonal_filter":
@@ -991,7 +1004,7 @@ class Pulse:
             raise ValueError("'{}' is not a valid calculation_type".format(filter_type))
         return result
 
-    def fit_traces(self, data, fit_type="optimal_fit"):
+    def fit_traces(self, data, fit_type="optimal_fit", model=TripleExponential, guess=None, weight=True):
         """
         Method for fitting the data to the template pulse model.
         Args:
@@ -1004,71 +1017,49 @@ class Pulse:
                 The type of fit to perform. Valid options are listed below. The
                 default is "optimal_fit".
                 "optimal_fit":
-                    Fit the data with a combined phase/dissipation template and
-                    noise.
+                    Fit the data with a combined phase/dissipation model. The
+                    data should have the shape 2 x n_traces x n_time or
+                    2 x n_time. Where the dimension with size 2 is
+                    [phase, dissipation].
                 "phase_fit":
-                    Fit the data with the phase template and noise.
+                    Fit the data with a phase model. The data should have the
+                    shape n_traces x n_time or n_time.
                 "dissipation_fit":
-                    Fit the data with the dissipation template and noise.
+                    Fit the data with a dissipation model. The data should have
+                    the shape n_traces x n_time or n_time.
+            model: object (optional)
+                The model to use for the fit. The default is a triple
+                exponential model.
+            guess: lmfit.Parameters (optional)
+                A guess for the fitting routine. The default is None and the
+                model guess() method will be called to determine the guess.
+            weight: boolean (optional)
+                Weight the residual by the noise during fitting. The default is
+                True.
         Returns:
             results: numpy.ndarray
                 A numpy array of lmfit.ModelResults containing the fit results.
         """
-        # initialize parameters
-        n_points = self.template.shape[1]
-        f = np.fft.rfftfreq(n_points)[:, np.newaxis, np.newaxis]  # n_points x 1 x 1
-        params = lm.Parameters()
-        params.add("energy", value=self.energies[0] if len(self.energies) == 1 else 0)
-        params.add("index", self._peak_index[self.mask].mean())
-        # get fft of the data along the last axis
-        data_fft = np.fft.rfft(data)
-        if fit_type == "optimal_fit":
-            # get the template
-            def template_fft(energy):
-                return self.loop.template_fft(energy).T[..., np.newaxis]  # n_frequencies x 2 x 1
-            # assemble noise matrix
-            s = np.array([[self.noise.pp_psd, self.noise.pd_psd],
-                          [np.conj(self.noise.pd_psd), self.noise.dd_psd]], dtype=np.complex)
-            s = s.transpose((2, 0, 1))  # n_frequencies x 2 x 2
-            s_inv = np.linalg.inv(s)
-            # coerce data into the right shape
-            data_fft = np.moveaxis(data_fft, 0, -1)  # n_traces x n_frequencies x 2  or  n_frequencies x 2
-            if data_fft.ndim == 2:
-                data_fft = data_fft[np.newaxis, ...]
-            data_fft = data_fft[..., np.newaxis]  # n_traces x n_frequencies x 2 x 1
+        # initialize model
+        m = model(self, fit_type, weight=weight)
+        if guess is None:
+            guess = m.guess()
 
-            # define the calibration
-            def calibration(energy):
-                return np.array([[self.loop.phase_calibration(energy)], [self.loop.dissipation_calibration(energy)]])
-        elif fit_type == "phase_fit":
-            # get the template
-            def template_fft(energy):
-                return self.loop.template_fft(energy)[0, ..., np.newaxis, np.newaxis]  # n_frequencies x 1 x 1
-            # get noise
-            s = self.noise.pp_psd[..., np.newaxis, np.newaxis]  # n_frequencies x 1 x 1
-            s_inv = np.linalg.inv(s)
-            # coerce data into the right shape
-            data_fft = np.atleast_2d(data_fft)[..., np.newaxis, np.newaxis]  # n_traces x n_frequencies x 1 x 1
-            # define the calibration
-            calibration = self.loop.phase_calibration
-        elif fit_type == "dissipation_fit":
-            # get the template
-            def template_fft(energy):
-                return self.loop.template_fft(energy)[1, ..., np.newaxis, np.newaxis]  # n_frequencies x 1 x 1
-            # get noise
-            s = self.noise.dd_psd[..., np.newaxis, np.newaxis]  # n_frequencies x 1 x 1
-            s_inv = np.linalg.inv(s)
-            # coerce data into the right shape
-            data_fft = np.atleast_2d(data_fft)[..., np.newaxis, np.newaxis]  # n_traces x n_frequencies x 1 x 1
-            # define the calibration
-            calibration = self.loop.dissipation_calibration
+        # coerce data into the right shape
+        if fit_type == "optimal_fit":
+            data = np.moveaxis(data, 0, -1)  # n_traces x n_time x 2  or  n_time x 2
+            if data.ndim == 2:
+                data = data[np.newaxis, ...]
+            data = data[..., np.newaxis]  # n_traces x n_time x 2 x 1
+        elif fit_type in ["phase_fit", "dissipation_fit"]:
+            data = np.atleast_2d(data)[..., np.newaxis, np.newaxis]  # n_traces x n_time x 1 x 1
         else:
             raise ValueError("'{}' is not a valid fit_type".format(fit_type))
+
         # fit results
         results = []
-        for index in range(data_fft.shape[0]):
-            results.append(lm.minimize(self._chi2, params, scale_covar=True,
-                                       args=(template_fft, data_fft[index], s_inv, calibration, f, n_points)))
+        for index in range(data.shape[0]):
+            results.append(m.fit(data[index], guess))
         return np.array(results)
 
     def characterize_traces(self, smoothing=False):
@@ -1398,19 +1389,6 @@ class Pulse:
         pad.append((pad_front, pad_back))
         data = np.pad(data, pad, 'wrap')
         return data
-
-    @staticmethod
-    def _chi2(params, template_fft, data_fft, s_inv, calibration, f,  size):
-        # pull out parameters
-        energy = params['energy'].value
-        index = params['index'].value
-        # make model
-        model_fft = template_fft(energy) * calibration(energy)
-        model_fft *= np.exp(-2j * np.pi * f * (index - (size - size // 2)))
-        # remove zero frequency bin (DC f)
-        x = (data_fft - model_fft)[1:]  # n_frequencies x 2 x 1
-        s_inv = s_inv[1:]  # n_frequencies x 1 x 1 or n_frequencies x 2 x 2
-        return np.sqrt((np.conj(x.transpose(0, 2, 1)) @ s_inv @ x).real)
 
     def plot_template(self):
         """
