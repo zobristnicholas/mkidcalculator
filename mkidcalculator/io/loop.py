@@ -10,6 +10,7 @@ from scipy.interpolate import make_interp_spline
 
 from mkidcalculator.io.noise import Noise
 from mkidcalculator.io.pulse import Pulse
+from mkidcalculator.models import TripleExponential
 from mkidcalculator.io.data import AnalogReadoutLoop, AnalogReadoutNoise, AnalogReadoutPulse, NoData
 from mkidcalculator.io.utils import (ev_nm_convert, lmfit, sort_and_fix, setup_axes, finalize_axes, get_plot_model,
                                      dump, load)
@@ -794,6 +795,76 @@ class Loop:
         filter_ = getattr(self.pulses[filter_index], attributes[filter_type]) if filter_index is not None else None
         for index, pulse in enumerate([self.pulses[ii] for ii in pulse_indices]):
             pulse.compute_responses(mask_only=response_mask, calculation_type=filter_type, filter_=filter_)
+            log.info("pulse {}: responses computed".format(index))
+            if free_memory:
+                pulse.free_memory(directory=free_memory if isinstance(free_memory, str) else None)
+
+    def fit_pulses(self, pulse_indices=None, fit_type="optimal_fit",  template_mask=False, response_mask=False,
+                   recompute_templates=False, shrink=0, sigma_threshold=np.inf, grow=0, model=TripleExponential,
+                   guess=None, weight=True, free_memory=True):
+        """
+        Compute the detector responses by fitting the phase and dissipation data.
+        Args:
+            pulse_indices: iterable of integers (optional)
+                Indices of pulse objects in loop.pulses for which to calculate
+                the responses. The default is None and all are used.
+            fit_type: string (optional)
+                The type of fit to use. See pulse.fit_traces for valid
+                options. The default is "optimal_fit".
+            template_mask: boolean (optional)
+                Use the pulse mask to exclude data when making the template. If
+                False, the mask isn't used and the algorithm relies on internal
+                cuts on the data. The default is False.
+            response_mask: boolean (optional)
+                Use the pulse mask to exclude data when computing responses.
+                Masked data will get a response of numpy.nan. The default is
+                False.
+            recompute_templates: boolean (optional)
+                Recompute the templates even if they have already been made.
+                The default is False.
+            shrink: integer (optional)
+                Shrink the template by this many points so that multiple
+                arrival times can be considered. The default is zero, and no
+                shrinking is done.
+            sigma_threshold: float (optional)
+                Exclude noise data that deviates from the median at a level
+                that exceeds sigma_threshold * (noise standard deviation)
+                assuming stationary gaussian noise. The default is 0, and all
+                data is used. This keyword argument is useful for removing
+                pulse contamination from the computed noise.
+            grow: integer (optional)
+                If p_threshold is used, the regions of excluded noise can be
+                expanded by grow time steps.
+            model: object (optional)
+                An optional model class for the calculation types that use
+                pulse models. The default is a triple exponential model.
+            guess: lmfit.Parameters (optional)
+                A guess for the pulse model parameters for the calculation
+                types that use pulse models. The default is None and the
+                model guess() method will be called to determine the guess.
+            weight: boolean (optional)
+                For the calculation types that use pulse models, weight the
+                residual by the noise. The default is True.
+            free_memory: boolean or string (optional)
+                Free the memory from each pulse after computing the responses.
+                This can be helpful if using large datasets. It will offload
+                the phase and dissipation traces to files in the directory
+                supplied if free_memory is a string. See pulse.free_memory for
+                more details.
+        """
+        if pulse_indices is None:
+            pulse_indices = range(len(self.pulses))
+        log.info("fitting {} pulse object(s)".format(len(pulse_indices)))
+        for index, pulse in enumerate([self.pulses[ii] for ii in pulse_indices]):
+            if recompute_templates or pulse._template is None:
+                nperseg = pulse.p_trace.shape[1] - shrink
+                pulse.noise.compute_psd(nperseg=nperseg, sigma_threshold=sigma_threshold, grow=grow)
+                log.info("pulse {}: psd computed".format(index))
+                pulse.make_template(use_mask=template_mask, shrink=shrink)
+                log.info("pulse {}: template computed".format(index))
+        for index, pulse in enumerate([self.pulses[ii] for ii in pulse_indices]):
+            pulse.compute_responses(mask_only=response_mask, calculation_type=fit_type, model=model, guess=guess,
+                                    weight=weight)
             log.info("pulse {}: responses computed".format(index))
             if free_memory:
                 pulse.free_memory(directory=free_memory if isinstance(free_memory, str) else None)
