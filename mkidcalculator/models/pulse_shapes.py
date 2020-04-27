@@ -19,7 +19,7 @@ class PulseShapeABC:
         self.n_points = self.pulse.template.shape[1]
         self.f = np.fft.rfftfreq(self.n_points)[:, np.newaxis, np.newaxis]  # n_points x 1 x 1
         self.t = np.linspace(0, self.n_points / self.pulse.sample_rate * 1e6, self.n_points)
-
+        self.weight = weight
         # initialize weights
         if weight:
             if self.fit_type == "optimal_fit":
@@ -51,7 +51,7 @@ class PulseShapeABC:
 
     def chi2(self, params, data):
         model_fft = self.model_fft(params)
-        if self.shrink != 0:
+        if self.shrink != 0 and data.shape[0] != self.pulse.template.shape[1]:
             data = data[self.shrink // 2: -self.shrink // 2, :, :]
         data_fft = np.fft.rfft(data, axis=0)
         x = (data_fft - model_fft)  # n_frequencies x 2 x 1
@@ -95,7 +95,7 @@ class TripleExponential(PulseShapeABC):
 
     def model(self, params, **kwargs):
         t0 = kwargs.get("t0", params['t0'].value)
-        p = np.zeros((self.t.size, 2 if self.fit_type == "optimal_fit" else 1, 1))
+        p = np.empty((self.t.size, 2 if self.fit_type == "optimal_fit" else 1, 1))
         index = 0
         if self.fit_type in ["optimal_fit", "phase_fit"]:
             a = kwargs.get('a', params['a'].value)
@@ -108,6 +108,7 @@ class TripleExponential(PulseShapeABC):
             arg1 = -(self.t[self.t >= t0] - t0) / max(fall_time1, EPS)
             arg2 = -(self.t[self.t >= t0] - t0) / max(fall_time2, EPS)
             p[self.t >= t0, index, 0] = -a * (1 - np.exp(arg0)) * (np.exp(arg1) + b * np.exp(arg2)) + phase_offset
+            p[self.t < t0, index, 0] = phase_offset
             index += 1
         if self.fit_type in ["optimal_fit", "dissipation_fit"]:
             c = kwargs.get('c', params['c'].value)
@@ -120,6 +121,7 @@ class TripleExponential(PulseShapeABC):
             arg4 = -(self.t[self.t >= t0] - t0) / max(fall_time3, EPS)
             arg5 = -(self.t[self.t >= t0] - t0) / max(fall_time4, EPS)
             p[self.t >= t0, index, 0] = -c * (1 - np.exp(arg3)) * (np.exp(arg4) + d * np.exp(arg5)) + dissipation_offset
+            p[self.t < t0, index, 0] = dissipation_offset
         return p
 
     def model_fft(self, params):
@@ -129,8 +131,11 @@ class TripleExponential(PulseShapeABC):
         params = lm.Parameters()
         params.add("t0", value=np.argmin(self.pulse.template[0]) / self.pulse.sample_rate * 1e6)
         index = []
-        amplitude = np.abs(np.median(np.min(self.pulse.p_trace, axis=1)))
-        fall_time = np.abs(np.trapz(self.pulse.template[0]) / self.pulse.sample_rate * 1e6)
+        phase_amplitude = np.abs(np.median(np.min(self.pulse.p_trace, axis=1)))
+        dissipation_amplitude = np.abs(np.median(np.min(self.pulse.d_trace, axis=1)))
+        phase_fall_time = np.abs(np.trapz(self.pulse.template[0]) / self.pulse.sample_rate * 1e6)
+        dissipation_fall_time = np.abs(np.trapz(self.pulse.template[1] / self.pulse.template[1].min()) /
+                                       self.pulse.sample_rate * 1e6)
         peak = np.argmin(self.pulse.template[0])
         try:
             start = find_peaks(self.pulse.template[0][:peak], height=-0.5)[0][-1]  # nearest extrema
@@ -138,25 +143,25 @@ class TripleExponential(PulseShapeABC):
             start = 0  # no relative max before the peak
         rise_time = (self.t[peak] - self.t[start]) / 2
         if self.fit_type in ["phase_fit", "optimal_fit"]:
-            params.add("a", value=amplitude * 1.2, min=0)
+            params.add("a", value=phase_amplitude * 1.2, min=0)
             params.add("b", value=0.25, min=0)
             params.add("rise_time1", value=rise_time, min=0)
-            params.add("fall_time1", value=fall_time / 2, min=0)
-            params.add("fall_time2", value=fall_time * 2, min=0)
+            params.add("fall_time1", value=phase_fall_time / 2, min=0)
+            params.add("fall_time2", value=phase_fall_time * 2, min=0)
             params.add("phase_offset", value=0)
             index.append(0)
 
         if self.fit_type in ["dissipation_fit", "optimal_fit"]:
-            params.add("c", value=amplitude * 1.2, min=0)
+            params.add("c", value=dissipation_amplitude * 1.2, min=0)
             params.add("d", value=0.25, min=0)
             params.add("rise_time2", value=rise_time, min=0)
-            params.add("fall_time3", value=fall_time / 2, min=0)
-            params.add("fall_time4", value=fall_time * 2, min=0)
+            params.add("fall_time3", value=dissipation_fall_time / 2, min=0)
+            params.add("fall_time4", value=dissipation_fall_time * 2, min=0)
             params.add("dissipation_offset", value=0)
             index.append(1)
 
         # fit the template with all of the parameters varying to get the guess
-        result = self.fit(np.atleast_3d(self.pulse.template.T[:, index]) * amplitude, params)
+        result = self.fit(np.atleast_3d(self.pulse.template.T[:, index]) * phase_amplitude, params)
         params = result.params
 
         # fix the exponential ratios and fall times based on the template fit
@@ -177,4 +182,14 @@ class TripleExponential(PulseShapeABC):
         else:
             params.add('a', value=0, vary=False)
             params.add('b', value=0, vary=False)
-        return result.params
+        return params
+
+    def chi2(self, params, data):
+        if self.weight:
+            return super().chi2(params, data)
+        else:  # override super to get a more robust residual vector (twice the length)
+            model = self.model(params)
+            if self.shrink != 0 and data.shape[0] != self.pulse.template.shape[1]:
+                data = data[self.shrink // 2: -self.shrink // 2, :, :]
+            x = (data - model)  # n_time x 2 x 1
+            return np.concatenate([x[:, 0, 0], x[:, 1, 0]])
