@@ -192,4 +192,7 @@ class TripleExponential(PulseShapeABC):
             if self.shrink != 0 and data.shape[0] != self.pulse.template.shape[1]:
                 data = data[self.shrink // 2: -self.shrink // 2, :, :]
             x = (data - model)  # n_time x 2 x 1
-            return np.concatenate([x[:, 0, 0], x[:, 1, 0]])
+            if self.fit_type == "optimal_fit":
+                return np.concatenate([x[:, 0, 0], x[:, 1, 0]])
+            else:
+                return x[:, 0, 0]
