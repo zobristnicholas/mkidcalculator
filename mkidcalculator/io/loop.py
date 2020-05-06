@@ -869,23 +869,78 @@ class Loop:
             if free_memory:
                 pulse.free_memory(directory=free_memory if isinstance(free_memory, str) else None)
 
+    def compute_spectra(self, pulse_indices=None, calibrate=True, calibration_indices=None, calibration_mask=True,
+                        fix_zero=True, k=2, bc_type='not-a-knot', spectrum_mask=True, calibrated=None, bandwidth=None,
+                        **kwargs):
+        """
+        Compute the spectra for the associated pulse objects.
+        Args:
+            pulse_indices: iterable of integers (optional)
+                Indices of pulse objects in loop.pulses for which to calculate
+                the spectra. The default is None and all are used.
+            calibrate: boolean (optional)
+                The default is True and the energy calibration is computed with
+                loop.compute_energy_calibration(). If False, the spectrum is
+                computed directly from the responses.
+            calibration_indices: iterable of integers (optional)
+                The pulse indices to use when making the energy calibration.
+                This is only used if calibrate is True.
+            calibration_mask: boolean (optional)
+                If True (default), the pulse mask is used when computing the
+                energy calibration.
+            fix_zero: boolean (optional)
+                Determines if the zero point is added as a fixed point in the
+                energy calibration. The default is True.
+            k: integer (optional)
+                The interpolating spline degree. The default is 2.
+            bc_type: string or 2-tuple or None (optional)
+                The type of spline boundary condition. Valid kinds
+                correspond to those in scipy.interpolate.make_interp_spline.
+                The default is 'not-a-knot'.
+            spectrum_mask:  boolean (optional)
+                Use the pulse.mask to determine which detector responses to
+                use. The default is True.
+            calibrated: boolean (optional)
+                Argument to pulse.compute_spectrum(). See the docstring for
+                more details.
+            bandwidth: float (optional)
+                Override the 'bw_method' keyword argument for
+                scipy.stats.gaussian_kde with bandwidth / std(energies). This
+                method fixes the kernel width to bandwidth.
+            kwargs: optional keyword arguments
+                Optional arguments to scipy.stats.gaussian_kde for the kernel
+                density estimation.
+        """
+        if pulse_indices is None:
+            pulse_indices = range(len(self.pulses))
+        log.info("analyzing {} pulse object(s)".format(len(pulse_indices)))
+        if calibrate:
+            self.compute_energy_calibration(pulse_indices=calibration_indices, use_mask=calibration_mask,
+                                            fix_zero=fix_zero, k=k, bc_type=bc_type)
+            log.info("energy calibration computed")
+
+        for index, pulse in enumerate([self.pulses[ii] for ii in pulse_indices]):
+            pulse.compute_spectrum(use_mask=spectrum_mask, use_calibration=calibrate, calibrated=calibrated,
+                                   bandwidth=bandwidth, **kwargs)
+            log.info("pulse {}: spectrum computed".format(index))
+
     def compute_energy_calibration(self, pulse_indices=None, use_mask=True, fix_zero=True, k=2, bc_type='not-a-knot'):
         """
         Compute the response to energy calibration from data in the pulse
         objects. There must be at least two distinct single energy pulses.
         Args:
-            pulse_indices: iterable of integers
+            pulse_indices: iterable of integers (optional)
                 Indices of pulse objects in loop.pulses to use for the
                 calibration. The default is None and all are used.
-            use_mask: boolean
+            use_mask: boolean (optional)
                 Determines if the pulse mask is used to filter the pulse
                 responses used for the calibration. The default is True.
-            fix_zero: boolean
+            fix_zero: boolean (optional)
                 Determines if the zero point is added as a fixed point in the
                 calibration. The default is True.
-            k: integer
+            k: integer (optional)
                 The interpolating spline degree. The default is 2.
-            bc_type: string or 2-tuple or None
+            bc_type: string or 2-tuple or None (optional)
                 The type of spline boundary condition. Valid kinds
                 correspond to those in scipy.interpolate.make_interp_spline.
                 The default is 'not-a-knot'.
