@@ -403,7 +403,6 @@ class Pulse:
         self._p_filter_var = None
         self._d_filter = None
         self._d_filter_var = None
-        self.clear_responses()
 
     def clear_mask(self):
         """
