@@ -1215,7 +1215,7 @@ class Pulse:
             raise AttributeError("The pulse traces have not been characterized yet.")
         self.mask[(self._integral < minimum) | (self._integral > maximum)] = False
 
-    def compute_spectrum(self, use_mask=True, use_calibration=True, calibrated=None, **kwargs):
+    def compute_spectrum(self, use_mask=True, use_calibration=True, calibrated=None, bandwidth=None, **kwargs):
         """
         Compute the spectrum of the pulse data. The result is stored in
         pulse.spectrum.
@@ -1234,8 +1234,14 @@ class Pulse:
                 corresponds to the state of use_calibration. Setting this
                 parameter is useful for when the responses are already
                 energies.
+            bandwidth: float (optional)
+                Override the 'bw_method' keyword argument for
+                scipy.stats.gaussian_kde with bandwidth / std(energies). This
+                method fixes the kernel width to bandwidth.
             kwargs: optional keyword arguments
-                Optional arguments to scipy.stats.gaussian_kde
+                Optional arguments to scipy.stats.gaussian_kde. The default for
+                'bw_method' is Scott’s method but modified to use the
+                median absolute deviation instead of the standard deviation.
         """
         self.clear_spectrum()
         # compute an estimate of the distribution function for the dissipation data
@@ -1246,9 +1252,14 @@ class Pulse:
             energies = self.responses[self.mask] if use_mask else self.responses
 
         calibrated = use_calibration if calibrated is None else calibrated
+        sigma = energies.std(ddof=1)
+        sigma_mad = np.median(np.abs(energies - np.median(energies))) / norm.ppf(0.75)
+        kwargs.setdefault('bw_method', energies.size**(-1 / 5) * sigma_mad / sigma)  # Scott's method but with MAD
+        if bandwidth is not None:
+            kwargs['bw_method'] = bandwidth / sigma
         fwhm, peak, pdf, pdf_interp = self._compute_fwhm(energies, **kwargs)
         self._spectrum = {"pdf": pdf, "interpolation": pdf_interp, "energies": energies, "calibrated": calibrated,
-                          "bandwidth": pdf.factor, "fwhm": fwhm, "peak": peak}
+                          "bandwidth": pdf.factor * sigma, "fwhm": fwhm, "peak": peak}
 
     @staticmethod
     def _compute_fwhm(energies, **kwargs):
@@ -1307,7 +1318,7 @@ class Pulse:
         # deviation. This should be robust against the outliers from pulses.
         median_phase = np.median(data[0], axis=1, keepdims=True)
         mad = np.median(np.abs(data[0] - median_phase))
-        sigma = 1.4826 * mad
+        sigma = mad / norm.ppf(0.75)
 
         # look for a phase < sigma * threshold around the middle of the trace
         n_points = len(data[0, 0, :])
@@ -1616,7 +1627,7 @@ class Pulse:
             figure = axes.figure
 
         # plot the data
-        n_bins = 10 * int((max_energy - min_energy) / bandwidth)
+        n_bins = int((max_energy - min_energy) / bandwidth)
         axes.hist(energies, n_bins, density=True)
         xx = np.linspace(min_energy, max_energy, 10 * n_bins)
         label = "R = {:.2f}".format(peak / fwhm) if not np.isnan(peak) and not np.isnan(fwhm) else ""
