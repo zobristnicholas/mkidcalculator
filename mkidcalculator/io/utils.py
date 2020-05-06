@@ -570,28 +570,20 @@ def subplots_colorbar(mappable, axes_list, gridspec_kwargs=None, **kwargs):
 
 def dump(obj, file_name):
     with open(file_name, "wb") as f:
-        # noinspection PyBroadException
         try:
+            import cloudpickle
+            cloudpickle.dump(obj, f)
+        except ImportError:
             pickle.dump(obj, f)
-        except Exception:
-            import dill
-            try:
-                dill.dump(obj, f)
-            except Exception as e:
-                raise pickle.PicklingError(repr(e))
 
 
 def load(file_name):
     with open(file_name, "rb") as f:
-        # noinspection PyBroadException
         try:
-            data = pickle.load(f)
-        except Exception:
-            import dill
-            try:
-                data = dill.load(f)
-            except Exception as e:
-                raise pickle.UnpicklingError(repr(e))
+            import cloudpickle
+        except ImportError:
+            pass
+        data = pickle.load(f)
     return data
 
 
