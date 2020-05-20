@@ -348,7 +348,7 @@ class S21:
             f: numpy.ndarray, dtype=real, shape=(N,)
                 Frequency points corresponding to z.
             imbalance: numpy.ndarray, dtype=complex, shape=(M, L) (optional)
-                Mixer imbalance calibration data (three data sets of I and Q
+                Mixer imbalance calibration data (M data sets of I and Q
                 beating). Each of the M data sets is it's own calibration,
                 potentially taken at different frequencies and frequency
                 offsets. The results of the M data sets are averaged together.
@@ -413,6 +413,7 @@ class S21:
         offset = np.mean(offset) if offset is not None else 0.
         if imbalance is not None:
             # bandpass filter the I and Q signals
+            imbalance = np.atleast_2d(imbalance)
             i, q = imbalance.real, imbalance.imag
             n = i.shape[0]
             ip, f_i_ind = bandpass(i)
