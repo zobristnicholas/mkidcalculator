@@ -791,6 +791,8 @@ class Loop:
                     log.info("pulse {}: template computed".format(index))
                     pulse.make_filters()
                     log.info("pulse {}: filters computed".format(index))
+                    if free_memory:
+                        pulse.free_memory(directory=free_memory if isinstance(free_memory, str) else None)
         attributes = {"optimal_filter": "optimal_filter", "phase_filter": "p_filter", "dissipation_filter": "d_filter"}
         filter_ = getattr(self.pulses[filter_index], attributes[filter_type]) if filter_index is not None else None
         for index, pulse in enumerate([self.pulses[ii] for ii in pulse_indices]):
@@ -862,6 +864,8 @@ class Loop:
                 log.info("pulse {}: psd computed".format(index))
                 pulse.make_template(use_mask=template_mask, shrink=shrink)
                 log.info("pulse {}: template computed".format(index))
+                if free_memory:
+                    pulse.free_memory(directory=free_memory if isinstance(free_memory, str) else None)
         for index, pulse in enumerate([self.pulses[ii] for ii in pulse_indices]):
             pulse.compute_responses(mask_only=response_mask, calculation_type=fit_type, model=model, guess=guess,
                                     weight=weight)
