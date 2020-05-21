@@ -385,7 +385,7 @@ def get_plot_model(self, fit_type, label, params=None, calibrate=False, default_
         params = result_dict['result'].params
     m = model.model(params, f)
     if calibrate:
-        m = model.calibrate(params, m, f, center=center)
+        m = model.calibrate(result_dict['result'].params, m, f, center=center)
     # add the plot
     kwargs = {} if default_kwargs is None else default_kwargs
     if plot_kwargs is not None:

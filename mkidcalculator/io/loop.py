@@ -1627,7 +1627,7 @@ class Loop:
             default_kwargs = {"linestyle": '-.', "label": "guess", "color": "k"}
             f, m, kwargs = get_plot_model(self, fit_type, label, calibrate=calibrate, params=plot_guess,
                                           use_mask=use_mask, plot_kwargs=guess_kwargs, default_kwargs=default_kwargs)
-            axes.plot(f, np.abs(m) if not db else 20 * np.log10(np.abs(m)), **kwargs)
+            axes.plot(f * 1e9 / f_scale, np.abs(m) if not db else 20 * np.log10(np.abs(m)), **kwargs)
         # finalize the plot
         finalize_axes(axes, title=title, title_kwargs=title_kwargs, legend=legend, legend_kwargs=legend_kwargs,
                       tick_kwargs=tick_kwargs, tighten=tighten)
@@ -1835,13 +1835,14 @@ class Loop:
                 raise ValueError("No fit of type '{}' with the label '{}' has been done".format(fit_type, label))
             result = result_dict['result']
             model = result_dict['model']
-            z = zd if not calibrate else model.calibrate(result.params, zd, fd, center=True)
-            axes.plot(fd * 1e9 / f_scale, np.unwrap(np.angle(z)) if unwrap else np.angle(z), **kwargs)
+            if calibrate:
+                zd = model.calibrate(result.params, zd, fd, center=True)
+            axes.plot(fd * 1e9 / f_scale, np.unwrap(np.angle(zd)) if unwrap else np.angle(zd), **kwargs)
             # calculate the model values
             f, m, kwargs = get_plot_model(self, fit_type, label, calibrate=calibrate, plot_kwargs=fit_kwargs,
                                           use_mask=use_mask, default_kwargs={"linestyle": '--', "label": "fit"},
                                           center=True)
-            offset = 2 * np.pi if np.angle(z[0]) - np.angle(m[0]) > np.pi else 0
+            offset = 2 * np.pi if np.angle(zd[0]) - np.angle(m[0]) > np.pi else 0
             axes.plot(f * 1e9 / f_scale, np.unwrap(np.angle(m) + offset) if unwrap else np.angle(m), **kwargs)
             string = "power: {:.0f} dBm, field: {:.2f} V, temperature: {:.2f} mK, '{}' fit"
             title = string.format(self.power, self.field, self.temperature * 1000, fit_name) if title is True else title
@@ -1854,9 +1855,10 @@ class Loop:
         # plot guess
         if plot_guess is not None:
             default_kwargs = {"linestyle": '-.', "label": "guess", "color": "k"}
-            f, m, kwargs = get_plot_model(self, fit_type, label, calibrate=calibrate, params=plot_guess,
+            f, m, kwargs = get_plot_model(self, fit_type, label, calibrate=calibrate, params=plot_guess, center=True,
                                           use_mask=use_mask, plot_kwargs=guess_kwargs, default_kwargs=default_kwargs)
-            axes.plot(f, np.unwrap(np.angle(m)) if unwrap else np.angle(m), **kwargs)
+            offset = 2 * np.pi if np.angle(zd[0]) - np.angle(m[0]) > np.pi else 0
+            axes.plot(f * 1e9 / f_scale, np.unwrap(np.angle(m) + offset) if unwrap else np.angle(m), **kwargs)
         # finalize the plot
         finalize_axes(axes, title=title, title_kwargs=title_kwargs, legend=legend, legend_kwargs=legend_kwargs,
                       tick_kwargs=tick_kwargs, tighten=tighten)
