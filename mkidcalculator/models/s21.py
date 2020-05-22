@@ -105,8 +105,7 @@ class S21:
                 The S21 scattering parameter.
         """
         # loop parameters
-        df = params['df'].value  # frequency shift due to mismatched impedances
-        f0 = params['f0'].value  # resonant frequency
+        xa = params['xa'].value  # frequency shift due to mismatched impedances
         qi = params['qi'].value  # internal Q
         qc = params['qc'].value  # coupling Q
         # make sure that f is a numpy array
@@ -114,7 +113,7 @@ class S21:
         # find the fractional frequency shift
         x = cls.x(params, f)
         # find the scattering parameter
-        z = (qc + 2j * qi * qc * (x + df / f0)) / (qi + qc + 2j * qi * qc * x)
+        z = (qc + 2j * qi * qc * (x + xa)) / (qi + qc + 2j * qi * qc * x)
         return z
 
     @classmethod
@@ -186,7 +185,7 @@ class S21:
         else:
             z /= cls.baseline(params, f)
         if center:
-            center = params.eval("1 - q0 / (2 * qc) + 1j * q0 * df / f0")
+            center = params.eval("1 - q0 / (2 * qc) + 1j * q0 * xa")
             z = center - z
         return z
 
@@ -313,7 +312,7 @@ class S21:
             q0 = params['q0'].value
             qc = params['qc'].value
             qi = params['qi'].value
-            df = params['df'].value
+            xa = params['xa'].value
             f0 = params['f0'].value
             x = cls.x(params, f)
             # calibrate IQ data
@@ -322,14 +321,14 @@ class S21:
             q = z.imag
             z[np.abs(1 - z) < EPS] = 1 - EPS  # avoid zero denominator
             # compute phase
-            dx = (q + 2 * qc * df / f0 * (i - 1)) / (2 * qc * np.abs(1 - z)**2) - x
+            dx = (q + 2 * qc * xa * (i - 1)) / (2 * qc * np.abs(1 - z)**2) - x
             phase = -4 * q0 / (1 + 4 * q0**2 * x**2) * dx
             if fr_reference:  # already referenced if not using resonance frequency
                 f_ref = params['fr'].value
                 z_ref = cls.calibrate(params, cls.model(params, f_ref), f_ref, center=True)
                 phase -= np.angle(z_ref)
             # compute dissipation
-            dqi_inv = (i - np.abs(z)**2 + 2 * qc * df / f0 * q) / (qc * np.abs(1 - z)**2) - qi**-1
+            dqi_inv = (i - np.abs(z)**2 + 2 * qc * xa * q) / (qc * np.abs(1 - z)**2) - qi**-1
             dissipation = -2 * q0 / (1 + 4 * q0**2 * x**2) * dqi_inv
         else:
             raise ValueError("'form' must be one of ['geometric', 'analytic']")
@@ -451,9 +450,9 @@ class S21:
             return (fx - f_midpoint) / f_midpoint
 
         # get the magnitude and phase data to fit
-        mag_ends = np.concatenate((magnitude[0:f_index_5pc], magnitude[-f_index_5pc:-1]))
-        phase_ends = np.concatenate((phase[0:f_index_5pc], phase[-f_index_5pc:-1]))
-        freq_ends = xm(np.concatenate((f[0:f_index_5pc], f[-f_index_5pc:-1])))
+        mag_ends = np.concatenate((magnitude[:f_index_5pc], magnitude[-f_index_5pc + 1:]))
+        phase_ends = np.concatenate((phase[:f_index_5pc], phase[-f_index_5pc + 1:]))
+        freq_ends = xm(np.concatenate((f[:f_index_5pc], f[-f_index_5pc + 1:])))
         # calculate the gain polynomials
         gain_poly = np.polyfit(freq_ends, mag_ends, 2 if quadratic_gain else 1)
         if not quadratic_gain:
@@ -491,7 +490,7 @@ class S21:
         # make the parameters object (coerce all values to float to avoid ints and numpy types)
         params = lm.Parameters()
         # resonance parameters
-        params.add('df', value=float(0), vary=fit_resonance)
+        params.add('xa', value=float(0), vary=fit_resonance)
         params.add('f0', value=float(f0_guess), min=f_min, max=f_max, vary=fit_resonance)
         params.add('qc', value=float(qc_guess), min=1, max=10**8, vary=fit_resonance)
         params.add('qi', value=float(qi_guess), min=1, max=10**8, vary=fit_resonance)
@@ -513,7 +512,7 @@ class S21:
         # add derived parameters
         params.add("a", expr="a_sqrt**2")  # nonlinearity parameter (Swenson et al. 2013)
         params.add("q0", expr="1 / (1 / qi + 1 / qc)")  # the total quality factor
-        params.add("fm", value=f_midpoint, vary=False)  # the frequency midpoint used for fitting
+        params.add("fm", value=float(f_midpoint), vary=False)  # the frequency midpoint used for fitting
         params.add("tau", expr="-phase1 / (2 * pi * fm)")  # the cable delay
         params.add("fr", expr="f0 * (1 - a / q0)")  # resonance frequency accounting for nonlinearity
         return params
