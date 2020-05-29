@@ -1,5 +1,5 @@
 # mkidcalculator
-This package provides tools for analyzing MKID data loaded from arbitrary sources. Routines are provided along with plotting tools to make basic analysis tasks simple and straightforward. 
+This package contains tools for analyzing MKID data loaded from arbitrary sources. Routines are provided along with plotting tools to make basic analysis tasks simple and straightforward. 
 
 ## Getting Started
 These instructions will help you install _mkidcalculator_ on your machine. The code is still in it's beta stage so there is currently no release version. It must be downloaded and installed directly from GitHub.
