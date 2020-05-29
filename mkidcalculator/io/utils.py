@@ -11,6 +11,13 @@ from collections import OrderedDict
 import scipy.constants as c
 from scipy.signal import find_peaks, detrend
 
+try:
+    import loopfit
+    HAS_LOOPFIT = True
+except ImportError:
+    loopfit = None
+    HAS_LOOPFIT = False
+
 log = logging.getLogger(__name__)
 log.addHandler(logging.NullHandler())
 
@@ -102,12 +109,15 @@ def compute_phase_and_dissipation(cls, label="best", fit_type="lmfit", **kwargs)
     cls.clear_traces()
     # get the model and parameters
     _, result_dict = cls.loop._get_model(fit_type, label)
-    model = result_dict["model"]
-    params = result_dict["result"].params
-    # compute phase and dissipation  # TODO: input I and Q separately to save memory
-    phase, dissipation = model.phase_and_dissipation(params, cls.i_trace + 1j * cls.q_trace, cls.f_bias, **kwargs)
-    cls.p_trace = phase
-    cls.d_trace = dissipation
+    if fit_type in ["lmfit", "emcee", "emcee_mle"]:
+        model = result_dict["model"]
+        params = result_dict["result"].params
+        # compute phase and dissipation  # TODO: input I and Q separately to save memory
+        phase, dissipation = model.phase_and_dissipation(params, cls.i_trace + 1j * cls.q_trace, cls.f_bias, **kwargs)
+        cls.p_trace = phase
+        cls.d_trace = dissipation
+    else:
+        raise ValueError("{} is not a valid fit type".format(fit_type))
 
 
 def offload_data(cls, excluded_keys=(), npz_key="_npz", prefix="", directory_key="_directory"):
@@ -375,17 +385,26 @@ def get_plot_model(self, fit_type, label, params=None, calibrate=False, default_
     fit_name, result_dict = self._get_model(fit_type, label)
     if fit_name is None:
         raise ValueError("No fit of type '{}' with the label '{}' has been done".format(fit_type, label))
-    model = result_dict['model']
     # calculate the model values
     if use_mask:
         f = np.linspace(np.min(self.f[self.mask]), np.max(self.f[self.mask]), np.size(self.f[self.mask]) * n_factor)
     else:
         f = np.linspace(np.min(self.f), np.max(self.f), np.size(self.f) * n_factor)
-    if params is None:
-        params = result_dict['result'].params
-    m = model.model(params, f)
-    if calibrate:
-        m = model.calibrate(result_dict['result'].params, m, f, center=center)  # must calibrate wrt the fit
+    if fit_type in ["lmfit", "emcee", "emcee_mle"]:
+        if params is None:
+            params = result_dict['result'].params
+        model = result_dict['model']
+        m = model.model(params, f)
+        if calibrate:
+            m = model.calibrate(result_dict['result'].params, m, f, center=center)  # must calibrate wrt the fit
+    else:
+        if not HAS_LOOPFIT:
+            raise ImportError("The loopfit package is not installed.")
+        if params is None:
+            params = result_dict
+        m = loopfit.model(f, **params)
+        if calibrate:
+            m = loopfit.calibrate(f, z=m, center=center, **result_dict)
     # add the plot
     kwargs = {} if default_kwargs is None else default_kwargs
     if plot_kwargs is not None:

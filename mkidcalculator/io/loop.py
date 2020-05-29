@@ -13,7 +13,8 @@ from mkidcalculator.io.pulse import Pulse
 from mkidcalculator.models import TripleExponential
 from mkidcalculator.io.data import AnalogReadoutLoop, AnalogReadoutNoise, AnalogReadoutPulse, NoData
 from mkidcalculator.io.utils import (ev_nm_convert, lmfit, sort_and_fix, setup_axes, finalize_axes, get_plot_model,
-                                     dump, load)
+                                     dump, load, HAS_LOOPFIT, loopfit)
+
 
 log = logging.getLogger(__name__)
 log.addHandler(logging.NullHandler())
@@ -37,6 +38,7 @@ class Loop:
         # internal variables
         self._power_calibration = 0
         # analysis results
+        self.loopfit_results = {}
         self.lmfit_results = {}
         self.emcee_results = {}
         # directory of the saved data
@@ -451,6 +453,46 @@ class Loop:
                 pulses.append(p)
         loop.add_pulses(pulses, sort=sort)
         return loop
+
+    def loopfit(self, label='default', use_mask=True, keep=True, sigma=None, **kwargs):
+        """
+        Compute a least squares fit to the loop using the loopfit package. The
+        result is stored in self.loopfit_results[label].
+        Args:
+            label: string (optional)
+                A label describing the fit, used for storing the results in the
+                self.loopfit_results dictionary. The default is 'default'.
+            use_mask: boolean (optional)
+                Use the mask to select the frequency and complex transmission
+                data. The default is True.
+            keep: boolean (optional)
+                Store the fit result in the object. The default is True. If
+                False, the fit will only be stored if it is the best so far.
+            sigma: complex (optional)
+                The complex standard deviation of the data corresponding to the
+                sigma keyword argument in loopfit.fit(). If not provided,
+                1 + 1j is used to ensure that the 'aic' metric is computed.
+            kwargs: optional keyword arguments
+                Additional keyword arguments are sent to loopfit.fit().
+        Returns:
+            result: dictionary
+                A dictionary containing the results of the minimization. It is
+                also stored in self.loopfit_results[label].
+        """
+        if not HAS_LOOPFIT:
+            raise ImportError("The loopfit package is not installed.")
+        f = self.f[self.mask] if use_mask else self.f
+        z = self.z[self.mask] if use_mask else self.z
+        result = loopfit.fit(f, z=z, sigma=sigma if sigma is not None else 1 + 1j, **kwargs)
+        if keep:
+            if label in self.loopfit_results:
+                message = "'{}' has already been used as a loopfit label. The old data has been overwritten"
+                log.warning(message.format(label))
+            self.loopfit_results[label] = result
+        if 'best' not in self.loopfit_results.keys() or result['aic'] < self.loopfit_results['best']['aic']:
+            result['label'] = label
+            self.loopfit_results['best'] = result
+        return result
 
     def lmfit(self, model, guess, label='default', use_mask=True, keep=True, residual_args=(), residual_kwargs=None,
               **kwargs):
@@ -1240,15 +1282,22 @@ class Loop:
         if index < len(axes_list) - 1:
             for axes in axes_list[index + 1:]:
                 axes.axis('off')
+        frac = None
         if plot_fit:
             fit_name, result_dict = self._get_model(fit_type, label)
+            if fit_type != "loopfit":
+                chi2 = result_dict['result'].redchi
+                result_dict = result_dict['result'].params.valuesdict()
+                result_dict['chi2'] = chi2
+            else:
+                result_dict['chi2'] = result_dict['chi_squared'] / (result_dict['size'] - result_dict['varied'])
             if fit_parameters:
                 if index == len(axes_list) - 1:
                     axes = axes_list[n_columns - 1]
-                    self._make_parameters_textbox(fit_parameters, result_dict['result'], axes, parameters_kwargs)
+                    frac = self._make_parameters_textbox(fit_parameters, result_dict, axes, parameters_kwargs)
                 else:
                     axes = axes_list[index + 1]
-                    text = self._make_parameters_text(fit_parameters, result_dict['result'])
+                    text = self._make_parameters_text(fit_parameters, result_dict)
                     kwargs = {"transform": axes.transAxes, "fontsize": 10, "va": "center", "ha": "center",
                               "ma": "center", "bbox": dict(boxstyle='round', facecolor='wheat', alpha=0.5)}
                     if parameters_kwargs is not None:
@@ -1272,7 +1321,9 @@ class Loop:
             if tighten:
                 figure.tight_layout()
             figure.suptitle(title, **kwargs).set_y(0.95)
-            figure.subplots_adjust(top=0.9)
+            figure.subplots_adjust(top=0.9, right=0.9-frac if frac is not None else 0.9)
+        elif frac is not None:
+            figure.subplots_adjust(right=0.9 - frac)
         elif tighten:
             figure.tight_layout()
         return axes_list
@@ -1381,9 +1432,7 @@ class Loop:
             fit_name, result_dict = self._get_model(fit_type, label)
             if fit_name is None:
                 raise ValueError("No fit of type '{}' with the label '{}' has been done".format(fit_type, label))
-            result = result_dict['result']
-            model = result_dict['model']
-            z = zd if not calibrate else model.calibrate(result.params, zd, fd)
+            z = self._calibrate(fit_type, result_dict, zd, fd) if calibrate else zd
             axes.plot(z.real, z.imag, **kwargs)
             # calculate the model values
             f, m, kwargs = get_plot_model(self, fit_type, label, calibrate=calibrate, plot_kwargs=fit_kwargs,
@@ -1607,9 +1656,7 @@ class Loop:
             fit_name, result_dict = self._get_model(fit_type, label)
             if fit_name is None:
                 raise ValueError("No fit of type '{}' with the label '{}' has been done".format(fit_type, label))
-            result = result_dict['result']
-            model = result_dict['model']
-            z = zd if not calibrate else model.calibrate(result.params, zd, fd)
+            z = self._calibrate(fit_type, result_dict, zd, fd) if calibrate else zd
             axes.plot(fd * 1e9 / f_scale, np.abs(z) if not db else 20 * np.log10(np.abs(z)), **kwargs)
             # calculate the model values
             f, m, kwargs = get_plot_model(self, fit_type, label, calibrate=calibrate, plot_kwargs=fit_kwargs,
@@ -1835,10 +1882,7 @@ class Loop:
             fit_name, result_dict = self._get_model(fit_type, label)
             if fit_name is None:
                 raise ValueError("No fit of type '{}' with the label '{}' has been done".format(fit_type, label))
-            result = result_dict['result']
-            model = result_dict['model']
-            if calibrate:
-                zd = model.calibrate(result.params, zd, fd, center=True)
+            zd = self._calibrate(fit_type, result_dict, zd, fd, center=True) if calibrate else zd
             axes.plot(fd * 1e9 / f_scale, np.unwrap(np.angle(zd)) if unwrap else np.angle(zd), **kwargs)
             # calculate the model values
             f, m, kwargs = get_plot_model(self, fit_type, label, calibrate=calibrate, plot_kwargs=fit_kwargs,
@@ -2243,9 +2287,12 @@ class Loop:
             pulse._set_directory(self._directory)
 
     def _get_model(self, fit_type, label):
-        if fit_type not in ['lmfit', 'emcee', 'emcee_mle']:
-            raise ValueError("'fit_type' must be either 'lmfit', 'emcee', or 'emcee_mle'")
-        if fit_type == "lmfit" and label in self.lmfit_results.keys():
+        if fit_type not in ['loopfit', 'lmfit', 'emcee', 'emcee_mle']:
+            raise ValueError("'fit_type' must be either 'loopfit', 'lmfit', 'emcee', or 'emcee_mle'")
+        if fit_type == "loopfit" and label in self.loopfit_results.keys():
+            result_dict = self.loopfit_results[label]
+            original_label = self.loopfit_results[label]["label"] if label == "best" else label
+        elif fit_type == "lmfit" and label in self.lmfit_results.keys():
             result_dict = self.lmfit_results[label]
             original_label = self.lmfit_results[label]["label"] if label == "best" else label
         elif fit_type == "emcee" and label in self.emcee_results.keys():
@@ -2273,16 +2320,28 @@ class Loop:
             text_width = t.get_bbox_patch().get_width()
         else:
             text_width = 0.1 * axes_width
-        axes.figure.set_figwidth(axes.figure.get_figwidth() + text_width)
+        return text_width / axes.figure.get_figwidth()
 
     @staticmethod
     def _make_parameters_text(fit_parameters, result):
         text = []
         for name in fit_parameters:
             if name == "chi2":
-                text.append(r"$\chi^2 = {:g}$".format(result.redchi))
+                text.append(r"$\chi^2_\nu$ = {:g}".format(result[name]))
             else:
-                text.append("{} = {:g}".format(name, result.params[name].value))
+                text.append("{} = {:g}".format(name, result[name]))
         text = "\n".join(text)
 
         return text
+
+    @staticmethod
+    def _calibrate(fit_type, result_dict, zd, fd, center=False):
+        if fit_type in ["lmfit", "emcee", "emcee_mle"]:
+            result = result_dict['result']
+            model = result_dict['model']
+            z = model.calibrate(result.params, zd, fd, center=center)
+        else:
+            if not HAS_LOOPFIT:
+                raise ImportError("The loopfit package is not installed.")
+            z = loopfit.calibrate(fd, z=zd, center=center, **result_dict)
+        return z

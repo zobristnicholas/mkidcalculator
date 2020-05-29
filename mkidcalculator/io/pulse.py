@@ -1459,6 +1459,8 @@ class Pulse:
         traces = self.i_trace[mask, :] + 1j * self.q_trace[mask, :]
         # grab the model
         _, result_dict = self.loop._get_model(fit_type, label)
+        if fit_type not in ['lmfit', 'emcee', 'emcee_mle']:
+            raise ValueError("'fit_type' must be either 'lmfit', 'emcee', or 'emcee_mle'")
         if result_dict is not None:
             params = result_dict['result'].params
             model = result_dict['model']
