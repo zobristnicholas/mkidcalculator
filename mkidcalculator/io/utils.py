@@ -579,8 +579,10 @@ def subplots_colorbar(mappable, axes_list, gridspec_kwargs=None, **kwargs):
                                                       width_ratios=[pad - subplot_pad,
                                                                     fraction - pad + subplot_pad])
     for axes in axes_list:
-        axes.set_position(gs[axes.rowNum, axes.colNum].get_position(axes.figure))
-        axes.set_subplotspec(gs[axes.rowNum, axes.colNum])
+        n_row = axes.get_subplotspec().rowspan.start
+        n_col = axes.get_subplotspec().colspan.start
+        axes.set_position(gs[n_row, n_col].get_position(axes.figure))
+        axes.set_subplotspec(gs[n_row, n_col])
     cax = axes_list[0].figure.add_subplot(gs2[1, 1])
     cax.set_aspect(aspect, anchor=(0.0, 0.5), adjustable='box')
     cbar = axes_list[0].figure.colorbar(mappable, cax=cax, **kwargs)
