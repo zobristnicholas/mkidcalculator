@@ -1491,6 +1491,7 @@ class Loop:
             self._make_parameters_textbox(fit_parameters, result, axes, parameters_kwargs)
         # finalize the plot
         string = "power: {:.0f} dBm, field: {:.2f} V, temperature: {:.2f} mK, '{}' fit"
+        fit_name, _ = self._get_model(fit_type, label)
         title = string.format(self.power, self.field, self.temperature * 1000, fit_name) if title is True else title
         finalize_axes(axes, title=title, title_kwargs=title_kwargs, legend=legend, legend_kwargs=legend_kwargs,
                       tick_kwargs=tick_kwargs, tighten=tighten)
@@ -1720,6 +1721,7 @@ class Loop:
             self._make_parameters_textbox(fit_parameters, result, axes, parameters_kwargs)
         # finalize the plot
         string = "power: {:.0f} dBm, field: {:.2f} V, temperature: {:.2f} mK, '{}' fit"
+        fit_name, _ = self._get_model(fit_type, label)
         title = string.format(self.power, self.field, self.temperature * 1000, fit_name) if title is True else title
         finalize_axes(axes, title=title, title_kwargs=title_kwargs, legend=legend, legend_kwargs=legend_kwargs,
                       tick_kwargs=tick_kwargs, tighten=tighten)
@@ -1951,6 +1953,7 @@ class Loop:
             self._make_parameters_textbox(fit_parameters, result, axes, parameters_kwargs)
         # finalize the plot
         string = "power: {:.0f} dBm, field: {:.2f} V, temperature: {:.2f} mK, '{}' fit"
+        fit_name, _ = self._get_model(fit_type, label)
         title = string.format(self.power, self.field, self.temperature * 1000, fit_name) if title is True else title
         finalize_axes(axes, title=title, title_kwargs=title_kwargs, legend=legend, legend_kwargs=legend_kwargs,
                       tick_kwargs=tick_kwargs, tighten=tighten)
