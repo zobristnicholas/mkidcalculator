@@ -3,6 +3,7 @@ import numbers
 import numpy as np
 import lmfit as lm
 import scipy.signal as sps
+from scipy.ndimage import label, find_objects
 
 from mkidcalculator.io.utils import _compute_sigma
 from mkidcalculator.models.utils import bandpass
@@ -130,9 +131,9 @@ class S21:
                 The S21 scattering parameter.
         """
         alpha = params['alpha'].value
-        gamma = params['gamma'].value
-        offset = params['i_offset'].value + 1j * params['q_offset'].value
-        z = (z.real * alpha + 1j * (z.real * np.sin(gamma) + z.imag * np.cos(gamma))) + offset
+        beta = params['beta'].value
+        offset = params['gamma'].value + 1j * params['delta'].value
+        z = (z.real + 1j * alpha * (z.real * np.sin(beta) + z.imag * np.cos(beta))) + offset
         return z
 
     @classmethod
@@ -143,7 +144,7 @@ class S21:
         Args:
             params: lmfit.Parameters() object or tuple
                 The parameters for the model function or a tuple with
-                (alpha, gamma, offset) where offset is i_offset + i * q_offset.
+                (alpha, beta, offset) where offset is gamma + i * delta.
             z: numpy.ndarray, dtype=complex
                 Complex resonator scattering parameter.
         Returns:
@@ -152,12 +153,12 @@ class S21:
         """
         if isinstance(params, lm.Parameters):
             alpha = params['alpha'].value
-            gamma = params['gamma'].value
-            offset = params['i_offset'].value + 1j * params['q_offset'].value
+            beta = params['beta'].value
+            offset = params['gamma'].value + 1j * params['delta'].value
         else:
-            alpha, gamma, offset = params
+            alpha, beta, offset = params
         z = z - offset
-        z = (z.real / alpha + 1j * (-z.real * np.tan(gamma) / alpha + z.imag / np.cos(gamma)))
+        z = (z.real + 1j * (-z.real * np.tan(beta) + z.imag / np.cos(beta) / alpha))
         return z
 
     @classmethod
@@ -313,7 +314,6 @@ class S21:
             qc = params['qc'].value
             qi = params['qi'].value
             xa = params['xa'].value
-            f0 = params['f0'].value
             x = cls.x(params, f)
             # calibrate IQ data
             z = cls.calibrate(params, z, f, center=False)
@@ -337,7 +337,7 @@ class S21:
     @classmethod
     def guess(cls, z, f, imbalance=None, offset=None, use_filter=False, filter_length=None, fit_resonance=True,
               nonlinear_resonance=False, fit_gain=True, quadratic_gain=True, fit_phase=True, quadratic_phase=False,
-              fit_imbalance=False, fit_offset=False, alpha=1, gamma=0):
+              fit_imbalance=False, fit_offset=False, alpha=1, beta=0):
         """
         Guess the model parameters based on the data. Returns a
         lmfit.Parameters() object.
@@ -351,8 +351,8 @@ class S21:
                 beating). Each of the M data sets is it's own calibration,
                 potentially taken at different frequencies and frequency
                 offsets. The results of the M data sets are averaged together.
-                The default is None, which means alpha and gamma are taken from
-                the keywords. The alpha and gamma keywords are ignored if a
+                The default is None, which means alpha and beta are taken from
+                the keywords. The alpha and beta keywords are ignored if a
                 value other than None is given.
             offset: complex, iterable (optional)
                 A complex number corresponding to the I + iQ mixer offset. The
@@ -401,7 +401,7 @@ class S21:
             alpha: float (optional)
                 Mixer amplitude imbalance. The default is 1 which corresponds
                 to no imbalance.
-            gamma:float (optional)
+            beta:float (optional)
                 Mixer phase imbalance. The default is 0 which corresponds to no
                 imbalance.
         Returns:
@@ -417,15 +417,15 @@ class S21:
             n = i.shape[0]
             ip, f_i_ind = bandpass(i)
             qp, f_q_ind = bandpass(q)
-            # compute alpha and gamma
-            amp = np.sqrt(2 * np.mean(qp**2, axis=-1))
-            alpha = np.sqrt(2 * np.mean(ip**2, axis=-1)) / amp
+            # compute alpha and beta
+            amp = np.sqrt(2 * np.mean(ip**2, axis=-1))
+            alpha = np.sqrt(2 * np.mean(qp**2, axis=-1)) / amp
             ratio = np.angle(np.fft.rfft(ip)[np.arange(n), f_i_ind[:, 0]] /
                              np.fft.rfft(qp)[np.arange(n), f_q_ind[:, 0]])  # for arcsine branch
-            gamma = np.arcsin(np.sign(ratio) * 2 * np.mean(qp * ip, axis=-1) / (alpha * amp**2)) + np.pi * (ratio < 0)
+            beta = np.arcsin(np.sign(ratio) * 2 * np.mean(qp * ip, axis=-1) / (alpha * amp**2)) + np.pi * (ratio < 0)
             alpha = np.mean(alpha)
-            gamma = np.mean(gamma)
-        z = cls.mixer_inverse((alpha, gamma, offset), z)
+            beta = np.mean(beta)
+        z = cls.mixer_inverse((alpha, beta, offset), z)
         # compute the magnitude and phase of the scattering parameter
         magnitude = np.abs(z)
         phase = np.unwrap(np.angle(z))
@@ -475,7 +475,10 @@ class S21:
         mag_min = magnitude[f_index_min]
         fwhm = np.sqrt((mag_max**2 + mag_min**2) / 2.)  # fwhm is for power not amplitude
         fwhm_mask = magnitude < fwhm
-        bandwidth = np.abs(f[fwhm_mask][-1] - f[fwhm_mask][0])
+        regions, _ = label(fwhm_mask)  # find the regions where magnitude < fwhm
+        region = regions[f_index_min]  # pick the one that includes the minimum
+        f_masked = f[find_objects(regions, max_label=region)[-1]]  # mask f to only include that region
+        bandwidth = f_masked.max() - f_masked.min()  # find the bandwidth
         # Q0 = f0 / fwhm bandwidth
         q0_guess = f0_guess / bandwidth if bandwidth != 0 else 1e4
         # Q0 / Qi = min(mag) / max(mag)
@@ -505,10 +508,10 @@ class S21:
         params.add('phase1', value=float(phase_poly[1]), vary=fit_phase)
         params.add('phase2', value=float(phase_poly[0]), vary=quadratic_phase and fit_phase)
         # IQ mixer parameters
-        params.add('i_offset', value=float(offset.real), vary=fit_offset)
-        params.add('q_offset', value=float(offset.imag), vary=fit_offset)
+        params.add('gamma', value=float(offset.real), vary=fit_offset)
+        params.add('delta', value=float(offset.imag), vary=fit_offset)
         params.add('alpha', value=float(alpha), vary=fit_imbalance)
-        params.add('gamma', value=float(gamma), min=gamma - np.pi / 2, max=gamma + np.pi / 2, vary=fit_imbalance)
+        params.add('beta', value=float(beta), min=beta - np.pi / 2, max=beta + np.pi / 2, vary=fit_imbalance)
         # add derived parameters
         params.add("a", expr="a_sqrt**2")  # nonlinearity parameter (Swenson et al. 2013)
         params.add("q0", expr="1 / (1 / qi + 1 / qc)")  # the total quality factor
