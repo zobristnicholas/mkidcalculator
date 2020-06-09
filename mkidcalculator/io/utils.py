@@ -8,6 +8,7 @@ import matplotlib
 import numpy as np
 import lmfit as lm
 from collections import OrderedDict
+from skimage.util import view_as_windows
 import scipy.constants as c
 from scipy.signal import find_peaks, detrend
 
@@ -500,8 +501,20 @@ def collect_resonances(f, z, peaks, df):
     return f_array, z_array
 
 
-def _loop_fit_data(loops, parameters=("chi2",), label='best', bounds=None, errorbars=None, success=None,
-                   power=None, field=None, temperature=None):
+def _red_chi(fit_type, result):
+    if fit_type == 'lmfit':
+        if isinstance(result, dict):
+            return result['result'].redchi
+        else:
+            return result.redchi
+    elif fit_type == 'loopfit':
+        return result['chi_squared'] / (result['size'] - result['varied'])
+    else:
+        raise ValueError("'fit_type' must be either 'loopfit' or 'lmfit'")
+
+
+def _loop_fit_data(loops, parameters=("chi2",), fit_type="lmfit", label='best', bounds=None, errorbars=None,
+                   success=None, power=None, field=None, temperature=None):
     if isinstance(parameters, str):
         parameters = [parameters]
     power, field, temperature = create_ranges(power, field, temperature)
@@ -511,20 +524,26 @@ def _loop_fit_data(loops, parameters=("chi2",), label='best', bounds=None, error
         for loop in loops:
             if valid_ranges(loop, power, field, temperature):
                 try:
-                    result = loop.lmfit_results[label]['result']
+                    result = getattr(loop, fit_type + "_results")[label]
                 except KeyError:
                     continue  # no fit for this label
-                if errorbars is not None and result.errorbars != errorbars:
-                    continue  # skip if wrong errorbars setting
-                if success is not None and result.success != success:
-                    continue  # skip if wrong success setting
+                if fit_type == "lmfit":
+                    if errorbars is not None and result.errorbars != errorbars:
+                        continue  # skip if wrong errorbars setting
+                    if success is not None and result.success != success:
+                        continue  # skip if wrong success setting
                 try:
-                    outputs[-1].append(result.params[parameter].value)
+                    if fit_type == "lmfit":
+                        outputs[-1].append(result['result'].params[parameter].value)
+                    elif fit_type == "loopfit":
+                        outputs[-1].append(result[parameter])
                 except KeyError as error:
                     if parameter.endswith("_sigma"):
-                        outputs[-1].append(result.params[parameter[:-6]].stderr)
+                        outputs[-1].append(result.params[parameter[:-6]].stderr)  # only allowed for lmfit
                     elif parameter.startswith("chi2") or parameter.startswith("redchi"):
-                        outputs[-1].append(result.redchi)
+                        outputs[-1].append(_red_chi(fit_type, result))
+                    elif parameter == "q0" and fit_type == "loopfit":
+                        outputs[-1].append(1 / (1 / result["qi"] + 1 / result["qc"]))
                     elif parameter == "power":
                         outputs[-1].append(loop.power)
                     elif parameter == "field":
@@ -636,8 +655,13 @@ class MapResult(list):
 
 
 def _compute_sigma(z):
-    eps_real = np.std(detrend(z.real[0:10]), ddof=1)
-    eps_imag = np.std(detrend(z.imag[0:10]), ddof=1)
+    eps_real = np.std(detrend(view_as_windows(z.real, 10), axis=-1), ddof=1, axis=-1)
+    eps_imag = np.std(detrend(view_as_windows(z.imag, 10), axis=-1), ddof=1, axis=-1)
+    # We use the minimum standard deviation because data with multiple and/or saturated resonators can corrupt more
+    # than half of the measured data using this method.
+    index = np.argmin(np.sqrt(eps_real**2 + eps_imag**2))
+    eps_real = eps_real[index]
+    eps_imag = eps_imag[index]
     # make sure there are no zeros
     if eps_real == 0:
         log.warning("zero variance calculated and set to 1 when detrending I data")

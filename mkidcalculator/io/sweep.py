@@ -193,18 +193,21 @@ class Sweep:
         for resonator in self.resonators:
             resonator._set_directory(self._directory)
 
-    def plot_loop_fits(self, parameters=("chi2",), fr="fr", bounds=None, errorbars=True, success=True, power=None,
-                       field=None, temperature=None, title=True, tighten=True, label='best', plot_kwargs=None,
-                       axes_list=None):
+    def plot_loop_fits(self, parameters=("chi2",), fit_type="lmfit", fr="f0", bounds=None, errorbars=True, success=True,
+                       power=None, field=None, temperature=None, title=True, tighten=True, label='best',
+                       plot_kwargs=None, axes_list=None):
         """
         Plot a summary of all the loop fits.
         Args:
             parameters: tuple of strings
                 The fit parameters to plot. "chi2" can be used to plot the
                 reduced chi squared value. The default is just "chi2".
+            fit_type: string
+                The type of fit to use. Allowed options are "lmfit" and
+                "loopfit". The default is "lmfit".
             fr: string
                 The parameter name that corresponds to the resonance frequency.
-                The default is "fr" which gives the resonance frequency for the
+                The default is "f0" which gives the resonance frequency for the
                 mkidcalculator.S21 model. If this parameter is used in the
                 parameters list, a histogram and a nearest-neighbor scatter
                 plot is shown instead of the usual histogram and scatter plot.
@@ -222,7 +225,9 @@ class Sweep:
                 errorbars on the fit parameters is included. If errorbars is False,
                 only data from loop fits that could not compute errorbars on the
                 fit parameters is included. The default is True. None may be used
-                to enforce no filtering on the errorbars.
+                to enforce no filtering on the errorbars. This keyword has no
+                effect if the fit_type is "loopfit" since no error bars are
+                computed.
             success: boolean
                 If success is True, only data from successful loop fits is
                 included. If False, only data from failed loop fits is
@@ -277,8 +282,9 @@ class Sweep:
             if parameters[index] == fr and index != 0 and bound is not None:
                 dfr_bound = bound if isinstance(bound, Collection) else (0, bound)
                 bounds[index] = None
-        outputs = _loop_fit_data(loops, parameters=parameters, label=label, bounds=bounds, success=success,
-                                 errorbars=errorbars, power=power, field=field, temperature=temperature)
+        outputs = _loop_fit_data(loops, parameters=parameters, fit_type=fit_type, label=label, bounds=bounds,
+                                 success=success, errorbars=errorbars, power=power, field=field,
+                                 temperature=temperature)
         # create figure if needed
         if axes_list is None:
             from matplotlib import pyplot as plt

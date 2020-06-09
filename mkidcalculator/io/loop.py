@@ -626,7 +626,12 @@ class Loop:
                 return_string is False.
         """
         _, result_dict = self._get_model(fit_type, label)
-        string = lm.fit_report(result_dict['result'])
+        if fit_type in ["lmfit", "emcee", "emcee_mle"]:
+            string = lm.fit_report(result_dict['result'])
+        elif fit_type == "loopfit":
+            string = result_dict['summary']
+        else:
+            raise ValueError("'fit_type' must be either 'lmfit', 'emcee', 'emcee_mle' or 'loopfit'")
         if return_string:
             return string
         else:
