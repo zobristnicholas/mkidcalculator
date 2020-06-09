@@ -1893,7 +1893,8 @@ class Loop:
             f, m, kwargs = get_plot_model(self, fit_type, label, calibrate=calibrate, plot_kwargs=fit_kwargs,
                                           use_mask=use_mask, default_kwargs={"linestyle": '--', "label": "fit"},
                                           center=True)
-            offset = 2 * np.pi if np.angle(zd[0]) - np.angle(m[0]) > np.pi else 0
+            diff = np.angle(zd[0]) - np.angle(m[0])
+            offset = np.sign(diff) * 2 * np.pi if diff > np.pi or diff < -np.pi else 0
             axes.plot(f * 1e9 / f_scale, np.unwrap(np.angle(m) + offset) if unwrap else np.angle(m), **kwargs)
             string = "power: {:.0f} dBm, field: {:.2f} V, temperature: {:.2f} mK, '{}' fit"
             title = string.format(self.power, self.field, self.temperature * 1000, fit_name) if title is True else title
@@ -1908,7 +1909,8 @@ class Loop:
             default_kwargs = {"linestyle": '-.', "label": "guess", "color": "k"}
             f, m, kwargs = get_plot_model(self, fit_type, label, calibrate=calibrate, params=plot_guess, center=True,
                                           use_mask=use_mask, plot_kwargs=guess_kwargs, default_kwargs=default_kwargs)
-            offset = 2 * np.pi if np.angle(zd[0]) - np.angle(m[0]) > np.pi else 0
+            diff = np.angle(zd[0]) - np.angle(m[0])
+            offset = np.sign(diff) * 2 * np.pi if diff > np.pi or diff < -np.pi else 0
             axes.plot(f * 1e9 / f_scale, np.unwrap(np.angle(m) + offset) if unwrap else np.angle(m), **kwargs)
         # finalize the plot
         finalize_axes(axes, title=title, title_kwargs=title_kwargs, legend=legend, legend_kwargs=legend_kwargs,
