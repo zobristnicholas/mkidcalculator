@@ -1648,7 +1648,7 @@ class Loop:
         """
         # parse inputs
         _, axes = setup_axes(axes, x_label, y_label, label_kwargs, "frequency [Hz]",
-                             "|S₂₁|" if not db else "|S₂₁| [dB]")
+                             "|S$_{21}|" if not db else "|S$_{21}| [dB]")
         fd = self.f[self.mask] if use_mask else self.f
         zd = self.z[self.mask] if use_mask else self.z
         # plot data
@@ -1760,7 +1760,7 @@ class Loop:
                 An Axes class with the plotted residuals.
         """
         # parse inputs
-        _, axes = setup_axes(axes, x_label, y_label, label_kwargs, "frequency [Hz]", "|S₂₁| [V]")
+        _, axes = setup_axes(axes, x_label, y_label, label_kwargs, "frequency [Hz]", "|S$_{21}| [V]")
         fd = self.f[self.mask] if use_mask else self.f
         zd = self.z[self.mask] if use_mask else self.z
         # get the model
