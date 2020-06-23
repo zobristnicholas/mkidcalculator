@@ -23,6 +23,23 @@ log = logging.getLogger(__name__)
 log.addHandler(logging.NullHandler())
 
 
+class NpzCache:
+    """
+    Cached lazy loading of npz file. Reads from disk only on the first access.
+    """
+    def __init__(self, npz):
+        self._npz = npz
+        self._dict = {}
+
+    def __getitem__(self, item):
+        if item in self._dict.keys():
+            return self._dict[item]
+        else:
+            value = self._npz[item]
+            self._dict[item] = value
+            return value
+
+
 class NpzHolder:
     """Loads npz file when requested and saves them."""
     MAX_SIZE = 200
@@ -42,7 +59,7 @@ class NpzHolder:
                 self._check_size()
                 npz = np.load(item, allow_pickle=True)
                 log.debug("loaded: {}".format(item))
-                self._files[item] = dict(**npz)
+                self._files[item] = NpzCache(npz)
                 log.debug("saved to cache: {}".format(item))
                 return self._files[item]
         # if NpzFile skip loading but save if it hasn't been loaded before
@@ -51,7 +68,7 @@ class NpzHolder:
             if file_name not in self._files.keys():
                 self._check_size()
                 log.debug("loaded: {}".format(file_name))
-                self._files[file_name] = dict(**item)
+                self._files[file_name] = NpzCache(item)
                 log.debug("saved to cache: {}".format(file_name))
             else:
                 log.debug("loaded from cache: {}".format(file_name))
