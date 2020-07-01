@@ -101,6 +101,8 @@ class Resonator:
         for index, centroid in enumerate(centroids):
             self.temperature_groups[groups == index] = centroid
         self.temperature_groups = list(self.temperature_groups)
+        for index, loop in enumerate(self.loops):
+            loop.temperature_group = self.temperature_groups[index]
 
     def create_parameters(self, label="best", fit_type="lmfit", group=True, n_groups=None):
         """
@@ -628,11 +630,11 @@ class Resonator:
                 axes_list[0].figure.tight_layout(rect=[0, 0, 1, 0.9 if title else 1])
         return axes_list
 
-    def plot_parameters(self, parameters, x="power", loop_kwargs=None, n_rows=1, power=None, field=None,
-                        temperature=None, n_sigma=2, plot_fit=False, label="best", axes_list=None):
+    def plot_parameters(self, parameters, x="power",  n_rows=1, n_sigma=2, plot_fit=False, label="best", axes_list=None,
+                        **loop_kwargs):
+        # set up axes and input arguments
         if isinstance(parameters, str):
             parameters = [parameters]
-        power, field, temperature = create_ranges(power, field, temperature)
         if axes_list is None:
             from matplotlib import pyplot as plt
             n_columns = int(np.ceil(len(parameters) / n_rows))
@@ -643,54 +645,47 @@ class Resonator:
             if not isinstance(axes_list, np.ndarray):
                 axes_list = np.atleast_1d(axes_list)
             figure = axes_list[0].figure
-
+        # set up loop attributes to iterate over
         levels = ["power", "field", "temperature"]
         if x not in levels:
             raise ValueError("x must be in {}".format(levels))
-        levels.remove(x)
-
-        powers = np.unique(self.powers)
-        fields = np.unique(self.fields)
-        if self.temperature_groups is not None and x != "temperature":
-            temperatures = np.unique(self.temperature_groups)
+        values_dict = {"power": np.unique(self.powers), "field": np.unique(self.fields)}
+        if x != "temperature" and self.temperature_groups:
+            levels[2] = "temperature_group"
+            values_dict.update({"temperature_group": np.unique(self.temperature_groups)})
         else:
-            temperatures = np.unique(self.temperatures)
-        powers = powers[np.any([(powers >= power[ii][0]) & (powers <= power[ii][1])
-                                for ii in range(len(power))], axis=0)]
-        fields = fields[np.any([(fields >= field[ii][0]) & (fields <= field[ii][1])
-                                for ii in range(len(field))], axis=0)]
-        temperatures = temperatures[np.any([(temperatures >= temperature[ii][0]) & (temperatures <= temperature[ii][1])
-                                            for ii in range(len(temperature))], axis=0)]
-        values_dict = {"power": powers, "field": fields, "temperature": temperatures}
-        range_dict = {"power": power, "field": field, "temperature": temperature}
-
-        kwargs = {}
+            values_dict.update({"temperature": np.unique(self.temperatures)})
+        for key, values in values_dict.items():  # unique doesn't work with nan
+            if np.isnan(values).any():
+                values_dict[key] = np.concatenate((values[~np.isnan(values)], [np.nan]))
+        levels.remove(x)
+        # make one set of axes per parameter
+        kwargs = {"label": "best"}
         for index, parameter in enumerate(parameters):
-            kwargs.update({"parameter": parameter, "label": "best"})
-            for ind1, value1 in enumerate(values_dict[levels[0]]):
-                for ind2, value2 in enumerate(values_dict[levels[1]]):
-                    kwargs.update({levels[0]: value1, levels[1]: value2, x: range_dict[x]})
-                    if loop_kwargs is not None:
-                        kwargs.update(loop_kwargs)
-                    data = _loop_fit_data(self.loops, **kwargs)
-                    kwargs.update({"parameter": parameter + "_sigma"})
-                    error_bars = _loop_fit_data(self.loops, **kwargs)
-
-                    if len(data):
-                        x_vals = values_dict[x]
-                        if x == "temperature":
-                            x_vals = data.index * 1000
-                        if error_bars is not None:
-                            axes_list[index].errorbar(x_vals, data, error_bars * n_sigma, fmt='o')
+            # collect data for parameter
+            kwargs.update({"parameters": [parameter, parameter + "_sigma", x, levels[0], levels[1]]})
+            kwargs.update(loop_kwargs)
+            data, error_bars, x_vals, values0, values1 = _loop_fit_data(self.loops, **kwargs)
+            # plot in mK
+            if x == "temperature":
+                x_vals = x_vals * 1000
+            # plot a line for each level
+            for value0 in values_dict[levels[0]]:
+                for value1 in values_dict[levels[1]]:
+                    logic = np.isclose(value0, values0, equal_nan=True) & np.isclose(value1, values1, equal_nan=True)
+                    # plot data
+                    if data[logic].any():
+                        if error_bars[logic].any():
+                            axes_list[index].errorbar(x_vals[logic], data[logic], error_bars[logic] * n_sigma, fmt='o')
                         else:
-                            axes_list[index].plot(x_vals, data.values, 'o')
+                            axes_list[index].plot(x_vals[logic], data[logic], 'o')
                         if parameter.endswith("_sigma"):
                             axes_list[index].set_ylabel("_".join(parameter.split("_")[:-1]) + " sigma")
                         else:
                             axes_list[index].set_ylabel(parameter)
                         x_label = {"power": "power [dBm]", "field": "field [V]", "temperature": "temperature [mK]"}
                         axes_list[index].set_xlabel(x_label[x])
-
+                        # plot a fit if it's been done
                         if plot_fit and parameter in self.lmfit_results.keys():
                             if label in self.lmfit_results[parameter].keys():
                                 result_dict = self.lmfit_results[parameter][label]
@@ -711,3 +706,4 @@ class Resonator:
                                     m *= 1e-9  # Convert to GHz
                                 axes_list[index].plot(x_m, m)
         figure.tight_layout()
+        return axes_list
