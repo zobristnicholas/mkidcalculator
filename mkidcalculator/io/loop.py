@@ -29,6 +29,7 @@ class Loop:
         self._mask = None
         # resonator reference
         self._resonator = None
+        self._temperature_group = None  # potentially set by the resonator
         # noise and pulse classes
         self.noise = []
         self.f_bias_noise = []  # for bias frequency of each noise data set
@@ -129,6 +130,20 @@ class Loop:
     def temperature(self):
         """The temperature at the resonator."""
         return self._data['temperature']
+
+    @property
+    def temperature_group(self):
+        """
+        A settable property which may differ slightly from the actual
+        temperature of the resonator. It is used to group similar temperatures
+        together for multiple loops."""
+        if self._temperature_group is None:
+            raise AttributeError("The temperature group for this loop has not been set yet.")
+        return self._temperature_group
+
+    @temperature_group.setter
+    def temperature_group(self, group):
+        self._temperature_group = group
 
     @property
     def resolving_powers(self):
