@@ -556,7 +556,13 @@ def _loop_fit_data(loops, parameters=("chi2",), fit_type="lmfit", label='best', 
                         outputs[-1].append(result[parameter])
                 except KeyError as error:
                     if parameter.endswith("_sigma"):
-                        outputs[-1].append(result.params[parameter[:-6]].stderr)  # only allowed for lmfit
+                        try:
+                            error = result['result'].params[parameter[:-6]].stderr  # only allowed for lmfit
+                            if error is None:
+                                error = np.nan
+                            outputs[-1].append(error)
+                        except KeyError:
+                            outputs[-1].append(np.nan)
                     elif parameter.startswith("chi2") or parameter.startswith("redchi"):
                         outputs[-1].append(_red_chi(fit_type, result))
                     elif parameter == "q0" and fit_type == "loopfit":
@@ -567,6 +573,8 @@ def _loop_fit_data(loops, parameters=("chi2",), fit_type="lmfit", label='best', 
                         outputs[-1].append(loop.field)
                     elif parameter == "temperature":
                         outputs[-1].append(loop.temperature)
+                    elif parameter == "temperature_group":
+                        outputs[-1].append(loop.temperature_group)
                     else:
                         raise error
     # turn outputs into a list of numpy arrays
