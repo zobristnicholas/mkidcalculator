@@ -5,9 +5,8 @@ import lmfit as lm
 import scipy.signal as sps
 from scipy.ndimage import label, find_objects
 
-from mkidcalculator.io.utils import _compute_sigma
-from mkidcalculator.models.utils import bandpass
 from mkidcalculator.models.nonlinearity import swenson
+from mkidcalculator.models.utils import bandpass, _compute_sigma
 
 log = logging.getLogger(__name__)
 log.addHandler(logging.NullHandler())

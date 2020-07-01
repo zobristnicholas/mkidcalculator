@@ -9,8 +9,8 @@ from mkidcalculator.models import S21
 from mkidcalculator.io.loop import Loop
 from mkidcalculator.io.sweep import Sweep
 from mkidcalculator.io.resonator import Resonator
-from mkidcalculator.io.utils import (_loop_fit_data, initialize_worker, map_async_stoppable, _compute_sigma,
-                                     HAS_LOOPFIT, loopfit, _red_chi)
+from mkidcalculator.io.utils import (_loop_fit_data, initialize_worker, map_async_stoppable, HAS_LOOPFIT, loopfit, _red_chi)
+from mkidcalculator.models.utils import _compute_sigma
 
 log = logging.getLogger(__name__)
 log.addHandler(logging.NullHandler())

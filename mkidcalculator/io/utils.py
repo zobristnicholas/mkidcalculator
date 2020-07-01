@@ -8,9 +8,10 @@ import matplotlib
 import numpy as np
 import lmfit as lm
 from collections import OrderedDict
-from skimage.util import view_as_windows
 import scipy.constants as c
 from scipy.signal import find_peaks, detrend
+
+from mkidcalculator.models.s21 import S21
 
 try:
     import loopfit
@@ -121,7 +122,8 @@ def compute_phase_and_dissipation(cls, label="best", fit_type="lmfit", **kwargs)
             medians. The default is "lmfit".
         kwargs: optional keyword arguments
             Optional keyword arguments to send to
-            model.phase_and_dissipation().
+            model.phase_and_dissipation(). If using the loopfit fit_type,
+            S21.phase_and_dissipation() is used.
     """
     # clear prior data
     cls.clear_traces()
@@ -132,10 +134,22 @@ def compute_phase_and_dissipation(cls, label="best", fit_type="lmfit", **kwargs)
         params = result_dict["result"].params
         # compute phase and dissipation  # TODO: input I and Q separately to save memory
         phase, dissipation = model.phase_and_dissipation(params, cls.i_trace + 1j * cls.q_trace, cls.f_bias, **kwargs)
-        cls.p_trace = phase
-        cls.d_trace = dissipation
+    elif fit_type == "loopfit":
+        if not HAS_LOOPFIT:
+            raise ImportError("The loopfit package is not installed.")
+        # use the S21.compute_phase_and_dissipation algorithm by making a params object
+        params = lm.Parameters()
+        for key, value in result_dict.items():
+            if isinstance(value, float):
+                params.add(key, value=value)
+        params.add("phase2", value=0.)
+        params.add("q0", expr="1 / (1 / qi + 1 / qc)")
+        params.add("fr", expr="f0 * (1 - a / q0)")
+        phase, dissipation = S21.phase_and_dissipation(params, cls.i_trace + 1j * cls.q_trace, cls.f_bias, **kwargs)
     else:
         raise ValueError("{} is not a valid fit type".format(fit_type))
+    cls.p_trace = phase
+    cls.d_trace = dissipation
 
 
 def offload_data(cls, excluded_keys=(), npz_key="_npz", prefix="", directory_key="_directory"):
@@ -677,21 +691,3 @@ class MapResult(list):
     def wait(self, timeout=None):
         for r in self:
             r.wait(timeout)
-
-
-def _compute_sigma(z):
-    eps_real = np.std(detrend(view_as_windows(z.real, 10), axis=-1), ddof=1, axis=-1)
-    eps_imag = np.std(detrend(view_as_windows(z.imag, 10), axis=-1), ddof=1, axis=-1)
-    # We use the minimum standard deviation because data with multiple and/or saturated resonators can corrupt more
-    # than half of the measured data using this method.
-    index = np.argmin(np.sqrt(eps_real**2 + eps_imag**2))
-    eps_real = eps_real[index]
-    eps_imag = eps_imag[index]
-    # make sure there are no zeros
-    if eps_real == 0:
-        log.warning("zero variance calculated and set to 1 when detrending I data")
-        eps_real = 1
-    if eps_imag == 0:
-        log.warning("zero variance calculated and set to 1 when detrending Q data")
-        eps_imag = 1
-    return eps_real + 1j * eps_imag
