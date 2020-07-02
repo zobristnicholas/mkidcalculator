@@ -102,6 +102,12 @@ class Loop:
     @power_calibration.setter
     def power_calibration(self, calibration):
         self._power_calibration = calibration
+        try:  # update the resonator powers list
+            for index, loop in enumerate(self.resonator.loops):
+                if loop is self:
+                    self.resonator.powers[index] = self.power
+        except AttributeError:
+            pass  # no resonator defined
 
     @property
     def metadata(self):
