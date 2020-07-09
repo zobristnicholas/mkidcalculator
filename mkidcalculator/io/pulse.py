@@ -15,7 +15,7 @@ from scipy.interpolate import UnivariateSpline, InterpolatedUnivariateSpline
 from mkidcalculator.models import TripleExponential
 from mkidcalculator.io.data import AnalogReadoutPulse, NoData
 from mkidcalculator.io.utils import (compute_phase_and_dissipation, offload_data, _loaded_npz_files,
-                                     quadratic_spline_roots, ev_nm_convert, dump, load)
+                                     quadratic_spline_roots, ev_nm_convert, dump, load, HAS_LOOPFIT, loopfit)
 
 log = logging.getLogger(__name__)
 log.addHandler(logging.NullHandler())
@@ -1459,31 +1459,34 @@ class Pulse:
         traces = self.i_trace[mask, :] + 1j * self.q_trace[mask, :]
         # grab the model
         _, result_dict = self.loop._get_model(fit_type, label)
-        if fit_type not in ['lmfit', 'emcee', 'emcee_mle']:
-            raise ValueError("'fit_type' must be either 'lmfit', 'emcee', or 'emcee_mle'")
-        if result_dict is not None:
+        if result_dict is None:
+            log.warning("No fit of type '{}' found with label '{}'".format(fit_type, label))
+            z_fit = np.array([])
+        elif fit_type == "loopfit":
+            if not HAS_LOOPFIT:
+                raise ImportError("The loopfit package is not installed.")
+            f_fit = np.linspace(np.min(f), np.max(f), np.size(f) * 10)
+            z_fit = loopfit.model(f_fit, **result_dict)
+            if calibrate:
+                f_traces = np.broadcast_to(self.f_bias, traces.shape)
+                traces = loopfit.calibrate(f_traces, z=traces, **result_dict)
+                z_fit = loopfit.calibrate(f_fit, z=z_fit, **result_dict)
+                z = loopfit.calibrate(f, z=z, **result_dict)
+        else:
             params = result_dict['result'].params
             model = result_dict['model']
             f_fit = np.linspace(np.min(f), np.max(f), np.size(f) * 10)
             z_fit = model.model(params, f_fit)
             if calibrate:
-                f_traces = np.empty(traces.shape)
-                f_traces.fill(self.f_bias)
+                f_traces = np.broadcast_to(self.f_bias, traces.shape)
                 traces = model.calibrate(params, traces, f_traces)
                 z_fit = model.calibrate(params, z_fit, f_fit)
                 z = model.calibrate(params, z, f)
-        else:
-            z_fit = np.array([])
         # set up figure
         if axes_list is None:
-            if result_dict is not None:
-                figure = plt.figure(figsize=(6, 8))
-                axes_list = [plt.subplot2grid((4, 1), (2, 0), rowspan=2),
-                             plt.subplot2grid((4, 1), (0, 0)), plt.subplot2grid((4, 1), (1, 0))]
-            else:
-                figure, axes = plt.subplots()
-                axes_list = [axes]
-
+            figure = plt.figure(figsize=(6, 8))
+            axes_list = [plt.subplot2grid((4, 1), (2, 0), rowspan=2),
+                         plt.subplot2grid((4, 1), (0, 0)), plt.subplot2grid((4, 1), (1, 0))]
         else:
             assert len(axes_list) == 3, "axes_list must have length 3"
             figure = axes_list[0].figure
@@ -1495,7 +1498,7 @@ class Pulse:
         axes_list[0].set_xlabel('I [Volts]')
         axes_list[0].set_ylabel('Q [Volts]')
 
-        if result_dict is not None and len(axes_list) > 1:
+        if result_dict is not None:
             try:
                 p_trace = self.p_trace[mask, :] * 180 / np.pi
                 d_trace = self.d_trace[mask, :]
