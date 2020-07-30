@@ -504,7 +504,8 @@ class Loop:
             raise ImportError("The loopfit package is not installed.")
         f = self.f[self.mask] if use_mask else self.f
         z = self.z[self.mask] if use_mask else self.z
-        result = loopfit.fit(f, z=z, sigma=sigma if sigma is not None else 1 + 1j, **kwargs)
+        result = loopfit.fit(f, z=z, variance=sigma.real**2 + 1j * sigma.imag**2 if sigma is not None else 1 + 1j,
+                             **kwargs)
         if keep:
             if label in self.loopfit_results:
                 message = "'{}' has already been used as a loopfit label. The old data has been overwritten"
