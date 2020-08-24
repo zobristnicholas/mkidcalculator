@@ -140,7 +140,7 @@ def _do_fit(loop, guess, fit_type, fit_kwargs, sigma, label):
         kwargs.update(fit_kwargs)
         kwargs.update({'label': label})
         if sigma:
-            kwargs.update({"sigma": _compute_sigma(z) if sigma is True else sigma})
+            kwargs.update({"variance": _compute_sigma(z)**2 if sigma is True else sigma**2})
         result = loop.loopfit(**kwargs)
     else:
         raise ValueError("'fit_type' must be either 'loopfit' or 'lmfit'")
