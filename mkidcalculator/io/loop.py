@@ -11,6 +11,7 @@ from scipy.interpolate import make_interp_spline
 from mkidcalculator.io.noise import Noise
 from mkidcalculator.io.pulse import Pulse
 from mkidcalculator.models import TripleExponential
+from mkidcalculator.models.utils import _compute_sigma
 from mkidcalculator.io.data import AnalogReadoutLoop, AnalogReadoutNoise, AnalogReadoutPulse, NoData
 from mkidcalculator.io.utils import (ev_nm_convert, lmfit, sort_and_fix, setup_axes, finalize_axes, get_plot_model,
                                      dump, load, HAS_LOOPFIT, loopfit)
@@ -504,8 +505,8 @@ class Loop:
             raise ImportError("The loopfit package is not installed.")
         f = self.f[self.mask] if use_mask else self.f
         z = self.z[self.mask] if use_mask else self.z
-        result = loopfit.fit(f, z=z, variance=sigma.real**2 + 1j * sigma.imag**2 if sigma is not None else 1 + 1j,
-                             **kwargs)
+        result = loopfit.fit(f, z=z, variance=sigma.real**2 + 1j * sigma.imag**2 if sigma is not None else
+                             _compute_sigma(self.z), **kwargs)
         if keep:
             if label in self.loopfit_results:
                 message = "'{}' has already been used as a loopfit label. The old data has been overwritten"
