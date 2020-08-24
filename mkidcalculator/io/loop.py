@@ -493,7 +493,7 @@ class Loop:
             sigma: complex (optional)
                 The complex standard deviation of the data corresponding to the
                 sigma keyword argument in loopfit.fit(). If not provided,
-                1 + 1j is used to ensure that the 'aic' metric is computed.
+                an estimate is computed from the data.
             kwargs: optional keyword arguments
                 Additional keyword arguments are sent to loopfit.fit().
         Returns:
@@ -505,8 +505,9 @@ class Loop:
             raise ImportError("The loopfit package is not installed.")
         f = self.f[self.mask] if use_mask else self.f
         z = self.z[self.mask] if use_mask else self.z
-        result = loopfit.fit(f, z=z, variance=sigma.real**2 + 1j * sigma.imag**2 if sigma is not None else
-                             _compute_sigma(self.z), **kwargs)
+        if sigma is None:
+            sigma = _compute_sigma(self.z)
+        result = loopfit.fit(f, z=z, variance=sigma.real**2 + 1j * sigma.imag**2, **kwargs)
         if keep:
             if label in self.loopfit_results:
                 message = "'{}' has already been used as a loopfit label. The old data has been overwritten"
