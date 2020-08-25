@@ -445,7 +445,7 @@ class Resonator:
             original_label = None
         return original_label, result_dict
 
-    def plot_loops(self, power=None, field=None, temperature=None, color_data='temperature', colormap=None,
+    def plot_loops(self, power=None, field=None, temperature=None, color_data='power', colormap=None,
                    colorbar=True, colorbar_kwargs=None, colorbar_label=True, colorbar_limits=None,
                    colorbar_label_kwargs=None, colorbar_tick_kwargs=None, tighten=True, **loop_kwargs):
         """
@@ -467,7 +467,7 @@ class Resonator:
             color_data: string
                 Either 'temperature', 'field', or 'power' indicating off what
                 type of data to base the colormap. The default is
-                'temperature'.
+                'power'.
             colormap: matplotlib.colors.Colormap
                 A matplotlib colormap for coloring the data. If the default
                 None is used, a colormap is chosen based on color_data.
