@@ -1,6 +1,6 @@
 from setuptools import setup, find_packages
 
-version_number = '0.7.0'
+version_number = '0.7.1'
 
 
 setup(name='mkidcalculator',
