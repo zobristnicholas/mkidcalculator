@@ -373,7 +373,8 @@ class Pulse:
         """
         self._d_trace = None
         self._p_trace = None
-        self._npz = None
+        if self._i_trace is None and self._q_trace is None:  # npz file not being used for holding I and Q data
+            self._npz = None
         self._postpulse_min_slope = None
         self._prepulse_rms = None
         self._prepulse_mean = None
