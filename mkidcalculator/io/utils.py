@@ -192,7 +192,8 @@ def offload_data(cls, excluded_keys=(), npz_key="_npz", prefix="", directory_key
         if make_npz:
             npz = _loaded_npz_files[file_name]
             for key in excluded_keys:
-                setattr(cls, key, npz[key])
+                if isinstance(key, str):  # don't load in data that's been overloaded by the user
+                    setattr(cls, key, npz[key])
     if make_npz:
         # get the data to save
         excluded_data = {}
