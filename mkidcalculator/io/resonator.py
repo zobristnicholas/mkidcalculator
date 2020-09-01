@@ -630,7 +630,7 @@ class Resonator:
                 axes_list[0].figure.tight_layout(rect=[0, 0, 1, 0.9 if title else 1])
         return axes_list
 
-    def plot_parameters(self, parameters, x="power",  n_rows=1, n_sigma=2, plot_fit=False, label="best", axes_list=None,
+    def plot_parameters(self, parameters, x="power", n_rows=1, n_sigma=2, plot_fit=False, label="best", axes_list=None,
                         **loop_kwargs):
         # set up axes and input arguments
         if isinstance(parameters, str):
