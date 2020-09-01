@@ -9,7 +9,8 @@ from mkidcalculator.models import S21
 from mkidcalculator.io.loop import Loop
 from mkidcalculator.io.sweep import Sweep
 from mkidcalculator.io.resonator import Resonator
-from mkidcalculator.io.utils import (_loop_fit_data, initialize_worker, map_async_stoppable, HAS_LOOPFIT, loopfit, _red_chi)
+from mkidcalculator.io.utils import (_loop_fit_data, initialize_worker, map_async_stoppable, HAS_LOOPFIT, loopfit,
+                                     _red_chi)
 from mkidcalculator.models.utils import _compute_sigma
 
 log = logging.getLogger(__name__)
@@ -21,6 +22,12 @@ FIT_MESSAGE = "loop {:d} fit: label = '{:s}', reduced chi squared = {:g}"
 
 
 def _parallel(function, loops, n_cpu, fit_type, **kwargs):
+    # If the memory is not freed, multiple child processes will try to open a zip container previously opened by the
+    # parent process. When forking, the file id is not fully copied, so the child processes will error. This can be
+    # avoided by removing any dependence on the npz files from the parent before the fork.
+    for loop in loops:
+        loop.free_memory()
+
     global _loops
     if n_cpu is True:
         n_cpu = mp.cpu_count() // 2
