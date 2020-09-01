@@ -43,7 +43,7 @@ class Sweep:
         log.info("loaded sweep from '{}'".format(file_name))
         return sweep
 
-    def add_resonators(self, resonators):
+    def add_resonators(self, resonators, sort=True):
         """
         Add Resonator objects to the sweep.
         Args:
@@ -56,6 +56,9 @@ class Sweep:
         for resonator in resonators:
             resonator.sweep = self
             self.resonators.append(resonator)
+        # sort
+        if sort:
+            self.resonators = [r for _, r in sorted(zip(self.f_centers, self.resonators))]
 
     def remove_resonators(self, indices):
         """
@@ -170,9 +173,14 @@ class Sweep:
             sort: boolean (optional)
                 Sort the loop data in each resonator by its power, field, and
                 temperature. Also sort noise data and pulse data lists for each
-                loop by their bias frequencies. The default is True. If False,
-                the input order is preserved. The resonators list is not
-                sorted.
+                loop by their bias frequencies. The resonator list will be
+                sorted by the median frequency of its loops. The default is
+                True. If False the input order is preserved.
+
+                Note:
+                    Sorting requires loading data and computing medians. The
+                    process could be slow for very large datasets. In this case
+                    set this keyword argument to False.
             kwargs: optional keyword arguments
                 Extra keyword arguments to send to data.
         Returns:
@@ -185,7 +193,7 @@ class Sweep:
         for kws in res_kwarg_list:
             kws.update({"sort": sort})
             resonators.append(Resonator.from_file(**kws))
-        sweep.add_resonators(resonators)
+        sweep.add_resonators(resonators, sort=sort)
         return sweep
 
     def _set_directory(self, directory):
