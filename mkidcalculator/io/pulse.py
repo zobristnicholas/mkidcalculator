@@ -1294,12 +1294,14 @@ class Pulse:
 
     def _set_directory(self, directory):
         self._directory = directory
+        if isinstance(self._npz, str):
+            self._npz = os.path.join(self._directory, os.path.basename(self._npz))
         try:
             self.loop._directory = self._directory
         except AttributeError:
             pass
         try:
-            self.noise._directory = self._directory
+            self.noise._set_directory(self._directory)
         except AttributeError:
             pass
 
