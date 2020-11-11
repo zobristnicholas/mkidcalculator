@@ -363,7 +363,7 @@ def valid_ranges(loop, power, field, temperature):
 
 
 def sort_and_fix(data, energies, fix_zero):
-    data = [0] + data if fix_zero else phase
+    data = [0] + data if fix_zero else data
     data, energies = np.array(data), np.array(energies)
     energies, indices = np.unique(energies, return_index=True)
     data = data[indices]
