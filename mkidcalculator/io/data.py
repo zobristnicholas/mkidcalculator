@@ -778,3 +778,91 @@ def mkidreadout2_widesweep_indices(f, z, metadata_file=None, fr=None):
     f_index = np.argmin(np.abs(fr[:, np.newaxis] - f_windows), axis=1)  # index of closest frequency to fr in the window
     indices = f_index + window_index * z.base.shape[-1]
     return indices
+
+
+def sonnet_touchstone(file_name, attenuation=np.nan, field=np.nan,
+                      temperature=np.nan):
+    with open(file_name) as fid:
+        values = []
+        while True:
+            line = fid.readline()
+
+            # Exit the while loop if we run out of lines.
+            if not line:
+                break
+
+            # Remove the comments, leading or trailing whitespace, and make
+            # everything lowercase.
+            line = line.split('!', 1)[0].strip().lower()
+
+            # Skip the line if it was only comments.
+            if len(line) == 0:
+                continue
+
+            # Skip the version line.
+            if line.startswith('[version]'):
+                continue
+
+            # Skip the number of ports line.
+            if line.startswith('[number of ports]'):
+                continue
+
+            # Skip the data order line since it's the same for all Sonnet
+            # outputs.
+            if line.startswith('[two-port data order]'):
+                continue
+
+            # Skip the number of frequencies line.
+            if line.startswith('[number of frequencies]'):
+                continue
+
+            # skip the network data line.
+            if line.startswith('[network data]'):
+                continue
+
+            # Skip the end line.
+            if line.startswith('[end]'):
+                continue
+
+            # Note the options.
+            if line[0] == '#':
+                options = line[1:].strip().split()
+                # fill the option line with the missing defaults
+                options.extend(['ghz', 's', 'ma', 'r', '50'][len(options):])
+                unit = options[0]
+                parameter = options[1]
+                if parameter != 's':
+                    raise ValueError("The file must contain the S parameters.")
+                data_format = options[2]
+                continue
+
+            # Collect all of the values making sure they are the right length.
+            data = [float(v) for v in line.split()]
+            if len(data) != 9:
+                raise ValueError("The data does not come from a two port "
+                                 "network.")
+            values.extend(data)
+
+    # Reshape into rows of f, s11, s21, s12, s22, s11, ...
+    values = np.asarray(values).reshape((-1, 9))
+
+    # Extract the frequency in GHz.
+    multiplier = {'hz': 1.0, 'khz': 1e3, 'mhz': 1e6, 'ghz': 1e9}[unit]
+    f = values[:, 0] * multiplier / 1e9  # always in GHz
+
+    # Extract the S21 parameter.
+    if data_format == "ri":
+        values_complex = values[:, 1::2] + 1j * values[:, 2::2]
+        z = values_complex[:, 1]  # S21
+    elif data_format == "ma":
+        mag = values[:, 1::2]
+        angle = np.pi / 180 * values[:, 2::2]
+        values_complex = mag * np.exp(1j * angle)
+        z = values_complex[:, 1]  # S21
+    else:  # == "db"
+        mag_db = values[:, 1::2]
+        angle = np.pi / 180 * values[:, 2::2]
+        values_complex = 10**(mag_db / 20.0) * np.exp(1j * angle)
+        z = values_complex[:, 1]  # S21
+
+    return f, z, attenuation, field, temperature
