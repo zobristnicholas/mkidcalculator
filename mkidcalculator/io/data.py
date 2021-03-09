@@ -780,8 +780,11 @@ def mkidreadout2_widesweep_indices(f, z, metadata_file=None, fr=None):
     return indices
 
 
-def sonnet_touchstone(file_name, attenuation=np.nan, field=np.nan,
-                      temperature=np.nan):
+def sonnet_touchstone_loop(file_name):
+    """
+    Function for handling Loop data from sonnet. The file_name must
+    point to a version 1 or 2 touchstone file.
+    """
     with open(file_name) as fid:
         values = []
         while True:
@@ -865,4 +868,7 @@ def sonnet_touchstone(file_name, attenuation=np.nan, field=np.nan,
         values_complex = 10**(mag_db / 20.0) * np.exp(1j * angle)
         z = values_complex[:, 1]  # S21
 
-    return f, z, attenuation, field, temperature
+    data = {"f": f, "z": z, "attenuation": np.nan, "field": np.nan,
+            "temperature": np.nan, "imbalance": None, "offset": None,
+            "metadata": {}}
+    return data
