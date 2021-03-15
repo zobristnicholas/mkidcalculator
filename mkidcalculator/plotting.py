@@ -105,8 +105,8 @@ def plot_parameter_vs_f(parameter, f, title=None, title_kwargs=None, x_label=Tru
         with warnings.catch_warnings():
             warnings.simplefilter("ignore", category=RuntimeWarning)  # median of empty slice
             for ii in range(len(medians) - 1):
-                medians[ii] = np.median(parameter[(f >= edges[ii]) & (f < edges[ii + 1])])
-            medians[-1] = np.median(parameter[(f >= edges[-2]) & (f <= edges[-1])])  # last bin is fully closed
+                medians[ii] = np.nanmedian(parameter[(f >= edges[ii]) & (f < edges[ii + 1])])
+            medians[-1] = np.nanmedian(parameter[(f >= edges[-2]) & (f <= edges[-1])])  # last bin is fully closed
         medians[np.isnan(medians)] = 0
         if extend:
             dx = centers[1] - centers[0]
@@ -137,7 +137,7 @@ def plot_parameter_vs_f(parameter, f, title=None, title_kwargs=None, x_label=Tru
     if title is True:
         with warnings.catch_warnings():
             warnings.simplefilter("ignore", RuntimeWarning)
-            title = "median = {:g}".format(np.median(parameter))
+            title = "median = {:g}".format(np.nanmedian(parameter))
     if title and title is not None:
         kwargs = {}
         if title_kwargs is not None:

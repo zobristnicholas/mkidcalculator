@@ -313,7 +313,8 @@ class Sweep:
                    if parameters[index + 1] == fr else parameters[index + 1]}
             if plot_kwargs[2 * index]:
                 kws.update(plot_kwargs[2 * index])
-            plot_parameter_hist(outputs[index + 1], axes=axes_list[2 * index], **kws)
+            output = outputs[index + 1][~np.isinf(outputs[index + 1])]
+            plot_parameter_hist(output, axes=axes_list[2 * index], **kws)
             kws = {"y_label": parameters[index + 1], "x_label": fr + " [GHz]", "title": True,
                    "title_kwargs": {"fontsize": "medium"}}
             if index == 0:
@@ -331,11 +332,8 @@ class Sweep:
         if title:
             title = "loop fit summary: '{}'".format(label) if title is True else title
             figure.suptitle(title, fontsize=15)
-            rect = [0, 0, 1, .95]
-        else:
-            rect = [0, 0, 1, 1]
         figure.align_labels()
         # tighten
         if tighten:
-            figure.tight_layout(rect=rect)
+            figure.tight_layout()
         return axes_list
