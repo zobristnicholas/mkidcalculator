@@ -490,6 +490,7 @@ def find_resonators(f, z, df=5e-4, index=None, **kwargs):
         kws.update({"width": (None, int(dfii / 2)), "distance": int(dfii / 2)})
     kws.update(kwargs)
     peaks, _ = find_peaks(-magnitude, **kws)
+    peaks = peaks[(peaks > dfii // 2) & ((f.size - peaks) > dfii // 2)]
     return peaks
 
 
