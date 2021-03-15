@@ -1,0 +1,32 @@
+name: mc
+channels:
+    - conda-forge
+dependencies:
+    - python = 3.8
+    - numpy
+    - scipy
+    - pandas
+    - lmfit
+    - matplotlib
+    - corner
+    - arviz
+    - cloudpickle
+    - scikit-image
+    - jupyter
+    - pytest
+    - pip
+    # for pysonnet
+    - pyyaml
+    - psutil
+    - gdstk
+    # for loopfit
+    - ceres-solver
+    - cxx-compiler
+    # for superconductivity
+    - numba
+    - fortran-compiler
+    # - pip:
+        # - git+https://github.com/zobristnicholas/mkidcalculator.git
+        # - git+https://github.com/zobristnicholas/loopfit.git
+        # - git+https://github.com/zobristnicholas/superconductivity.git
+        # - git+https://github.com/zobristnicholas/pysonnet.git
