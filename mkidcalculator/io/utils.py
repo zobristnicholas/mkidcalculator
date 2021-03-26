@@ -422,10 +422,10 @@ def get_plot_model(self, fit_type, label, params=None, calibrate=False, default_
     if use_mask:
         n = (np.max(self.f[self.mask]) -
              np.min(self.f[self.mask])) / np.min(np.diff(self.f[self.mask])) + 1
-        f = np.linspace(np.min(self.f[self.mask]), np.max(self.f[self.mask]), n * n_factor)
+        f = np.linspace(np.min(self.f[self.mask]), np.max(self.f[self.mask]), int(n * n_factor))
     else:
         n = (np.max(self.f) - np.min(self.f)) / np.min(np.diff(self.f)) + 1
-        f = np.linspace(np.min(self.f), np.max(self.f), n * n_factor)
+        f = np.linspace(np.min(self.f), np.max(self.f), int(n * n_factor))
     if fit_type in ["lmfit", "emcee", "emcee_mle"]:
         if params is None:
             params = result_dict['result'].params
