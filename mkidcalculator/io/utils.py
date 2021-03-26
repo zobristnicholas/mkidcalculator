@@ -420,9 +420,12 @@ def get_plot_model(self, fit_type, label, params=None, calibrate=False, default_
         raise ValueError("No fit of type '{}' with the label '{}' has been done".format(fit_type, label))
     # calculate the model values
     if use_mask:
-        f = np.linspace(np.min(self.f[self.mask]), np.max(self.f[self.mask]), np.size(self.f[self.mask]) * n_factor)
+        n = (np.max(self.f[self.mask]) -
+             np.min(self.f[self.mask])) / np.min(np.diff(self.f[self.mask])) + 1
+        f = np.linspace(np.min(self.f[self.mask]), np.max(self.f[self.mask]), n * n_factor)
     else:
-        f = np.linspace(np.min(self.f), np.max(self.f), np.size(self.f) * n_factor)
+        n = (np.max(self.f) - np.min(self.f)) / np.min(np.diff(self.f)) + 1
+        f = np.linspace(np.min(self.f), np.max(self.f), n * n_factor)
     if fit_type in ["lmfit", "emcee", "emcee_mle"]:
         if params is None:
             params = result_dict['result'].params
