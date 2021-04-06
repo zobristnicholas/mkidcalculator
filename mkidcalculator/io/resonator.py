@@ -674,8 +674,8 @@ class Resonator:
                 for value1 in values_dict[levels[1]]:
                     logic = np.isclose(value0, values0, equal_nan=True) & np.isclose(value1, values1, equal_nan=True)
                     # plot data
-                    if data[logic].any():
-                        if error_bars[logic].any():
+                    if ~np.isnan(data[logic]).any():
+                        if ~np.isnan(error_bars[logic]).any():
                             axes_list[index].errorbar(x_vals[logic], data[logic], error_bars[logic] * n_sigma, fmt='o')
                         else:
                             axes_list[index].plot(x_vals[logic], data[logic], 'o')
