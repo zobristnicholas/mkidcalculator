@@ -1,4 +1,5 @@
 import os
+import toml
 import glob
 import fnmatch
 import logging
@@ -260,15 +261,30 @@ def analogreadout_sweep(file_name, unique=True):
         resonator_kwargs: list of dictionaries
             A list of keyword arguments to send to Resonator.from_file().
     """
-    npz = np.load(file_name, allow_pickle=True)
-    file_names = npz['parameter_dict'].item().keys()
-    if 'frequencies' in npz['sweep_dict'].item().keys():
+    # Get the first config in the directory if a file isn't specified.
+    if not os.path.isfile(file_name) and os.path.isdir(file_name):
+        file_name = glob.glob(file_name + "config_*")[0]
+
+    # Open the config file
+    if os.path.splitext(file_name)[-1] == ".npz":  # old format
+        config = np.load(file_name, allow_pickle=True)
+        parameter_dict = config['parameter_dict'].item()
+        sweep_dict = config['sweep_dict'].item()
+
+    else:  # new format
+        with open(file_name, "r") as f:
+            config = toml.load(f)
+        parameter_dict = config['parameter_dict']
+        sweep_dict = config['sweep_dict']
+
+    file_names = list(parameter_dict.keys())
+    if 'frequencies' in sweep_dict.keys():
         multiple = 1
-        lengths = [len(npz['sweep_dict'].item()['frequencies'])]
+        lengths = [len(sweep_dict['frequencies'])]
     else:
         multiple = 2
-        lengths = [len(npz['sweep_dict'].item()['frequencies1']),
-                   len(npz['sweep_dict'].item()['frequencies2'])]
+        lengths = [len(sweep_dict['frequencies1']),
+                   len(sweep_dict['frequencies2'])]
 
     resonator_kwargs = []
     for index in range(multiple * len(file_names)):
