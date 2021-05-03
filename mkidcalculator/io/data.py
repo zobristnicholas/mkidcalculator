@@ -223,10 +223,16 @@ def analogreadout_resonator(file_name, channel=None):
             A list of keyword arguments to send to Loop.from_file().
     """
     directory = os.path.dirname(file_name)
-    npz = np.load(file_name, allow_pickle=True)
+    if os.path.splitext(file_name)[-1] == ".npz":  # old format
+        config = np.load(file_name, allow_pickle=True)
+        parameter_dict = config['parameter_dict'].item()
+    else:  # new format
+        with open(file_name, "r") as f:
+            config = toml.load(f)
+        parameter_dict = config['parameter_dict']
     loop_kwargs = []
     pattern = "sweep_*_*_*_{:d}_*".format(int(channel // 2))
-    for loop_name, parameters in npz['parameter_dict'].item().items():
+    for loop_name, parameters in parameter_dict.items():
         loop_file_name = os.path.join(directory, loop_name)
         match = fnmatch.filter([loop_name], pattern)
         if not os.path.isfile(loop_file_name) and match:
@@ -263,7 +269,10 @@ def analogreadout_sweep(file_name, unique=True):
     """
     # Get the first config in the directory if a file isn't specified.
     if not os.path.isfile(file_name) and os.path.isdir(file_name):
-        file_name = glob.glob(file_name + "config_*")[0]
+        try:
+            file_name = glob.glob(file_name + "/config_*")[0]
+        except IndexError:
+            raise OSError(f"There are no config files in {file_name}")
 
     # Open the config file
     if os.path.splitext(file_name)[-1] == ".npz":  # old format
