@@ -623,17 +623,19 @@ def subplots_colorbar(mappable, axes_list, gridspec_kwargs=None, **kwargs):
     aspect = kwargs.pop('aspect', 20)  # colorbar height / width
     pad = kwargs.pop('pad', 0.1)  # distance between right plot and colorbar / figure width
     subplot_pad = 0.2  # pad between subplots (not colorbar and over-ridden with tight_layout)
+    n_rows = axes_list[0].get_gridspec().nrows
+    n_cols = axes_list[0].get_gridspec().ncols
 
     x1 = 1 - fraction
-    width_ratios = [x1 / axes_list[0].numRows] * axes_list[0].numCols
+    width_ratios = [x1 / n_rows] * n_cols
     width_ratios.append(fraction)
     pad_s = (1 - shrink) * 0.5
     wh_ratios = [pad_s, shrink, pad_s]
-    wh_space = subplot_pad * (axes_list[0].numRows + 1)  # subplot_pad in units of avg axes width
+    wh_space = subplot_pad * (n_rows + 1)  # subplot_pad in units of avg axes width
     gs_kwargs = {'figure': axes_list[0].figure, "wspace": wh_space, "width_ratios": width_ratios}
     if gridspec_kwargs is not None:
         gs_kwargs.update(gridspec_kwargs)
-    gs = matplotlib.gridspec.GridSpec(axes_list[0].numRows, axes_list[0].numCols + 1, **gs_kwargs)
+    gs = matplotlib.gridspec.GridSpec(n_rows, n_cols + 1, **gs_kwargs)
     gs2 = matplotlib.gridspec.GridSpecFromSubplotSpec(3, 2,
                                                       subplot_spec=gs[:, -1],
                                                       hspace=0.,
