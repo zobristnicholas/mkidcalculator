@@ -1,5 +1,5 @@
 import os
-import toml
+import yaml
 import glob
 import fnmatch
 import logging
@@ -228,7 +228,7 @@ def analogreadout_resonator(file_name, channel=None):
         parameter_dict = config['parameter_dict'].item()
     else:  # new format
         with open(file_name, "r") as f:
-            config = toml.load(f)
+            config = yaml.load(f, Loader=yaml.Loader)
         parameter_dict = config['parameter_dict']
     loop_kwargs = []
     pattern = "sweep_*_*_*_{:d}_*".format(int(channel // 2))
@@ -282,7 +282,7 @@ def analogreadout_sweep(file_name, unique=True):
 
     else:  # new format
         with open(file_name, "r") as f:
-            config = toml.load(f)
+            config = yaml.load(f, Loader=yaml.Loader)
         parameter_dict = config['parameter_dict']
         sweep_dict = config['sweep_dict']
 
