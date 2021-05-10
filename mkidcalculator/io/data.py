@@ -5,6 +5,7 @@ import fnmatch
 import logging
 import numpy as np
 from scipy.io import loadmat
+from functools import partial
 
 from mkidcalculator.io.utils import (_loaded_npz_files, offload_data, ev_nm_convert, load_legacy_binary_data,
                                      structured_to_complex)
@@ -49,6 +50,25 @@ def analogreadout_sample_rate(metadata):
     return sample_rate
 
 
+def analogreadout_trace(array, npz, quad, channel):
+    if isinstance(array, str): # array is a string
+        directory = os.path.dirname(npz)
+        # os.path.basename doesn't work on windows paths when running linux
+        file_name = "pulse" + array.split("pulse")[-1]
+        data = np.load(os.path.join(directory, file_name))[quad][channel]
+    else:
+        try:  # array is a real array
+            data = array[quad]
+        except IndexError:  # old format with complex values
+            if quad == "I":
+                data = array.real
+            elif quad == "Q":
+                data = array.imag
+            else:
+                raise ValueError("invalid quad")
+    return data
+
+
 class AnalogReadoutABC:
     """
     Abstract base class for handling data from the analogreadout module.
@@ -86,7 +106,7 @@ class AnalogReadoutABC:
         try:
             # get the result from the npz file
             result = _loaded_npz_files[self._npz][convert[0] if isinstance(convert, tuple) else convert]
-            if result.dtype == np.dtype('O'):
+            if result.dtype.kind in ["S", "U", "O"]:
                 # if it's an object unpack it
                 result = result.item()
             else:
@@ -178,8 +198,8 @@ class AnalogReadoutPulse(AnalogReadoutABC):
             An integer specifying which index to load. The default is None and
             all indices will be returned.
     """
-    CONVERT = {"f_bias": "freqs", "i_trace": ("pulses", "I", np.real), "q_trace": ("pulses", "Q", np.imag),
-               "offset": "zero", "metadata": "metadata", "attenuation": ("metadata", ("parameters", "attenuation")),
+    CONVERT = {"f_bias": "freqs", "offset": "zero", "metadata": "metadata",
+               "attenuation": ("metadata", ("parameters", "attenuation")),
                "sample_rate": ("metadata", analogreadout_sample_rate)}
 
     def __init__(self, *args, energies=(), wavelengths=(), **kwargs):
@@ -191,6 +211,14 @@ class AnalogReadoutPulse(AnalogReadoutABC):
         else:
             self._energies = ()
 
+        self.CONVERT.update(
+            {"i_trace": ("pulses", partial(analogreadout_trace,
+                                           npz=self._npz, quad="I",
+                                           channel=self.channel)),
+             "q_trace": ("pulses", partial(analogreadout_trace,
+                                           npz=self._npz, quad="Q",
+                                           channel=self.channel))})
+
     def __getitem__(self, item):
         if item == 'energies':
             if self._energies:
@@ -199,7 +227,14 @@ class AnalogReadoutPulse(AnalogReadoutABC):
                 metadata = super().__getitem__("metadata")
                 try:
                     laser_state = np.array(metadata['parameters']['laser'])
-                    laser_state *= np.array([808, 920, 980, 1120, 1310])
+                    if laser_state.size == 5:
+                        laser_state *= np.array([808, 920, 980, 1120, 1310])
+                    elif laser_state.size == 8:
+                        laser_state *= np.array([254, 406.6, 671, 808, 920,
+                                                 980, 1120, 1310])
+                    else:
+                        raise ValueError(
+                            f"Unrecognized laser state: {laser_state}")
                     laser_state = laser_state[laser_state != 0]
                     self._energies = tuple(ev_nm_convert(laser_state))
                 except KeyError:
