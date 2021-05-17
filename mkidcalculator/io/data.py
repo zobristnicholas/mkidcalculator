@@ -264,7 +264,10 @@ def analogreadout_resonator(file_name, channel=None):
     else:  # new format
         with open(file_name, "r") as f:
             config = yaml.load(f, Loader=yaml.Loader)
-        parameter_dict = config['parameter_dict']
+        try:  # old format (barely used)
+            parameter_dict = config['parameter_dict']
+        except KeyError:
+            parameter_dict = config['parameters']
     loop_kwargs = []
     pattern = "sweep_*_*_*_{:d}_*".format(int(channel // 2))
     for loop_name, parameters in parameter_dict.items():
@@ -318,9 +321,12 @@ def analogreadout_sweep(file_name, unique=True):
     else:  # new format
         with open(file_name, "r") as f:
             config = yaml.load(f, Loader=yaml.Loader)
-        parameter_dict = config['parameter_dict']
-        sweep_dict = config['sweep_dict']
-
+        try:  # old format (barely used)
+            parameter_dict = config['parameter_dict']
+            sweep_dict = config['sweep_dict']
+        except KeyError:
+            parameter_dict = config['parameters']
+            sweep_dict = config['sweep']
     file_names = list(parameter_dict.keys())
     if 'frequencies' in sweep_dict.keys():
         multiple = 1
