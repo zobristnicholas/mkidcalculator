@@ -25,6 +25,8 @@ EPS = np.finfo(np.float).eps
 class Loop:
     """A class for manipulating resonance loop scattering parameter data."""
     def __init__(self):
+        # original data file location
+        self.name = None
         # loop data
         self._data = NoData()  # dummy class replaced by from_file()
         self._mask = None
@@ -456,6 +458,7 @@ class Loop:
                 kws.update({"channel": channel})
         # load loop
         loop._data = data(loop_file_name, **kwargs)
+        loop.name = os.path.basename(loop_file_name)
         # load noise
         noise = []
         for index, noise_file_name in enumerate(noise_file_names):

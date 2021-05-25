@@ -24,6 +24,8 @@ log.addHandler(logging.NullHandler())
 class Pulse:
     """A class for manipulating the pulse data."""
     def __init__(self):
+        # original file name
+        self.name = None
         # pulse data
         self._data = NoData()  # dummy class replaced by from_file()
         # loop reference for computing phase and dissipation
@@ -540,6 +542,7 @@ class Pulse:
         for d in _data:
             pulse.append(cls())
             pulse[-1]._data = d
+            pulse[-1].name = os.path.basename(pulse_file_name)
             if loop is not None:  # don't set loop unless needed.
                 pulse[-1].loop = loop
             if noise is not None:

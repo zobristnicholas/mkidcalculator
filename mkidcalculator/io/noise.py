@@ -16,6 +16,8 @@ log.addHandler(logging.NullHandler())
 class Noise:
     """A class for manipulating the noise data."""
     def __init__(self):
+        # original file name
+        self.name = None
         self._data = NoData()  # dummy class replaced by from_file()
         # loop reference for computing phase and dissipation
         self._loop = None
@@ -313,6 +315,7 @@ class Noise:
         for d in _data:
             noise.append(cls())
             noise[-1]._data = d
+            noise[-1].name = os.path.basename(noise_file_name)
         if len(noise) == 1:
             noise = noise[0]
         return noise

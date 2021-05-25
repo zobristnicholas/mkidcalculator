@@ -1,4 +1,5 @@
 import os
+import copy
 import logging
 import inspect
 import matplotlib
@@ -21,6 +22,7 @@ class Resonator:
     """A class for manipulating resonator parameter data."""
     def __init__(self):
         # resonator reference
+        self.name = None
         self._sweep = None
         self.loops = []
         self.powers = []
@@ -285,6 +287,7 @@ class Resonator:
             kws.update({"sort": sort})
             loops.append(Loop.from_file(**kws))
         resonator.add_loops(loops, sort=sort)
+        resonator.name = os.path.basename(resonator_file_name)
         return resonator
 
     def lmfit(self, parameter, model, guess, index=None, label='default', data_label="best", keep=True,

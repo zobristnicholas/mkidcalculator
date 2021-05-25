@@ -17,6 +17,7 @@ log.addHandler(logging.NullHandler())
 class Sweep:
     """A class for organizing data from multiple resonators."""
     def __init__(self):
+        self.name = None
         self.resonators = []
 
     @property  # @property so that self.f not put into memory on load
@@ -194,6 +195,7 @@ class Sweep:
             kws.update({"sort": sort})
             resonators.append(Resonator.from_file(**kws))
         sweep.add_resonators(resonators, sort=sort)
+        sweep.name = os.path.basename(sweep_file_name)
         return sweep
 
     def _set_directory(self, directory):
