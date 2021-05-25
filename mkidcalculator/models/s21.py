@@ -336,7 +336,7 @@ class S21:
     @classmethod
     def guess(cls, z, f, imbalance=None, offset=None, use_filter=False, filter_length=None, fit_resonance=True,
               nonlinear_resonance=False, fit_gain=True, quadratic_gain=True, fit_phase=True, quadratic_phase=False,
-              fit_imbalance=False, fit_offset=False, alpha=1, beta=0):
+              fit_imbalance=False, fit_offset=False, alpha=1, beta=0, **kwargs):
         """
         Guess the model parameters based on the data. Returns a
         lmfit.Parameters() object.
@@ -403,6 +403,9 @@ class S21:
             beta:float (optional)
                 Mixer phase imbalance. The default is 0 which corresponds to no
                 imbalance.
+            kwargs: (optional)
+                Set the options of any of the parameters directly bypassing the
+                calculated guess.
         Returns:
             params: lmfit.Parameters
                 An object with guesses and bounds for each parameter.
@@ -520,4 +523,8 @@ class S21:
         params.add("fm", value=float(f_midpoint), vary=False)  # the frequency midpoint used for fitting
         params.add("tau", expr="-phase1 / (2 * pi * fm)")  # the cable delay
         params.add("fr", expr="f0 * (1 - a / q0)")  # resonance frequency accounting for nonlinearity
+
+        # override the guess
+        for key, options in kwargs.items():
+            params[key].set(**options)
         return params
