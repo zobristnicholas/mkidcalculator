@@ -3,6 +3,7 @@ import yaml
 import glob
 import fnmatch
 import logging
+import pathlib
 import numpy as np
 from scipy.io import loadmat
 from functools import partial
@@ -51,10 +52,10 @@ def analogreadout_sample_rate(metadata):
 
 
 def analogreadout_trace(array, npz, quad, channel):
-    if isinstance(array, str): # array is a string
+    if isinstance(array, str):  # array is a string
         directory = os.path.dirname(npz)
-        # os.path.basename doesn't work on windows paths when running linux
-        file_name = "pulse" + array.split("pulse")[-1]
+        # casts all path types into Windows format and grabs the base name
+        file_name = pathlib.PureWindowsPath(array).name
         data = np.load(os.path.join(directory, file_name))[quad][channel]
     else:
         try:  # array is a real array

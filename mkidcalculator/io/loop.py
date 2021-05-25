@@ -619,14 +619,14 @@ class Loop:
                  for key in result.flatchain.keys()}
         mle = dict(result.flatchain.iloc[np.argmax(result.lnprob)])
         # save the results
-        self.emcee_results[label] = {'result': result, 'model': model, 'median': median, 'sigma': sigma, 'mle': mle}
+        self.emcee_results[label] = {'result': result, 'model': model, 'median': median, 'sigma': sigma, 'mle': mle,
+                                     'kwargs': residual_kwargs, 'args': residual_args}
         # if the result is better than has been previously computed, add it to the 'best' key
         if 'best' not in self.emcee_results.keys():
             self.emcee_results['best'] = self.lmfit_results[label]
             self.emcee_results['best']['label'] = label
         elif result.aic < self.emcee_results['best']['result'].aic:
             self.emcee_results['best']['result'] = result
-            self.emcee_results['best']['objective'] = residual
             self.emcee_results['best']['label'] = label
         return result
 
