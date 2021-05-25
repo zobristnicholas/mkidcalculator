@@ -177,8 +177,8 @@ def _set(fit_type, parameter, new, old, fit_kwargs, vary=None):
         raise ValueError("'fit_type' must be either 'loopfit' or 'lmfit'")
 
 
-def basic_fit(data, fit_type="lmfit", label="basic_fit", calibration=True, sigma=True, guess_kwargs=None,
-              parallel=False, return_dict=False, **fit_kwargs):
+def basic_fit(data, fit_type="lmfit", label="basic_fit", calibration=True, sigma=True, guess=None,
+              guess_kwargs=None, parallel=False, return_dict=False, **fit_kwargs):
     """
     Fit the loop using the standard model guess.
     Args:
@@ -202,6 +202,9 @@ def basic_fit(data, fit_type="lmfit", label="basic_fit", calibration=True, sigma
             residual with the sigma keyword argument. If the model does not
             have this key word, this will not work and sigma should be set to
             False.
+        guess: object
+            The guess object for the 'fit_type'. Defaults to None and the guess
+            is computed with 'guess_kwargs'.
         guess_kwargs: dictionary
             A dictionary of keyword arguments that can overwrite the default
             options for model.guess().
@@ -226,14 +229,15 @@ def basic_fit(data, fit_type="lmfit", label="basic_fit", calibration=True, sigma
     loops = _get_loops(data)
     if parallel:
         loops = _parallel(basic_fit, loops, parallel, fit_type, label=label, calibration=calibration,
-                          sigma=sigma, guess_kwargs=guess_kwargs, **fit_kwargs)
+                          sigma=sigma, guess=guess, guess_kwargs=guess_kwargs, **fit_kwargs)
         return _prepare_output(loops, fit_type, return_dict=return_dict)
     for loop in loops:
         # make guess
-        kwargs = {"imbalance": loop.imbalance_calibration, "offset": loop.offset_calibration} if calibration else {}
-        if guess_kwargs is not None:
-            kwargs.update(guess_kwargs)
-        guess = _make_guess(loop, fit_type, kwargs, fit_kwargs)
+        if guess is None:
+            kwargs = {"imbalance": loop.imbalance_calibration, "offset": loop.offset_calibration} if calibration else {}
+            if guess_kwargs is not None:
+                kwargs.update(guess_kwargs)
+            guess = _make_guess(loop, fit_type, kwargs, fit_kwargs)
         # do fit
         result = _do_fit(loop, guess, fit_type, fit_kwargs, sigma, label)
         log.info(FIT_MESSAGE.format(id(loop), label, _red_chi(fit_type, result)))
