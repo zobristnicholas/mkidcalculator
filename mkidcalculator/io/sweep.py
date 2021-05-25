@@ -195,7 +195,7 @@ class Sweep:
             kws.update({"sort": sort})
             resonators.append(Resonator.from_file(**kws))
         sweep.add_resonators(resonators, sort=sort)
-        sweep.name = os.path.basename(sweep_file_name)
+        sweep.name = str((os.path.basename(sweep_file_name), kwargs))
         return sweep
 
     def _set_directory(self, directory):

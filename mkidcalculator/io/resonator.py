@@ -287,7 +287,7 @@ class Resonator:
             kws.update({"sort": sort})
             loops.append(Loop.from_file(**kws))
         resonator.add_loops(loops, sort=sort)
-        resonator.name = os.path.basename(resonator_file_name)
+        resonator.name = str((os.path.basename(resonator_file_name), kwargs))
         return resonator
 
     def lmfit(self, parameter, model, guess, index=None, label='default', data_label="best", keep=True,
