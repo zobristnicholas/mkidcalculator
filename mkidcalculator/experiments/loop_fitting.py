@@ -18,7 +18,8 @@ log.addHandler(logging.NullHandler())
 _loops = None
 
 MAX_REDCHI = 100
-FIT_MESSAGE = "loop {:d} fit: label = '{:s}', reduced chi squared = {:g}"
+FIT_MESSAGE = ("'{:s}' fit: label = '{:s}', "
+               "\N{Mathematical Italic Small Chi}\N{Latin Subscript Small Letter V}\N{Superscript Two} = {:g}")
 
 
 def _parallel(function, loops, n_cpu, fit_type, **kwargs):
@@ -240,7 +241,7 @@ def basic_fit(data, fit_type="lmfit", label="basic_fit", calibration=True, sigma
             guess = _make_guess(loop, fit_type, kwargs, fit_kwargs)
         # do fit
         result = _do_fit(loop, guess, fit_type, fit_kwargs, sigma, label)
-        log.info(FIT_MESSAGE.format(id(loop), label, _red_chi(fit_type, result)))
+        log.info(FIT_MESSAGE.format(loop.name, label, _red_chi(fit_type, result)))
     return _prepare_output(loops, fit_type, return_dict=return_dict)
 
 
@@ -319,7 +320,7 @@ def power_fit(data, fit_type="lmfit", label="power_fit", sigma=True, baseline=No
                 # do fit
                 fit_label = label + "_" + str(len(used_powers) - 1)
                 result = _do_fit(loop, guess, fit_type, fit_kwargs, sigma, fit_label)
-                log.info(FIT_MESSAGE.format(id(loop), fit_label, _red_chi(fit_type, result)))
+                log.info(FIT_MESSAGE.format(loop.name, fit_label, _red_chi(fit_type, result)))
     return _prepare_output(loops, fit_type, return_dict=return_dict)
 
 
@@ -381,7 +382,7 @@ def temperature_fit(data, fit_type="lmfit", label="temperature_fit", sigma=True,
                 # do fit
                 fit_label = label + "_" + str(iteration)
                 result = _do_fit(loop, guess, fit_type, fit_kwargs, sigma, fit_label)
-                log.info(FIT_MESSAGE.format(id(loop), fit_label, _red_chi(fit_type, result)))
+                log.info(FIT_MESSAGE.format(loop.name, fit_label, _red_chi(fit_type, result)))
     return _prepare_output(loops, fit_type, return_dict=return_dict)
 
 
@@ -506,7 +507,7 @@ def nonlinear_fit(data, fit_type="lmfit", label="nonlinear_fit", sigma=True, par
             _set(fit_type, parameter, guess, value, fit_kwargs, vary=vary)
             # do fit
             result = _do_fit(loop, guess, fit_type, fit_kwargs, sigma, label)
-            log.info(FIT_MESSAGE.format(id(loop), label, _red_chi(fit_type, result)))
+            log.info(FIT_MESSAGE.format(loop.name, label, _red_chi(fit_type, result)))
         else:
             raise AttributeError("loop does not have a previous fit on which to base the nonlinear fit.")
     return _prepare_output(loops, fit_type, return_dict=return_dict)
