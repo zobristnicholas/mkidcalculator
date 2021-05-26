@@ -512,7 +512,7 @@ def nonlinear_fit(data, fit_type="lmfit", label="nonlinear_fit", sigma=True, par
     return _prepare_output(loops, fit_type, return_dict=return_dict)
 
 
-def multiple_fit(data, fit_type="lmfit", extra_fits=(temperature_fit, power_fit, nonlinear_fit, linear_fit), sigma=True,
+def multiple_fit(data, fit_type="lmfit", extra_fits=None, sigma=True,
                  iterations=2, parallel=False, return_dict=False, fit_kwargs=None, **basic_fit_kwargs):
     """
     Fit the loops using multiple methods.
@@ -525,7 +525,7 @@ def multiple_fit(data, fit_type="lmfit", extra_fits=(temperature_fit, power_fit,
             "loopfit". The default is "lmfit".
         extra_fits: tuple of functions (optional)
             Extra functions to use to try to fit the loops. They must have
-            the arguments of basic_fit(). The default is
+            the arguments of basic_fit(). The default is None and we use
             (temperature_fit, power_fit, nonlinear_fit, linear_fit). The loops
             must be associated with resonator objects for the temperature_fit
             and power_fit to work.
@@ -562,6 +562,8 @@ def multiple_fit(data, fit_type="lmfit", extra_fits=(temperature_fit, power_fit,
             loop.lmfit_results or loop.loopfit_results dictionaries are
             returned instead.
     """
+    if extra_fits is None:
+        extra_fits = (temperature_fit, power_fit, nonlinear_fit, linear_fit)
     loops = _get_loops(data)
     # fit the resonator loops with the basic fit
     log.info("starting {}".format(basic_fit))
