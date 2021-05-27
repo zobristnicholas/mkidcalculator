@@ -179,7 +179,7 @@ def _set(fit_type, parameter, new, old, fit_kwargs, vary=None):
 
 
 def basic_fit(data, fit_type="lmfit", label="basic_fit", calibration=True, sigma=True, guess=None,
-              guess_kwargs=None, parallel=False, return_dict=False, **fit_kwargs):
+              guess_kwargs=None, parallel=False, return_dict=False, callback=None, **fit_kwargs):
     """
     Fit the loop using the standard model guess.
     Args:
@@ -205,7 +205,8 @@ def basic_fit(data, fit_type="lmfit", label="basic_fit", calibration=True, sigma
             False.
         guess: object
             The guess object for the 'fit_type'. Defaults to None and the guess
-            is computed with 'guess_kwargs'.
+            is computed with 'guess_kwargs'. A different guess can be applied
+            to each loop if a list of guesses is provided.
         guess_kwargs: dictionary
             A dictionary of keyword arguments that can overwrite the default
             options for model.guess().
@@ -218,6 +219,9 @@ def basic_fit(data, fit_type="lmfit", label="basic_fit", calibration=True, sigma
         return_dict: boolean (optional)
             Return only the fit results dictionary if True. The default is
             False.
+        callback: function (optional)
+            A function to be called after every loop fit. The default is None
+            and no function call is done.
         fit_kwargs: optional keyword arguments
             Additional keyword arguments to pass to the fitting function. E.g.
             loop.lmfit() or loop.loopfit().
@@ -232,21 +236,25 @@ def basic_fit(data, fit_type="lmfit", label="basic_fit", calibration=True, sigma
         loops = _parallel(basic_fit, loops, parallel, fit_type, label=label, calibration=calibration,
                           sigma=sigma, guess=guess, guess_kwargs=guess_kwargs, **fit_kwargs)
         return _prepare_output(loops, fit_type, return_dict=return_dict)
-    for loop in loops:
+    for i, loop in enumerate(loops):
         # make guess
         if guess is None:
             kwargs = {"imbalance": loop.imbalance_calibration, "offset": loop.offset_calibration} if calibration else {}
             if guess_kwargs is not None:
                 kwargs.update(guess_kwargs)
-            guess = _make_guess(loop, fit_type, kwargs, fit_kwargs)
+            g = _make_guess(loop, fit_type, kwargs, fit_kwargs)
+        else:
+            g = guess[i] if isinstance(guess, (tuple, list)) else guess
         # do fit
-        result = _do_fit(loop, guess, fit_type, fit_kwargs, sigma, label)
+        result = _do_fit(loop, g, fit_type, fit_kwargs, sigma, label)
         log.info(FIT_MESSAGE.format(loop.name, label, _red_chi(fit_type, result)))
+        if callback is not None:
+            callback()
     return _prepare_output(loops, fit_type, return_dict=return_dict)
 
 
 def power_fit(data, fit_type="lmfit", label="power_fit", sigma=True, baseline=None, parallel=False, return_dict=False,
-              **fit_kwargs):
+              callback=None, **fit_kwargs):
     """
     Fit the loop using the two nearest power data points of similar
     temperature and same field in the resonator as guesses. If there are no
@@ -283,6 +291,9 @@ def power_fit(data, fit_type="lmfit", label="power_fit", sigma=True, baseline=No
             use the model guess from the best fit done so far on this loop as a
             starting point. If no fit has been done a AttributeError will be
             raised.
+        callback: function (optional)
+            A function to be called after every loop fit. The default is None
+            and no function call is done.
         fit_kwargs: optional keyword arguments
             Additional keyword arguments to pass to the fitting function. E.g.
             loop.lmfit() or loop.loopfit().
@@ -321,11 +332,13 @@ def power_fit(data, fit_type="lmfit", label="power_fit", sigma=True, baseline=No
                 fit_label = label + "_" + str(len(used_powers) - 1)
                 result = _do_fit(loop, guess, fit_type, fit_kwargs, sigma, fit_label)
                 log.info(FIT_MESSAGE.format(loop.name, fit_label, _red_chi(fit_type, result)))
+        if callback is not None:
+            callback()
     return _prepare_output(loops, fit_type, return_dict=return_dict)
 
 
 def temperature_fit(data, fit_type="lmfit", label="temperature_fit", sigma=True, parallel=False, return_dict=False,
-                    **fit_kwargs):
+                    callback=None, **fit_kwargs):
     """
     Fit the loop using the two nearest temperature data points of the same
     power and field in the resonator as guesses. If there are no good guesses,
@@ -357,6 +370,9 @@ def temperature_fit(data, fit_type="lmfit", label="temperature_fit", sigma=True,
         return_dict: boolean (optional)
             Return only the lmfit_results dictionary if True. The default is
             False.
+        callback: function (optional)
+            A function to be called after every loop fit. The default is None
+            and no function call is done.
         fit_kwargs: optional keyword arguments
             Additional keyword arguments to pass to the fitting function. E.g.
             loop.lmfit() or loop.loopfit().
@@ -383,11 +399,13 @@ def temperature_fit(data, fit_type="lmfit", label="temperature_fit", sigma=True,
                 fit_label = label + "_" + str(iteration)
                 result = _do_fit(loop, guess, fit_type, fit_kwargs, sigma, fit_label)
                 log.info(FIT_MESSAGE.format(loop.name, fit_label, _red_chi(fit_type, result)))
+        if callback is not None:
+            callback()
     return _prepare_output(loops, fit_type, return_dict=return_dict)
 
 
 def linear_fit(data, fit_type="lmfit", label="linear_fit", sigma=True, parameter=None, parallel=False,
-               return_dict=False, **fit_kwargs):
+               return_dict=False, callback=None, **fit_kwargs):
     """
     Fit the loop using a previous good fit, but with the nonlinearity turned
     off.
@@ -419,6 +437,9 @@ def linear_fit(data, fit_type="lmfit", label="linear_fit", sigma=True, parameter
         return_dict: boolean (optional)
             Return only the lmfit_results dictionary if True. The default is
             False.
+        callback: function (optional)
+            A function to be called after every loop fit. The default is None
+            and no function call is done.
         fit_kwargs: optional keyword arguments
             Additional keyword arguments to pass to the fitting function. E.g.
             loop.lmfit() or loop.loopfit().
@@ -429,11 +450,11 @@ def linear_fit(data, fit_type="lmfit", label="linear_fit", sigma=True, parameter
             returned instead.
     """
     return nonlinear_fit(data, fit_type=fit_type, label=label, sigma=sigma, parameter=parameter, value=0, vary=False,
-                         parallel=parallel, return_dict=return_dict, **fit_kwargs)
+                         parallel=parallel, return_dict=return_dict, callback=callback, **fit_kwargs)
 
 
 def nonlinear_fit(data, fit_type="lmfit", label="nonlinear_fit", sigma=True, parameter=None, value=None, vary=True,
-                  parallel=False, return_dict=False, **fit_kwargs):
+                  parallel=False, return_dict=False, callback=None, **fit_kwargs):
     """
     Fit the loop using a previous good fit, but with the nonlinearity.
     Args:
@@ -471,6 +492,9 @@ def nonlinear_fit(data, fit_type="lmfit", label="nonlinear_fit", sigma=True, par
         return_dict: boolean (optional)
             Return only the fit results dictionary if True. The default is
             False.
+        callback: function (optional)
+            A function to be called after every loop fit. The default is None
+            and no function call is done.
         fit_kwargs: optional keyword arguments
             Additional keyword arguments to pass to the fitting function. E.g.
             loop.lmfit() or loop.loopfit().
@@ -510,11 +534,13 @@ def nonlinear_fit(data, fit_type="lmfit", label="nonlinear_fit", sigma=True, par
             log.info(FIT_MESSAGE.format(loop.name, label, _red_chi(fit_type, result)))
         else:
             raise AttributeError("loop does not have a previous fit on which to base the nonlinear fit.")
+        if callback is not None:
+            callback()
     return _prepare_output(loops, fit_type, return_dict=return_dict)
 
 
-def multiple_fit(data, fit_type="lmfit", extra_fits=None, sigma=True,
-                 iterations=2, parallel=False, return_dict=False, fit_kwargs=None, **basic_fit_kwargs):
+def multiple_fit(data, fit_type="lmfit", extra_fits=None, sigma=True, iterations=2, parallel=False,
+                 return_dict=False, callback=None, fit_kwargs=None, **basic_fit_kwargs):
     """
     Fit the loops using multiple methods.
     Args:
@@ -550,6 +576,9 @@ def multiple_fit(data, fit_type="lmfit", extra_fits=None, sigma=True,
         return_dict: boolean (optional)
             Return only the lmfit_results dictionary if True. The default is
             False.
+        callback: function (optional)
+            A function to be called after every loop fit. The default is None
+            and no function call is done.
         fit_kwargs: dictionary or iterable of dictionaries (optional)
             Extra keyword arguments to send to the extra_fits. The default is
             None and no extra keywords are used. If a single dictionary is
@@ -568,7 +597,7 @@ def multiple_fit(data, fit_type="lmfit", extra_fits=None, sigma=True,
     loops = _get_loops(data)
     # fit the resonator loops with the basic fit
     log.info("starting {}".format(basic_fit))
-    kwargs = {"fit_type": fit_type, "sigma": sigma, "parallel": parallel}
+    kwargs = {"fit_type": fit_type, "sigma": sigma, "parallel": parallel, "callback": callback}
     kwargs.update(basic_fit_kwargs)
     basic_fit(loops, **kwargs)
     # setup extra fit kwargs
@@ -583,7 +612,7 @@ def multiple_fit(data, fit_type="lmfit", extra_fits=None, sigma=True,
         for extra_index, fit in enumerate(extra_fits):
             log.info("starting {}".format(fit))
             kwargs = {"label": fit.__name__ + str(iteration), "fit_type": fit_type, "sigma": sigma,
-                      "parallel": parallel}
+                      "parallel": parallel, "callback": callback}
             kwargs.update(fit_kwargs[extra_index])
             fit(loops, **kwargs)
     return _prepare_output(loops, fit_type, return_dict=return_dict)
