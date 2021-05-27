@@ -62,7 +62,7 @@ class Sweep:
             resonator.sweep = self
             self.resonators.append(resonator)
         # sort
-        if sort:
+        if sort and self.resonators:
             self.resonators = [r for _, r in sorted(zip(self.f_centers, self.resonators))]
 
     def remove_resonators(self, indices):

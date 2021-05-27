@@ -222,7 +222,7 @@ class Resonator:
             self.fields.append(loop.field)
             self.temperatures.append(loop.temperature)
         # sort
-        if sort:
+        if sort and self.loops:
             lp = zip(*sorted(zip(self.powers, self.fields, self.temperatures, self.loops), key=itemgetter(0, 1, 2)))
             self.powers, self.fields, self.temperatures, self.loops = (list(t) for t in lp)
 
