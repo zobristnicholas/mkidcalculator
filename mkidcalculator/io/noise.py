@@ -315,7 +315,7 @@ class Noise:
         for d in _data:
             noise.append(cls())
             noise[-1]._data = d
-            noise[-1].name = str(os.path.basename(noise_file_name), kwargs)
+            noise[-1].name = os.path.basename(noise_file_name) + ", " + str(kwargs)
         if len(noise) == 1:
             noise = noise[0]
         return noise

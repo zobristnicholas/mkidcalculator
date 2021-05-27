@@ -542,7 +542,7 @@ class Pulse:
         for d in _data:
             pulse.append(cls())
             pulse[-1]._data = d
-            pulse[-1].name = str((os.path.basename(pulse_file_name), kwargs))
+            pulse[-1].name = os.path.basename(pulse_file_name) + ", " + str(kwargs)
             if loop is not None:  # don't set loop unless needed.
                 pulse[-1].loop = loop
             if noise is not None:

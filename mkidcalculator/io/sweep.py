@@ -50,6 +50,10 @@ class Sweep:
         Args:
             resonators: Resonator class or iterable of Resonator classes
                 The resonators that are to be added to the Sweep.
+            sort: boolean (optional)
+                Sort the resonator list by its median frequency.
+                The default is True. If False, the order of the resonator list
+                is preserved.
         """
         if isinstance(resonators, Resonator):
             resonators = [resonators]
@@ -195,7 +199,7 @@ class Sweep:
             kws.update({"sort": sort})
             resonators.append(Resonator.from_file(**kws))
         sweep.add_resonators(resonators, sort=sort)
-        sweep.name = str((os.path.basename(sweep_file_name), kwargs))
+        sweep.name = os.path.basename(sweep_file_name) + ", " + str(kwargs)
         return sweep
 
     def _set_directory(self, directory):

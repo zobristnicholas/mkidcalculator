@@ -458,7 +458,7 @@ class Loop:
                 kws.update({"channel": channel})
         # load loop
         loop._data = data(loop_file_name, **kwargs)
-        loop.name = str((os.path.basename(loop_file_name), kwargs))
+        loop.name = os.path.basename(loop_file_name) + ", " + str(kwargs)
         # load noise
         noise = []
         for index, noise_file_name in enumerate(noise_file_names):
