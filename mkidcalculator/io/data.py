@@ -341,8 +341,10 @@ def analogreadout_sweep(file_name, unique=True):
     for index in range(multiple * len(file_names)):
         if unique:
             repeat = index // multiple + 1 > lengths[index % multiple]
-            if repeat:
-                continue
+        else:
+            repeat = index // multiple + 1 > max(lengths)
+        if repeat:
+            continue
         resonator_kwargs.append({"resonator_file_name": file_name, "channel": index})
 
     return resonator_kwargs
