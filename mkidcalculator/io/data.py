@@ -211,14 +211,11 @@ class AnalogReadoutPulse(AnalogReadoutABC):
             self._energies = tuple(ev_nm_convert(np.atleast_1d(wavelengths)))
         else:
             self._energies = ()
+        self._add_pulses()
 
-        self.CONVERT.update(
-            {"i_trace": ("pulses", partial(analogreadout_trace,
-                                           npz=self._npz, quad="I",
-                                           channel=self.channel)),
-             "q_trace": ("pulses", partial(analogreadout_trace,
-                                           npz=self._npz, quad="Q",
-                                           channel=self.channel))})
+    def __setstate__(self, state):
+        self.__dict__ = state
+        self._add_pulses()
 
     def __getitem__(self, item):
         if item == 'energies':
@@ -245,6 +242,15 @@ class AnalogReadoutPulse(AnalogReadoutABC):
         else:
             result = super().__getitem__(item)
         return result
+
+    def _add_pulses(self):
+        self.CONVERT.update(
+            {"i_trace": ("pulses", partial(analogreadout_trace,
+                                           npz=self._npz, quad="I",
+                                           channel=self.channel)),
+             "q_trace": ("pulses", partial(analogreadout_trace,
+                                           npz=self._npz, quad="Q",
+                                           channel=self.channel))})
 
 
 def analogreadout_resonator(file_name, channel=None):
