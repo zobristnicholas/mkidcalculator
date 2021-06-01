@@ -2225,7 +2225,10 @@ class Loop:
             n_bins = 10 * int((max_energy - min_energy) / bandwidth)
             xx = np.linspace(min_energy, max_energy, 10 * n_bins)
             if not np.isnan(pulse.resolving_power):
-                label = "{:.0f} nm: R = {:.2f}".format(ev_nm_convert(pulse.energies[0]), pulse.resolving_power)
+                digit = -int(np.floor(np.log10(np.abs(pulse.resolving_power)))) + 1
+                r = np.round(pulse.resolving_power, digit)
+                label = "{:.0f} nm: R = {:g}".format(
+                    ev_nm_convert(pulse.energies[0]), r)
             else:
                 label = ""
             kwargs = {"label": label}
