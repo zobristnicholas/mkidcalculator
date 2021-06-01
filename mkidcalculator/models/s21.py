@@ -528,5 +528,8 @@ class S21:
         # override the guess
         for key, options in kwargs.items():
             if options is not None:
-                params[key].set(**options)
+                if isinstance(options, dict):
+                    params[key].set(**options)
+                else:
+                    params[key].set(value=options)
         return params
