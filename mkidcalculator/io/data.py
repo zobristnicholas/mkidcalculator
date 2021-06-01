@@ -229,10 +229,11 @@ class AnalogReadoutPulse(AnalogReadoutABC):
                 try:
                     laser_state = np.array(metadata['parameters']['laser'])
                     if laser_state.size == 5:
-                        laser_state *= np.array([808, 920, 980, 1120, 1310])
+                        laser_state *= np.array([813.7, 916.8, 978.6, 1110,
+                                                 1310])
                     elif laser_state.size == 8:
-                        laser_state *= np.array([254, 406.6, 671, 808, 920,
-                                                 980, 1120, 1310])
+                        laser_state *= np.array([254, 405.9, 663.1, 813.7,
+                                                 916.8, 978.6, 1120, 1310])
                     else:
                         raise ValueError(
                             f"Unrecognized laser state: {laser_state}")
