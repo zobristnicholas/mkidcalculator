@@ -336,7 +336,7 @@ class S21:
     @classmethod
     def guess(cls, z, f, imbalance=None, offset=None, use_filter=False, filter_length=None, fit_resonance=True,
               nonlinear_resonance=False, fit_gain=True, quadratic_gain=True, fit_phase=True, quadratic_phase=False,
-              fit_imbalance=False, fit_offset=False, alpha=1, beta=0, **kwargs):
+              fit_imbalance=False, fit_offset=False, **kwargs):
         """
         Guess the model parameters based on the data. Returns a
         lmfit.Parameters() object.
@@ -397,12 +397,6 @@ class S21:
                 False. The offset is highly correlated with the gain parameters
                 and typically should not be allowed to vary unless the gain is
                 properly calibrated.
-            alpha: float (optional)
-                Mixer amplitude imbalance. The default is 1 which corresponds
-                to no imbalance.
-            beta:float (optional)
-                Mixer phase imbalance. The default is 0 which corresponds to no
-                imbalance.
             kwargs: (optional)
                 Set the options of any of the parameters directly bypassing the
                 calculated guess.
@@ -427,6 +421,13 @@ class S21:
             beta = np.arcsin(np.sign(ratio) * 2 * np.mean(qp * ip, axis=-1) / (alpha * amp**2)) + np.pi * (ratio < 0)
             alpha = np.mean(alpha)
             beta = np.mean(beta)
+        else:
+            alpha = 1.
+            beta = 0.
+        if kwargs.get('alpha', None) is not None:
+            alpha = kwargs['alpha']['value'] if isinstance(kwargs['alpha'], dict) else kwargs['alpha']
+        if kwargs.get('beta', None) is not None:
+            beta = kwargs['beta']['value'] if isinstance(kwargs['beta'], dict) else kwargs['beta']
         z = cls.mixer_inverse((alpha, beta, offset), z)
         # compute the magnitude and phase of the scattering parameter
         magnitude = np.abs(z)
@@ -526,5 +527,6 @@ class S21:
 
         # override the guess
         for key, options in kwargs.items():
-            params[key].set(**options)
+            if options is not None:
+                params[key].set(**options)
         return params
