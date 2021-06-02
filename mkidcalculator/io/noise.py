@@ -348,9 +348,9 @@ class Noise:
             sigma_threshold: float (optional)
                 Exclude data that deviates from the median at a level that
                 exceeds sigma_threshold * (noise standard deviation) assuming
-                stationary gaussian noise. The default is 0, and all data is
-                used. This keyword argument is useful for removing pulse
-                contamination from the computed noise.
+                stationary gaussian noise. The default is numpy.inf, and all
+                data is used. This keyword argument is useful for removing
+                pulse contamination from the computed noise.
             grow: integer (optional)
                 If p_threshold is used, the regions of excluded points can be
                 expanded by grow time steps.
