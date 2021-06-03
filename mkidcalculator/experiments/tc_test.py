@@ -7,6 +7,29 @@ from mkidcalculator.io.utils import setup_axes, finalize_axes
 
 def load_lakeshore_log(filename, start=None, stop=None, timestamp=False,
                        absolute=True):
+    """
+    Load the log file and return the times and values.
+    Args:
+        filename: string
+            The log file name including the path.
+        start: datetime.datetime
+            The start time for the experiment. If not provided, the whole
+            log file is used.
+        stop: datetime.datetime
+            The stop time for the experiment. If not provided, the whole
+            log file is used.
+        timestamp: boolean
+            If True, the dates are returned as timestamps. The default is
+            False and datetime objects are returned.
+        absolute: boolean
+            The default is True and the absolute value of the data is
+            returned. If False, the original data is returned instead.
+    Returns:
+        time: numpy.ndarray
+            Times corresponding to the values.
+        values: numpy.ndarray
+            Values at the corresponding times.
+    """
     # Load the file.
     data = np.loadtxt(filename, dtype=np.object, delimiter=",")
     # Reformat the time into a datetime.
@@ -33,6 +56,25 @@ def load_lakeshore_log(filename, start=None, stop=None, timestamp=False,
 
 
 def t_vs_r(t_filename, r_filename, start=None, stop=None):
+    """
+    Return the resistance as a function of temperature.
+    Args:
+        t_filename: string
+            The filename for the temperature log data.
+        r_filename: string
+            The file name for the resistance log data.
+        start: datetime.datetime
+            The start time for the experiment. If not provided, the whole
+            log file is used.
+        stop: datetime.datetime
+            The stop time for the experiment. If not provided, the whole
+            log file is used.
+    Returns:
+        temperature: numpy.ndarray
+            Temperature at the same time as the resistance.
+        resistance: numpy.ndarray
+            Resistance at the same time as the temperature.
+    """
     # Load the files.
     time_t, t = load_lakeshore_log(t_filename, start=start, stop=stop,
                                    timestamp=True)
@@ -57,9 +99,11 @@ def plot_transition(t_filename, r_filename, start=None, stop=None,
         r_filename: string
             The file name for the resistance log data.
         start: datetime.datetime
-            The start time for the experiment.
+            The start time for the experiment. If not provided, the whole
+            log file is used.
         stop: datetime.datetime
-            The stop time for the experiment.
+            The stop time for the experiment. If not provided, the whole
+            log file is used.
         x_label: string
             The label for the x axis. The default is None which uses the
             default label. If x_label evaluates to False, parameter_kwargs
