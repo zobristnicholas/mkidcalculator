@@ -2,8 +2,9 @@ import calendar
 import numpy as np
 from datetime import datetime
 from scipy.signal import detrend
-from scipy.interpolate import interp1d
+from skimage.util import view_as_windows
 from scipy.stats import median_abs_deviation
+from scipy.interpolate import UnivariateSpline, interp1d
 from mkidcalculator.io.utils import setup_axes, finalize_axes
 
 
@@ -83,8 +84,8 @@ def load_lakeshore_log(filename, start=None, stop=None, timestamp=False,
     return time, values
 
 
-def t_vs_r(t_filename, r_filename, start=None, stop=None, t_kwargs=None,
-           r_kwargs=None):
+def t_vs_r(t_filename, r_filename, start=None, stop=None, interp='smooth',
+           t_kwargs=None, r_kwargs=None):
     """
     Return the resistance as a function of temperature.
     Args:
@@ -98,6 +99,9 @@ def t_vs_r(t_filename, r_filename, start=None, stop=None, t_kwargs=None,
         stop: datetime.datetime
             The stop time for the experiment. If not provided, the whole
             log file is used.
+        interp: str
+            If interp is 'smooth', a smoothing spline is used. If
+            'linear', a linear interpolation is used.
         t_kwargs: dictionary
             Keyword arguments to use when loading the temperature with
             the load_lakeshore_log() function.
@@ -122,7 +126,15 @@ def t_vs_r(t_filename, r_filename, start=None, stop=None, t_kwargs=None,
     time_r, resistance = load_lakeshore_log(r_filename, start=start, stop=stop,
                                             timestamp=True, **kwargs)
     # Get the temperature when the resistance was measured by interpolation.
-    time_to_t = interp1d(time_t, t, fill_value='extrapolate')
+    if interp.lower().startswith('linear'):
+        time_to_t = interp1d(time_t, t, fill_value='extrapolate')
+    elif interp.lower().startswith('smooth'):
+        sigma = np.pad(np.std(detrend(view_as_windows(t, 40), axis=-1),
+                              ddof=1, axis=-1), (20, 19), 'edge')
+        time_to_t = UnivariateSpline(time_t, t, w=1 / sigma
+                                     if (sigma != 0).all() else None)
+    else:
+        raise ValueError("Invalid value given to 'interp' keyword argument.")
     temperature = time_to_t(time_r)
     return temperature, resistance
 
