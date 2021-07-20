@@ -800,7 +800,11 @@ def mkidreadout2_widesweep(file_name, field=np.nan, temperature=np.nan):
             The temperature for the data.
     """
     npz = np.load(file_name)
-    z = npz['I'] + 1j * npz['Q']
+    shape = npz['I'].shape
+    if len(shape) == 2:  # only one attenuation so we add the dimension back in
+        z = npz['I'].reshape((1, *shape)) + 1j * npz['Q'].reshape((1, *shape))
+    else:
+        z = npz['I'] + 1j * npz['Q']
     z = z.reshape((z.shape[0], z.shape[1] * z.shape[2]))
     f = np.broadcast_to(npz['freqs'].ravel() * 1e-9, z.shape)
     return f, z, npz['atten'], field, temperature

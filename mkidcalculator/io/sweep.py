@@ -1,6 +1,7 @@
 import os
 import logging
 import numpy as np
+from operator import itemgetter
 from matplotlib import gridspec
 from collections.abc import Collection
 
@@ -63,7 +64,9 @@ class Sweep:
             self.resonators.append(resonator)
         # sort
         if sort and self.resonators:
-            self.resonators = [r for _, r in sorted(zip(self.f_centers, self.resonators))]
+            self.resonators = [
+                r for _, r in sorted(zip(self.f_centers, self.resonators),
+                                     key=itemgetter(0,))]
 
     def remove_resonators(self, indices):
         """
