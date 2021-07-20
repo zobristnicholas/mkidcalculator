@@ -26,7 +26,7 @@ class Loop:
     """A class for manipulating resonance loop scattering parameter data."""
     def __init__(self):
         # original data file location
-        self.name = None
+        self.name = ''
         # loop data
         self._data = NoData()  # dummy class replaced by from_file()
         self._mask = None
