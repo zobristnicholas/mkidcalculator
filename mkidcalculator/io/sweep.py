@@ -96,8 +96,10 @@ class Sweep:
             resonator.free_memory(directory=directory)
 
     @classmethod
-    def from_widesweep(cls, sweep_file_name, df, data=labview_segmented_widesweep, indices=find_resonators,
-                       indices_kwargs=None, loop_kwargs=None, **kwargs):
+    def from_widesweep(cls, sweep_file_name, df, sort=True,
+                       data=labview_segmented_widesweep,
+                       indices=find_resonators, indices_kwargs=None,
+                       loop_kwargs=None, **kwargs):
         """
         Sweep class factory method that returns a Sweep() from widesweep data
         (continuous data in which the resonator locations need to be
@@ -108,6 +110,17 @@ class Sweep:
             df: float
                 The frequency bandwidth for each resonator in the units of the
                 data in the file.
+            sort: boolean (optional)
+                Sort the loop data in each resonator by its power, field, and
+                temperature. Also sort noise data and pulse data lists for each
+                loop by their bias frequencies. The resonator list will be
+                sorted by the median frequency of its loops. The default is
+                True. If False the input order is preserved.
+
+                Note
+                    Sorting requires loading data and computing medians. The
+                    process could be slow for very large datasets. In this case
+                    set this keyword argument to False.
             data: object (optional)
                 Function whose return value is a tuple of the frequencies,
                 complex scattering data, attenuation, field, and temperature of
@@ -119,7 +132,7 @@ class Sweep:
                 If an iterable, indices is interpreted as starting peak
                 frequency locations from the values returned by data. If a
                 function, it must return an iterable of resonator peak indices
-                corresponding to the data returned by data. The manditory input
+                corresponding to the data returned by data. The mandatory input
                 arguments are f, z. If a string, the indices are unpickled.
             indices_kwargs: dictionary (optional)
                 Extra keyword arguments to pass to the indices function. The
@@ -159,16 +172,19 @@ class Sweep:
             for ti, tv in enumerate(np.atleast_1d(temperature)):
                 for fi, fv in enumerate(np.atleast_1d(field)):
                     for ai, av in enumerate(np.atleast_1d(attenuation)):
-                        # add the loop for each temperature, field, attenuation to the resonator
-                        resonators[-1].add_loops(Loop.from_python(z_array[ti, fi, ai, ri, :],
-                                                                  f_array[ti, fi, ai, ri, :], av, fv, tv, **kws))
+                        # add the loop for each temperature, field, attenuation
+                        resonators[-1].add_loops(
+                            Loop.from_python(z_array[ti, fi, ai, ri, :],
+                                             f_array[ti, fi, ai, ri, :],
+                                             av, fv, tv, **kws))
         # create the sweep
         sweep = cls()
-        sweep.add_resonators(resonators)
+        sweep.add_resonators(resonators, sort=sort)
         return sweep
 
     @classmethod
-    def from_file(cls, sweep_file_name, data=analogreadout_sweep, sort=True, **kwargs):
+    def from_file(cls, sweep_file_name, data=analogreadout_sweep, sort=True,
+                  **kwargs):
         """
         Sweep class factory method that returns a Sweep() with the resonator
         data loaded.
