@@ -499,7 +499,8 @@ class Pulse:
     def from_pickle(cls, file_name):
         """Returns a Pulse class from the pickle file 'file_name'."""
         pulse = load(file_name)
-        assert isinstance(pulse, cls), "'{}' does not contain a Pulse class.".format(file_name)
+        if not isinstance(pulse, cls):
+            raise ValueError(f"'{file_name}' does not contain a Pulse class.")
         log.info("loaded pulse from '{}'".format(file_name))
         return pulse
 

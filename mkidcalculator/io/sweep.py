@@ -41,7 +41,8 @@ class Sweep:
     def from_pickle(cls, file_name):
         """Returns a Sweep class from the pickle file 'file_name'."""
         sweep = load(file_name)
-        assert isinstance(sweep, cls), "'{}' does not contain a Sweep class.".format(file_name)
+        if not isinstance(sweep, cls):
+            raise ValueError(f"'{file_name}' does not contain a Sweep class.")
         log.info("loaded sweep from '{}'".format(file_name))
         return sweep
 

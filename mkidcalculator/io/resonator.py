@@ -70,7 +70,9 @@ class Resonator:
     def from_pickle(cls, file_name):
         """Returns a Resonator class from the pickle file 'file_name'."""
         resonator = load(file_name)
-        assert isinstance(resonator, cls), "'{}' does not contain a Resonator class.".format(file_name)
+        if not isinstance(resonator, cls):
+            raise ValueError(f"'{file_name}' does not contain a Resonator "
+                             "class.")
         log.info("loaded resonator from '{}'".format(file_name))
         return resonator
 

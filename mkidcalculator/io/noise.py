@@ -282,7 +282,8 @@ class Noise:
     def from_pickle(cls, file_name):
         """Returns a Noise class from the pickle file 'file_name'."""
         noise = load(file_name)
-        assert isinstance(noise, cls), "'{}' does not contain a Noise class.".format(file_name)
+        if not isinstance(noise, cls):
+            raise ValueError(f"'{file_name}' does not contain a Noise class.")
         log.info("loaded noise from '{}'".format(file_name))
         return noise
 

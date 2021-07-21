@@ -239,7 +239,8 @@ class Loop:
     def from_pickle(cls, file_name):
         """Returns a Loop class from the pickle file 'file_name'."""
         loop = load(file_name)
-        assert isinstance(loop, cls), "'{}' does not contain a Loop class.".format(file_name)
+        if not isinstance(loop, cls):
+            raise ValueError(f"'{file_name}' does not contain a Loop class.")
         log.info("loaded loop from '{}'".format(file_name))
         return loop
 
