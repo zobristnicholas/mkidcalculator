@@ -7,9 +7,11 @@ from collections.abc import Collection
 
 from mkidcalculator.io.loop import Loop
 from mkidcalculator.io.resonator import Resonator
-from mkidcalculator.io.data import analogreadout_sweep, labview_segmented_widesweep
 from mkidcalculator.plotting import plot_parameter_vs_f, plot_parameter_hist
-from mkidcalculator.io.utils import find_resonators, collect_resonances, _loop_fit_data, dump, load
+from mkidcalculator.io.data import (analogreadout_sweep,
+                                    labview_segmented_widesweep)
+from mkidcalculator.io.utils import (find_resonators, collect_resonances,
+                                     _loop_fit_data, dump, load)
 
 log = logging.getLogger(__name__)
 log.addHandler(logging.NullHandler())
@@ -32,7 +34,7 @@ class Sweep:
 
     def to_pickle(self, file_name):
         """Pickle and save the class as the file 'file_name'."""
-        # set the _directory attributes so all the data gets saved in the right folder
+        # _set_directory so all the data gets saved in the right folder
         self._set_directory(os.path.dirname(os.path.abspath(file_name)))
         dump(self, file_name)
         log.info("saved sweep as '{}'".format(file_name))
@@ -96,8 +98,10 @@ class Sweep:
             resonator.free_memory(directory=directory)
 
     @classmethod
-    def from_widesweep(cls, sweep_file_name, df, data=labview_segmented_widesweep, indices=find_resonators,
-                       indices_kwargs=None, loop_kwargs=None, **kwargs):
+    def from_widesweep(cls, sweep_file_name, df, sort=True,
+                       data=labview_segmented_widesweep,
+                       indices=find_resonators, indices_kwargs=None,
+                       loop_kwargs=None, **kwargs):
         """
         Sweep class factory method that returns a Sweep() from widesweep data
         (continuous data in which the resonator locations need to be
@@ -108,6 +112,17 @@ class Sweep:
             df: float
                 The frequency bandwidth for each resonator in the units of the
                 data in the file.
+            sort: boolean (optional)
+                Sort the loop data in each resonator by its power, field, and
+                temperature. Also sort noise data and pulse data lists for each
+                loop by their bias frequencies. The resonator list will be
+                sorted by the median frequency of its loops. The default is
+                True. If False the input order is preserved.
+
+                Note
+                    Sorting requires loading data and computing medians. The
+                    process could be slow for very large datasets. In this case
+                    set this keyword argument to False.
             data: object (optional)
                 Function whose return value is a tuple of the frequencies,
                 complex scattering data, attenuation, field, and temperature of
@@ -119,7 +134,7 @@ class Sweep:
                 If an iterable, indices is interpreted as starting peak
                 frequency locations from the values returned by data. If a
                 function, it must return an iterable of resonator peak indices
-                corresponding to the data returned by data. The manditory input
+                corresponding to the data returned by data. The mandatory input
                 arguments are f, z. If a string, the indices are unpickled.
             indices_kwargs: dictionary (optional)
                 Extra keyword arguments to pass to the indices function. The
@@ -159,16 +174,19 @@ class Sweep:
             for ti, tv in enumerate(np.atleast_1d(temperature)):
                 for fi, fv in enumerate(np.atleast_1d(field)):
                     for ai, av in enumerate(np.atleast_1d(attenuation)):
-                        # add the loop for each temperature, field, attenuation to the resonator
-                        resonators[-1].add_loops(Loop.from_python(z_array[ti, fi, ai, ri, :],
-                                                                  f_array[ti, fi, ai, ri, :], av, fv, tv, **kws))
+                        # add the loop for each temperature, field, attenuation
+                        resonators[-1].add_loops(
+                            Loop.from_python(z_array[ti, fi, ai, ri, :],
+                                             f_array[ti, fi, ai, ri, :],
+                                             av, fv, tv, **kws))
         # create the sweep
         sweep = cls()
-        sweep.add_resonators(resonators)
+        sweep.add_resonators(resonators, sort=sort)
         return sweep
 
     @classmethod
-    def from_file(cls, sweep_file_name, data=analogreadout_sweep, sort=True, **kwargs):
+    def from_file(cls, sweep_file_name, data=analogreadout_sweep, sort=True,
+                  **kwargs):
         """
         Sweep class factory method that returns a Sweep() with the resonator
         data loaded.
@@ -211,9 +229,10 @@ class Sweep:
         for resonator in self.resonators:
             resonator._set_directory(self._directory)
 
-    def plot_loop_fits(self, parameters=("chi2",), fit_type="lmfit", fr="f0", bounds=None, errorbars=True, success=True,
-                       power=None, field=None, temperature=None, title=True, tighten=True, label='best',
-                       plot_kwargs=None, axes_list=None):
+    def plot_loop_fits(self, parameters=("chi2",), fit_type="lmfit", fr="f0",
+                       bounds=None, errorbars=True, success=True, power=None,
+                       field=None, temperature=None, title=True, tighten=True,
+                       label='best', plot_kwargs=None, axes_list=None):
         """
         Plot a summary of all the loop fits.
         Args:
@@ -231,28 +250,29 @@ class Sweep:
                 plot is shown instead of the usual histogram and scatter plot.
             bounds: tuple of numbers or tuples
                 The bounds for the parameters. It must be a tuple of the same
-                length as the parameters keyword argument. Each element is either
-                an upper bound on the parameter or a tuple, e.g. (lower bound,
-                upper bound). Only data points that satisfy all of the bounds
-                are plotted. None can be used as a placeholder to skip a bound.
-                The default is None and no bounds are used. A bound for
-                the fr parameter is used as a bound on |∆fr| in MHz but does
-                not act like a filter for the other parameters.
+                length as the parameters keyword argument. Each element is
+                either an upper bound on the parameter or a tuple,
+                e.g. (lower bound, upper bound). Only data points that satisfy
+                all of the bounds are plotted. None can be used as a
+                placeholder to skip a bound. The default is None and no
+                bounds are used. A bound for the fr parameter is used as a
+                bound on |∆fr| in MHz but does not act like a filter for
+                the other parameters.
             errorbars: boolean
-                If errorbars is True, only data from loop fits that could compute
-                errorbars on the fit parameters is included. If errorbars is False,
-                only data from loop fits that could not compute errorbars on the
-                fit parameters is included. The default is True. None may be used
-                to enforce no filtering on the errorbars. This keyword has no
-                effect if the fit_type is "loopfit" since no error bars are
-                computed.
+                If errorbars is True, only data from loop fits that could
+                compute errorbars on the fit parameters is included. If
+                errorbars is False, only data from loop fits that could not
+                compute errorbars on the fit parameters is included. The
+                default is True. None may be used to enforce no filtering on
+                the errorbars. This keyword has no effect if the fit_type is
+                "loopfit" since no error bars are computed.
             success: boolean
                 If success is True, only data from successful loop fits is
                 included. If False, only data from failed loop fits is
                 included. The default is True. None may be used
-                to enforce no filtering on success. Note: fit success is typically
-                a bad indicator on fit quality. It only ever fails when something
-                really bad happens.
+                to enforce no filtering on success. Note: fit success is
+                typically a bad indicator on fit quality. It only ever fails
+                when something really bad happens.
             power: tuple of two numbers or tuple of two number tuples
                 Inclusive range or ranges of powers to plot. A single number
                 will cause only that value to be plotted. The default is to
@@ -266,18 +286,19 @@ class Sweep:
                 number will cause only that value to be plotted. The default is
                 to include all of the temperatures.
             title: string or boolean (optional)
-                The title to use for the summary plot. The default is True and the
-                default title will be applied. If False, no title is applied.
+                The title to use for the summary plot. The default is True and
+                the default title will be applied. If False, no title is
+                applied.
             tighten: boolean (optional)
                 Whether or not to apply figure.tight_layout() at the end of the
                 plot. The default is True.
             label: string (optional)
                 The fit label to use for the plots. The default is 'best'.
             plot_kwargs: dictionary or list of dictionaries (optional)
-                A dictionary or list of dictionaries containing plot options. If
-                only one is provided, it is used for all of the plots. If a list
-                is provided, it must be of the same length as the number of plots.
-                No kwargs are passed by default.
+                A dictionary or list of dictionaries containing plot options.
+                If only one is provided, it is used for all of the plots. If a
+                list is provided, it must be of the same length as the
+                number of plots. No kwargs are passed by default.
             axes_list: an iterable of matplotlib.axes.Axes classes
                 A list of Axes classes on which to put the plots. The default
                 is None and a new figure is made.
@@ -296,12 +317,14 @@ class Sweep:
         bounds = [None] + list(bounds)
         # replace fr bound with None so we can just set the plot bound
         dfr_bound = None
-        for index, bound in enumerate(bounds):
-            if parameters[index] == fr and index != 0 and bound is not None:
-                dfr_bound = bound if isinstance(bound, Collection) else (0, bound)
+        for index, bnd in enumerate(bounds):
+            if parameters[index] == fr and index != 0 and bnd is not None:
+                dfr_bound = bnd if isinstance(bnd, Collection) else (0, bnd)
                 bounds[index] = None
-        outputs = _loop_fit_data(loops, parameters=parameters, fit_type=fit_type, label=label, bounds=bounds,
-                                 success=success, errorbars=errorbars, power=power, field=field,
+        outputs = _loop_fit_data(loops, parameters=parameters,
+                                 fit_type=fit_type, label=label, bounds=bounds,
+                                 success=success, errorbars=errorbars,
+                                 power=power, field=field,
                                  temperature=temperature)
         # create figure if needed
         if axes_list is None:
@@ -325,22 +348,25 @@ class Sweep:
                 kws.update(plot_kwargs[2 * index])
             output = outputs[index + 1][~np.isinf(outputs[index + 1])]
             plot_parameter_hist(output, axes=axes_list[2 * index], **kws)
-            kws = {"y_label": parameters[index + 1], "x_label": fr + " [GHz]", "title": True,
-                   "title_kwargs": {"fontsize": "medium"}}
+            kws = {"y_label": parameters[index + 1], "x_label": fr + " [GHz]",
+                   "title": True, "title_kwargs": {"fontsize": "medium"}}
             if index == 0:
                 kws.update({"legend": True})
             factor = 1
             if parameters[index + 1] == fr:
-                kws.update({"absolute_delta": True, "y_label": "|∆" + parameters[index + 1] + "| [MHz]"})
+                kws.update(
+                    {"absolute_delta": True,
+                     "y_label": "|∆" + parameters[index + 1] + "| [MHz]"})
                 factor = 1e3
             if plot_kwargs[2 * index + 1]:
                 kws.update(plot_kwargs[2 * index + 1])
-            plot_parameter_vs_f(outputs[index + 1] * factor, outputs[0], axes=axes_list[2 * index + 1], **kws)
+            plot_parameter_vs_f(outputs[index + 1] * factor, outputs[0],
+                                axes=axes_list[2 * index + 1], **kws)
             if parameters[index + 1] == fr and dfr_bound is not None:
                 axes_list[2 * index + 1].set_ylim(dfr_bound[0], dfr_bound[1])
         # add title
         if title:
-            title = "loop fit summary: '{}'".format(label) if title is True else title
+            title = f"loop fit summary: '{label}'" if title is True else title
             figure.suptitle(title, fontsize=15)
         figure.align_labels()
         # tighten
