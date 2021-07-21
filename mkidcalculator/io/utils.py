@@ -561,10 +561,10 @@ def _loop_fit_data(loops, parameters=("chi2",), fit_type="lmfit", label='best', 
             if valid_ranges(loop, power, field, temperature):
                 try:
                     result = getattr(loop, fit_type + "_results")[label]
-                    minim = result['result']
                 except KeyError:
                     continue  # no fit for this label
                 if fit_type == "lmfit":
+                    minim = result['result']
                     if errorbars is not None and minim.errorbars != errorbars:
                         continue  # skip if wrong errorbars setting
                     if success is not None and minim.success != success:
