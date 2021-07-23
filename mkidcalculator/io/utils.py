@@ -326,6 +326,10 @@ def save_lmfit(lmfit_results, model, result, label='default', residual_args=(), 
             log.warning(message.format(label))
         lmfit_results[label] = save_dict
     # if the result is better than has been previously computed, add it to the 'best' key
+    save = ('best' not in lmfit_results.keys()
+            or (result.aic < lmfit_results['best']['result'].aic
+                and (result.errorbars # don't save if we already have errors
+                     or not lmfit_results['best']['result'].errorbars)))
     if 'best' not in lmfit_results.keys() or result.aic < lmfit_results['best']['result'].aic:
         lmfit_results['best'] = save_dict
         lmfit_results['best']['label'] = label
@@ -579,6 +583,9 @@ def _loop_fit_data(loops, parameters=("chi2",), fit_type="lmfit", label='best', 
                         try:
                             error = result['result'].params[parameter[:-6]].stderr  # only allowed for lmfit
                             if error is None:
+                                print(result['result'].params[parameter[:-6]],
+                                      result['result'].params[parameter[
+                                                              :-6]].stderr)
                                 error = np.nan
                             outputs[-1].append(error)
                         except KeyError:
