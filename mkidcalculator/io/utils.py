@@ -553,8 +553,9 @@ def _red_chi(fit_type, result):
         raise ValueError("'fit_type' must be either 'loopfit' or 'lmfit'")
 
 
-def _loop_fit_data(loops, parameters=("chi2",), fit_type="lmfit", label='best', bounds=None, errorbars=None,
-                   success=None, power=None, field=None, temperature=None):
+def _loop_fit_data(loops, parameters=("chi2",), fit_type="lmfit", label='best',
+                   bounds=None, errorbars=None, success=None, power=None,
+                   field=None, temperature=None):
     if isinstance(parameters, str):
         parameters = [parameters]
     power, field, temperature = create_ranges(power, field, temperature)

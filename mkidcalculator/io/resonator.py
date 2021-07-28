@@ -108,101 +108,6 @@ class Resonator:
         for index, loop in enumerate(self.loops):
             loop.temperature_group = self.temperature_groups[index]
 
-    def create_parameters(self, label="best", fit_type="lmfit", group=True, n_groups=None):
-        """
-        Creates the loop parameters pandas DataFrame by looking at all of the
-        loop fits.
-        Args:
-            label: string
-                Corresponds to the label in the loop.lmfit_results or
-                loop.emcee_results dictionaries where the fit parameters are.
-                The resulting DataFrame is stored in
-                self.loop_parameters[label]. The default is "best", which gets
-                the parameters from the best fits.
-            fit_type: string
-                The type of fit to use. Allowed options are "lmfit", "emcee",
-                and "emcee_mle" where MLE estimates are used instead of the
-                medians. The default is "lmfit".
-            group: boolean
-                Determines if the temperature data is grouped together in the
-                table. This is useful for when data is taken at the same
-                temperature but the actual temperature has some fluctuations.
-                The default is True, and the actual temperature is stored under
-                the column 'temperature'. If False, n_groups is ignored.
-            n_groups: integer
-                An integer that determines how many temperature groups to
-                include. The default is None, and n_groups is calculated. This
-                procedure only works if the data is 'square' (same number of
-                temperature points per unique power and field combination).
-        Raises:
-            scipy.cluster.vq.ClusterError:
-                The temperature data is too disordered to cluster into the
-                specified number of groups.
-
-        Examples:
-            table = resonator.loop_parameters['best']
-            # get a table with only the 'fr' fit parameter
-            fr = table['fr']
-            # get a smaller table with all of the powers, zero field, and
-            # temperatures between 9 and 11 mK
-            idx = pandas.IndexSlice
-            fr_smaller = fr.loc[idx[:, 0, 0.009: 0.011]]
-            # get a cross section instead of a table
-            fr_smaller = fr.xs((idx[:], 0,  idx[0.009:0.011]),
-                               level=("power", "field", "temperature"))
-        """
-        # check inputs
-        if fit_type not in ['lmfit', 'emcee', 'emcee_mle']:
-            raise ValueError("'fit_type' must be either 'lmfit', 'emcee', or 'emcee_mle'")
-        # group temperatures
-        if group:
-            self.group_temperatures(n_groups=n_groups)
-        else:
-            self.temperature_groups = self.temperatures
-        # determine the parameter names
-        parameter_names = set()
-        parameters = []
-        results = []
-        for loop in self.loops:
-            _, result_dict = loop._get_model(fit_type, label)
-            results.append(result_dict['result'])
-            p = result_dict['result'].params if result_dict is not None else None
-            # save the parameters and collect all the names into the set
-            parameters.append(p)
-            if p is not None:
-                for name in p.keys():
-                    parameter_names.add(name)
-                    parameter_names.add(name + "_sigma")
-        # initialize the data frame
-        parameter_names = sorted(list(parameter_names))
-        if group:
-            if "temperature" in parameter_names:
-                raise ValueError("'temperature' can not be a fit parameter name if group=True")
-            parameter_names.append("temperature")
-        if {'chisqr', 'redchi', 'aic', 'bic'}.intersection(set(parameter_names)):
-            raise ValueError("'chisqr', 'redchi', 'aic', and 'bic' are reserved and cannot be a fit parameter name.")
-        parameter_names += ['chisqr', 'redchi', 'aic', 'bic']
-        indices = list(zip(self.powers, self.fields, self.temperature_groups))
-        if np.unique(indices, axis=0).shape[0] != len(self.powers):
-            log.warning("The data does not have a unique value per table entry")
-        multi_index = pd.MultiIndex.from_tuples(indices, names=["power", "field", "temperature"])
-        df = pd.DataFrame(np.nan, index=multi_index, columns=parameter_names)
-        # fill the data frame
-        for index, loop in enumerate(self.loops):
-            if parameters[index] is not None:
-                for key, parameter in parameters[index].items():
-                    df.loc[indices[index]][key] = float(parameter.value)
-                    if results[index].errorbars:
-                        df.loc[indices[index]][key + "_sigma"] = float(parameter.stderr)
-            if group:
-                df.loc[indices[index]]["temperature"] = self.temperatures[index]
-            df.loc[indices[index]]["chisqr"] = results[index].chisqr
-            df.loc[indices[index]]["redchi"] = results[index].redchi
-            df.loc[indices[index]]["aic"] = results[index].aic
-            df.loc[indices[index]]["bic"] = results[index].bic
-
-        self.loop_parameters[label] = df
-
     def add_loops(self, loops, sort=True):
         """
         Add Loop objects to the resonator.
@@ -292,12 +197,12 @@ class Resonator:
         resonator.name = os.path.basename(resonator_file_name) + ", " + str(kwargs)
         return resonator
 
-    def lmfit(self, parameter, model, guess, index=None, label='default', data_label="best", keep=True,
-              residual_args=(), residual_kwargs=None, **kwargs):
+    def lmfit(self, parameter, model, guess, label='default', keep=True,
+              residual_args=(), residual_kwargs=None, data_kwargs=None,
+              **kwargs):
         """
         Compute a least squares fit using the supplied residual function and
-        guess. The result and other useful information is stored in
-        self.lmfit_results[parameter][label].
+        guess.
         Args:
             parameter: string or list of strings
                 The loop parameters to fit. They must be a columns in the loop
@@ -322,9 +227,6 @@ class Resonator:
             label: string (optional)
                 A label describing the fit, used for storing the results in the
                 self.lmfit_results dictionary. The default is 'default'.
-            data_label: string (optional)
-                The loop parameters table label to use for the fit. The default
-                is 'best'.
             keep: boolean (optional)
                 Store the fit result in the object. The default is True. If
                 False, the fit will only be stored if it is the best so far.
@@ -345,32 +247,24 @@ class Resonator:
                 also stored in self.lmfit_results[label]['result'].
         """
         # get the data to fit
-        if index is None:
-            table = self.loop_parameters[data_label]
-        elif len(index) == 3 and all([isinstance(index[ind], slice) for ind in range(3)]):
-            table = self.loop_parameters[data_label].loc[index]
-        else:
-            table = pd.concat([self.loop_parameters[data_label].loc[ind] for ind in index])
         if isinstance(parameter, str):
             parameter = [parameter]
         args_list = []
         kws_list = []
         # collect the arguments for each parameter
         for p in parameter:
-            data = table[p].to_numpy()
-            if p == 'fr':
+            data, sigmas, temperatures, powers = _loop_fit_data(
+                self.loops, [p, p + "_sigma", 'temperature', 'power'],
+                **data_kwargs)
+            if p in ['fr', 'f0']:
                 data = data * 1e9  # convert to Hz for model
             args = (data, *residual_args)
             args_list.append(args)
-            if 'temperature' in table.columns:
-                temperatures = table['temperature'].to_numpy()
-            else:
-                temperatures = table.index.get_level_values('temperature')
-            powers = table.index.get_level_values("power").to_numpy()
-            sigmas = table[p + '_sigma'].to_numpy()
-            if p == 'fr':
-                sigmas = sigmas * 1e9  # convert to Hz for model
-            kws = {"temperatures": temperatures, "powers": powers, "sigmas": sigmas}
+            kws = {"temperatures": temperatures, "powers": powers}
+            if (~np.isnan(sigmas)).all():
+                if p in ['fr', 'f0']:
+                    sigmas = sigmas * 1e9  # convert to Hz for model
+                kws.update({"sigmas": sigmas})
             if residual_kwargs is not None:
                 kws.update(residual_kwargs)
             kws_list.append(kws)
@@ -379,20 +273,28 @@ class Resonator:
             args = args_list[0]
             kws = kws_list[0]
         else:
-            args = [tuple([args_list[ind][index] for ind, _ in enumerate(args_list)])
+            args = [tuple([args_list[ind][index]
+                           for ind, _ in enumerate(args_list)])
                     for index, _ in enumerate(args_list[0])]
-            kws = {key: tuple(kws_list[ind][key] for ind, _ in enumerate(kws_list)) for key in kws_list[0].keys()}
+            kws = {key: tuple(kws_list[ind][key]
+                              for ind, _ in enumerate(kws_list))
+                   for key in kws_list[0].keys()}
         # make sure the dictionary exists for each parameter
         for p in parameter:
             if p not in self.lmfit_results.keys():
                 self.lmfit_results[p] = {}
         # do the fit for the first parameter
-        result = lmfit(self.lmfit_results[parameter[0]], model, guess, label=label, keep=keep, residual_args=args,
-                       residual_kwargs=kws, model_index=0 if len(parameter) != 1 else None, **kwargs)
+        result = lmfit(self.lmfit_results[parameter[0]], model, guess,
+                       label=label, keep=keep, residual_args=args,
+                       residual_kwargs=kws,
+                       model_index=0 if len(parameter) != 1 else None,
+                       **kwargs)
         # copy the result to the other parameters
         for ind, p in enumerate(parameter[1:]):
-            save_lmfit(self.lmfit_results[p], model.models[ind + 1], result, label=label, keep=keep,
-                       residual_args=args_list[ind + 1], residual_kwargs=kws_list[ind + 1])
+            save_lmfit(self.lmfit_results[p], model.models[ind + 1], result,
+                       label=label, keep=keep,
+                       residual_args=args_list[ind + 1],
+                       residual_kwargs=kws_list[ind + 1])
         return result
 
     def emcee(self):
