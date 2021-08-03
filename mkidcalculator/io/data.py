@@ -230,12 +230,12 @@ class AnalogReadoutPulse(AnalogReadoutABC):
 
                 try:
                     source_state = np.array(metadata['parameters'][key])
-                    if source_state.size == 1:
+                    if source_state.size == 1:  # no laser box
                         pass
-                    elif source_state.size == 5:
+                    elif source_state.size == 5:  # when laser box is used
                         source_state *= np.array([813.7, 916.8, 978.6, 1110,
                                                  1310])
-                    elif source_state.size == 8:
+                    elif source_state.size == 8:  # no longer used
                         source_state *= np.array([254, 405.9, 663.1, 813.7,
                                                  916.8, 978.6, 1120, 1310])
                     else:
