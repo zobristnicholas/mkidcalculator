@@ -223,19 +223,26 @@ class AnalogReadoutPulse(AnalogReadoutABC):
                 result = self._energies
             else:
                 metadata = super().__getitem__("metadata")
+                if 'laser' in metadata['parameters'].keys():
+                    key = 'laser'  # Legacy
+                else:
+                    key = 'source'  # New
+
                 try:
-                    laser_state = np.array(metadata['parameters']['laser'])
-                    if laser_state.size == 5:
-                        laser_state *= np.array([813.7, 916.8, 978.6, 1110,
+                    source_state = np.array(metadata['parameters'][key])
+                    if source_state.size == 1:
+                        pass
+                    elif source_state.size == 5:
+                        source_state *= np.array([813.7, 916.8, 978.6, 1110,
                                                  1310])
-                    elif laser_state.size == 8:
-                        laser_state *= np.array([254, 405.9, 663.1, 813.7,
+                    elif source_state.size == 8:
+                        source_state *= np.array([254, 405.9, 663.1, 813.7,
                                                  916.8, 978.6, 1120, 1310])
                     else:
                         raise ValueError(
-                            f"Unrecognized laser state: {laser_state}")
-                    laser_state = laser_state[laser_state != 0]
-                    self._energies = tuple(ev_nm_convert(laser_state))
+                            f"Unrecognized source state: {source_state}")
+                    source_state = source_state[source_state != 0]
+                    self._energies = tuple(ev_nm_convert(source_state))
                 except KeyError:
                     pass
                 result = self._energies
