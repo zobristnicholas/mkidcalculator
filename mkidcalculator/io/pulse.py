@@ -14,6 +14,7 @@ from scipy.interpolate import UnivariateSpline, InterpolatedUnivariateSpline
 
 from mkidcalculator.models import TripleExponential
 from mkidcalculator.io.data import AnalogReadoutPulse, NoData
+from mkidcalculator.external.adaptivekde import ssvkernel
 from mkidcalculator.io.utils import (compute_phase_and_dissipation, offload_data, _loaded_npz_files,
                                      quadratic_spline_roots, ev_nm_convert, dump, load, HAS_LOOPFIT, loopfit)
 
@@ -841,9 +842,9 @@ class Pulse:
             if mode == 'variance':
                 result = np.var(responses, ddof=1)
             elif mode == 'fwhm':
-                result, _, _, _, = self._compute_fwhm(responses)
+                result, _, _, _ = self._compute_fwhm(responses)
             else:
-                fwhm, _, _, _, = self._compute_fwhm(responses)
+                fwhm, _, _, _ = self._compute_fwhm(responses)
                 result = np.mean(responses) / fwhm
         else:
             raise ValueError("'{}' is not a valid calculation_type".format(calculation_type))
@@ -1220,7 +1221,9 @@ class Pulse:
             raise AttributeError("The pulse traces have not been characterized yet.")
         self.mask[(self._integral < minimum) | (self._integral > maximum)] = False
 
-    def compute_spectrum(self, use_mask=True, use_calibration=True, calibrated=None, bandwidth=None, **kwargs):
+    def compute_spectrum(self, use_mask=True, use_calibration=True,
+                         calibrated=None, bandwidth=None, adaptive=True,
+                         **kwargs):
         """
         Compute the spectrum of the pulse data. The result is stored in
         pulse.spectrum.
@@ -1240,61 +1243,91 @@ class Pulse:
                 parameter is useful for when the responses are already
                 energies.
             bandwidth: float (optional)
-                Override the 'bw_method' keyword argument for
-                scipy.stats.gaussian_kde with bandwidth / std(energies). This
-                method fixes the kernel width to bandwidth.
+                Use this value to set the scale for the pdf interpolation grid.
+                If adaptive=False, it is also used for the
+                scipy.stats.gaussian_kde bandwidth unless 'bw_method' is
+                specified.
+            adaptive: boolean (optional)
+                If True, an adaptive bandwidth model is used from
+                doi: 10.1007/s10827-009-0180-4.
             kwargs: optional keyword arguments
-                Optional arguments to scipy.stats.gaussian_kde. The default for
-                'bw_method' is Scott’s method but modified to use the
-                median absolute deviation instead of the standard deviation.
+                Optional arguments to scipy.stats.gaussian_kde or
+                mkidcalculator.external.adaptivekde.ssvkernel. The
+                default for 'bw_method' in scipy.stats.gaussian_kde has been
+                changed to Scott’s method but modified to use the median
+                absolute deviation instead of the standard deviation. The
+                default for 'WinFunc' in
+                mkidcalculator.external.adaptivekde.ssvkernel has been changed
+                to 'Gauss'.
         """
         self.clear_spectrum()
-        # compute an estimate of the distribution function for the dissipation data
+        # compute an estimate of the distribution for the dissipation data
         if use_calibration:
             calibration = self.loop.energy_calibration
-            energies = calibration(self.responses[self.mask]) if use_mask else calibration(self.responses)
+            energies = (calibration(self.responses[self.mask]) if use_mask
+                        else calibration(self.responses))
         else:
-            energies = self.responses[self.mask] if use_mask else self.responses
+            energies = (self.responses[self.mask] if use_mask else
+                        self.responses)
 
         calibrated = use_calibration if calibrated is None else calibrated
         sigma = energies.std(ddof=1)
-        sigma_mad = np.median(np.abs(energies - np.median(energies))) / norm.ppf(0.75)
-        kwargs.setdefault('bw_method', energies.size**(-1 / 5) * sigma_mad / sigma)  # Scott's method but with MAD
+        sigma_mad = (np.median(np.abs(energies - np.median(energies)))
+                     / norm.ppf(0.75))
+        # Scott's method but with MAD
+        scotts = energies.size**(-1 / 5) * sigma_mad / sigma
         if bandwidth is not None:
-            kwargs['bw_method'] = bandwidth / sigma
-        fwhm, peak, pdf, pdf_interp = self._compute_fwhm(energies, **kwargs)
-        self._spectrum = {"pdf": pdf, "interpolation": pdf_interp, "energies": energies, "calibrated": calibrated,
-                          "bandwidth": pdf.factor * sigma, "fwhm": fwhm, "peak": peak}
+            bandwidth = bandwidth / sigma**2
+        else:
+            bandwidth = scotts
+        fwhm, peak, pdf, info = self._compute_fwhm(
+            energies, bandwidth, adaptive=adaptive, **kwargs)
+        self._spectrum = {"pdf": pdf, "energies": energies,
+                          "calibrated": calibrated,
+                          "bandwidth": bandwidth,
+                          "fwhm": fwhm, "peak": peak, "info": info}
 
     @staticmethod
-    def _compute_fwhm(energies, **kwargs):
-        pdf = stats.gaussian_kde(energies, **kwargs)
+    def _compute_fwhm(energies, bandwidth, adaptive=True, **kwargs):
         maximum, minimum = energies.max(), energies.min()
-        x = np.linspace(minimum, maximum, int(10 * (maximum - minimum) / pdf.factor))  # sample at 10x the bandwidth
-        # convert to a spline so that we can robustly compute the FWHM and maximum later
-        # noinspection PyArgumentList
-        pdf_interp = InterpolatedUnivariateSpline(x, pdf(x), k=3)
+        x = np.linspace(minimum, maximum,  # sample at 100x the bandwidth
+                        int(100 * (maximum - minimum) / bandwidth))
+        if adaptive:
+            kwargs.setdefault('WinFunc', 'Gauss')
+            result = ssvkernel(energies, x, **kwargs)
+            pdf_data = result[0]
+            info = result[1:]
+            pdf = InterpolatedUnivariateSpline(x, pdf_data, k=3, ext=1)
+
+        else:
+            kwargs.setdefault('bw_method', bandwidth)
+            info = stats.gaussian_kde(energies, **kwargs)
+            pdf_data = info(x)
+            # convert to a spline so that we can robustly compute the FWHM and
+            # maximum later
+            pdf = InterpolatedUnivariateSpline(x, pdf_data, k=3, ext=1)
         # compute the maximum of the distribution
         pdf_max = 0
         peak_location = 0
-        for root in quadratic_spline_roots(pdf_interp.derivative()):
-            if pdf_interp(root) > pdf_max:
-                pdf_max = pdf_interp(root)
+        for root in quadratic_spline_roots(pdf.derivative()):
+            if pdf(root) > pdf_max:
+                pdf_max = pdf(root)
                 peak_location = root.item()
-        peak = peak_location if pdf_max != 0 and peak_location != 0 else np.nan
+        peak = (peak_location if pdf_max != 0 and peak_location != 0
+                else np.nan)
         # compute the FWHM
         # noinspection PyArgumentList
-        pdf_approx_shifted = InterpolatedUnivariateSpline(x, pdf(x) - pdf_max / 2, k=3)
+        pdf_approx_shifted = InterpolatedUnivariateSpline(
+            x, pdf_data - pdf_max / 2, k=3, ext=1)
 
         roots = pdf_approx_shifted.roots()
         if roots.size >= 2 and pdf_max != 0 and peak_location != 0:
-            # assert roots.size >= 2, "The distribution doesn't have a FWHM."
             indices = np.argsort(np.abs(roots - peak_location))
             roots = roots[indices[:2]]
             fwhm = roots.max() - roots.min()
         else:
             fwhm = np.nan
-        return fwhm, peak, pdf, pdf_interp
+        return fwhm, peak, pdf, info
 
     def _set_directory(self, directory):
         self._directory = directory
@@ -1639,10 +1672,11 @@ class Pulse:
             figure = axes.figure
 
         # plot the data
-        n_bins = int((max_energy - min_energy) / bandwidth)
+        n_bins = 10 * int((max_energy - min_energy) / bandwidth)
         axes.hist(energies, n_bins, density=True)
         xx = np.linspace(min_energy, max_energy, 10 * n_bins)
-        label = "R = {:.2f}".format(peak / fwhm) if not np.isnan(peak) and not np.isnan(fwhm) else ""
+        label = ("R = {:.2f}".format(peak / fwhm)
+                 if not np.isnan(peak) and  not np.isnan(fwhm) else "")
         axes.plot(xx, pdf(xx), 'k-', label=label)
 
         # set x axis limits
@@ -1652,7 +1686,8 @@ class Pulse:
             axes.set_xlim([min_energy, max_energy])
 
         # format figure
-        axes.set_xlabel('energy [eV]') if calibrated else axes.set_xlabel("response [radians]")
+        (axes.set_xlabel('energy [eV]') if calibrated
+         else axes.set_xlabel("response [radians]"))
         axes.set_ylabel('probability density')
         if label:
             axes.legend()

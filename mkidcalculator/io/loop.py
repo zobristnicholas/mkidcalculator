@@ -1000,9 +1000,12 @@ class Loop:
                                             fix_zero=fix_zero, k=k, bc_type=bc_type)
             log.info("energy calibration computed")
 
+        if not hasattr(bandwidth, '__len__'):
+            bandwidth = [bandwidth] * len(pulse_indices)
+
         for index, pulse in enumerate([self.pulses[ii] for ii in pulse_indices]):
             pulse.compute_spectrum(use_mask=spectrum_mask, use_calibration=calibrate, calibrated=calibrated,
-                                   bandwidth=bandwidth, **kwargs)
+                                   bandwidth=bandwidth[index], **kwargs)
             log.info("pulse {}: spectrum computed".format(index))
 
     def compute_energy_calibration(self, pulse_indices=None, use_mask=True, fix_zero=True, k=2, bc_type='not-a-knot'):
@@ -2199,8 +2202,7 @@ class Loop:
             weight = 0
             prob_list = []
             for p in pulses:
-                # use interpolation instead of pdf because it's *much* faster
-                prob = p.spectrum['interpolation'](energies)
+                prob = p.spectrum['pdf'](energies)
                 peak = p.spectrum['peak']
                 fwhm = p.spectrum['fwhm']
                 # interpolation can go negative outside of validity
