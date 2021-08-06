@@ -1,7 +1,7 @@
 import numpy as np
 
 
-def ssvkernel(x, tin=None, M=80, nbs=100, WinFunc='Boxcar'):
+def ssvkernel(x, tin=None, M=80, nbs=100, WinFunc='Boxcar', scale=1):
     """
     Generates a locally adaptive kernel-density estimate for one-dimensional
     data.
@@ -39,6 +39,8 @@ def ssvkernel(x, tin=None, M=80, nbs=100, WinFunc='Boxcar'):
         The type of window function to use in estimating local bandwidth.
         Choose from one of 'Boxcar', 'Laplace', 'Cauchy' and 'Gauss'. Default
         value = 'Gauss'.
+    scale: float
+        Scale the window size away from its optimal value.
 
     Returns
     -------
@@ -130,8 +132,8 @@ def ssvkernel(x, tin=None, M=80, nbs=100, WinFunc='Boxcar'):
     phi = (5**0.5 + 1) / 2
     c1 = (phi - 1) * a + (2 - phi) * b
     c2 = (2 - phi) * a + (phi - 1) * b
-    f1 = CostFunction(y_hist, N, t, dt, optws, W, WinFunc, c1)[0]
-    f2 = CostFunction(y_hist, N, t, dt, optws, W, WinFunc, c2)[0]
+    f1 = CostFunction(y_hist, N, t, dt, optws, W, WinFunc, c1, scale=scale)[0]
+    f2 = CostFunction(y_hist, N, t, dt, optws, W, WinFunc, c2, scale=scale)[0]
     while (np.abs(b-a) > tol * (abs(c1) + abs(c2))) & (k < 30):
         if f1 < f2:
             b = c2
@@ -139,7 +141,7 @@ def ssvkernel(x, tin=None, M=80, nbs=100, WinFunc='Boxcar'):
             c1 = (phi - 1) * a + (2 - phi) * b
             f2 = f1
             f1, yv1, optwp1 = CostFunction(y_hist, N, t, dt, optws, W,
-                                           WinFunc, c1)
+                                           WinFunc, c1, scale=scale)
             yopt = yv1 / np.sum(yv1 * dt)
             optw = optwp1
         else:
@@ -148,7 +150,7 @@ def ssvkernel(x, tin=None, M=80, nbs=100, WinFunc='Boxcar'):
             c2 = (2 - phi) * a + (phi - 1) * b
             f1 = f2
             f2, yv2, optwp2 = CostFunction(y_hist, N, t, dt, optws, W,
-                                           WinFunc, c2)
+                                           WinFunc, c2, scale=scale)
             yopt = yv2 / np.sum(yv2 * dt)
             optw = optwp2
 
@@ -191,7 +193,7 @@ def ssvkernel(x, tin=None, M=80, nbs=100, WinFunc='Boxcar'):
     return y, t, optw, gs, C, confb95, yb
 
 
-def CostFunction(y_hist, N, t, dt, optws, WIN, WinFunc, g):
+def CostFunction(y_hist, N, t, dt, optws, WIN, WinFunc, g, scale=1.):
 
     L = y_hist.size
     optwv = np.zeros((L, ))
@@ -217,7 +219,7 @@ def CostFunction(y_hist, N, t, dt, optws, WIN, WinFunc, g):
             Z = Cauchy(t[k]-t, optwv / g)
         else:  # WinFunc == 'Gauss'
             Z = Gauss(t[k]-t, optwv / g)
-        optwp[k] = np.sum(optwv * Z) / np.sum(Z)
+        optwp[k] = np.sum(optwv * Z) / np.sum(Z) * scale
 
     # speed-optimized baloon estimator
     idx = y_hist.nonzero()
