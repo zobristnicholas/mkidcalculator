@@ -59,14 +59,16 @@ def frequency_selector(file_name, delta_f=0.025, data=labview_segmented_wideswee
     # find peaks if we were given a method or a file
     peaks = np.full(f.shape, False)
     peak_handles = np.full(f.shape, None)
-    if indices is not None and callable(indices):
+    if isinstance(indices, str) and os.path.isfile(output_file):
+        with open(output_file, "rb") as file_:
+            indices = pickle.load(file_)
+    elif indices is not None and callable(indices):
         kws = {}
         if indices_kwargs is not None:
             kws.update(indices_kwargs)
         indices = indices(f, z, **kws)
-    elif isinstance(indices, str):
-        with open(indices, "rb") as file_:
-            indices = pickle.load(file_)
+    else:
+        indices = np.zeros(f.shape, dtype=bool)
     peaks[np.array(indices)] = True
 
     # setup figure
