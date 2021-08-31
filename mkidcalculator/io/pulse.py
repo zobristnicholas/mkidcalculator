@@ -5,7 +5,7 @@ import numpy as np
 import lmfit as lm
 import numpy.fft as fft
 import numpy.linalg as la
-from matplotlib.widgets import Button, Slider
+from matplotlib.widgets import Button, Slider, CheckButtons
 import scipy.stats as stats
 import scipy.optimize as opt
 from scipy.stats import norm
@@ -1557,7 +1557,7 @@ class Pulse:
         figure.subplots_adjust(bottom=0.15)
 
         class Index(object):
-            def __init__(self, ax_slider, ax_prev, ax_next):
+            def __init__(self, ax_slider, ax_prev, ax_next, ax_check):
                 self.ind = 0
                 self.num = len(traces[:, 0])
                 self.bnext = Button(ax_next, 'Next')
@@ -1566,6 +1566,7 @@ class Pulse:
                 self.bprev.on_clicked(self.prev)
                 self.slider = Slider(ax_slider, 'Trace Index: ', 0, self.num - 1, valinit=0, valfmt='%d')
                 self.slider.on_changed(self.update)
+                self.check = CheckButtons(ax_check, ["Auto-scale"], [True])
 
                 self.slider.label.set_position((0.5, -0.5))
                 self.slider.valtext.set_position((0.5, -0.5))
@@ -1590,18 +1591,21 @@ class Pulse:
                 phase.set_ydata(p_trace[i, :])
                 amp.set_ydata(d_trace[i, :])
 
-                axes_list[1].relim()
-                axes_list[1].autoscale()
-                axes_list[2].relim()
-                axes_list[2].autoscale()
+                if self.check.get_status()[0]:
+                    axes_list[1].relim()
+                    axes_list[1].autoscale()
+                    axes_list[2].relim()
+                    axes_list[2].autoscale()
                 plt.draw()
 
         position = axes_list[2].get_position()
         slider = plt.axes([position.x0, 0.05, position.width / 2, 0.03])
         middle = position.x0 + 3 * position.width / 4
+        check = plt.axes([middle - 0.185, -0.03, 0.15, 0.1])
+        check.axis('off')
         prev = plt.axes([middle - 0.18, 0.05, 0.15, 0.03])
         next_ = plt.axes([middle + 0.02, 0.05, 0.15, 0.03])
-        indexer = Index(slider, prev, next_)
+        indexer = Index(slider, prev, next_, check)
 
         return axes_list, indexer
 
