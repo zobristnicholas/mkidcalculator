@@ -753,8 +753,17 @@ class Pulse:
             if not calculation_type.startswith(self.loop._energy_calibration_type):
                 raise RuntimeError("The loop energy calibration type '{}' does not match the calculation type"
                                    .format(self.loop._energy_calibration_type))
-            response = opt.brentq(lambda x: self.loop.energy_calibration(x) - energy,
-                                  self.loop._response_avg.max() * 1.01, self.loop._response_avg.min() * 0.99)
+            try:
+                response = opt.brentq(
+                    lambda x: self.loop.energy_calibration(x) - energy,
+                    self.loop._response_avg.max() * 1.01,
+                    self.loop._response_avg.min() * 0.99)
+            except ValueError:
+                response = opt.root_scalar(
+                    lambda x: self.loop.energy_calibration(x) - energy,
+                    x0=np.median(self.loop._response_avg),
+                    x1=self.loop._response_avg.max()).root
+
         # theory calculations
         if calculation_type in ["optimal_filter", "phase_filter", "dissipation_filter"]:
             if self._response_type != calculation_type:
