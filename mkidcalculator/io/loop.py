@@ -2104,9 +2104,12 @@ class Loop:
         finalize_axes(axes, legend=True, tighten=True)
         return axes
 
-    def plot_spectra(self, pulse_indices=None, plot_kwargs=None, hist_kwargs=None, x_limits=None, second_x_axis=False,
-                     x_label=None, y_label=None, label_kwargs=None, legend=True, legend_kwargs=None, tick_kwargs=None,
-                     tighten=True, norm=False, axes=None):
+    def plot_spectra(self, pulse_indices=None, plot_kwargs=None,
+                     hist_kwargs=None, x_limits=None, second_x_axis=False,
+                     x_label=None, y_label=None, label_kwargs=None,
+                     title=False, title_kwargs=None, legend=True,
+                     legend_kwargs=None, tick_kwargs=None, tighten=True,
+                     norm=False, axes=None):
         """
         Plot the spectrum of the pulse responses in the loop.
         Args:
@@ -2137,6 +2140,14 @@ class Loop:
                 is ignored.
             label_kwargs: dictionary
                 Keyword arguments for the axes labels in axes.set_*label(). The
+                default is None which uses default options. Keywords in this
+                dictionary override the default options.
+            title: boolean or string
+                If it is a boolean, it determines whether or not to add the
+                default title. If it is a string, that string is used as the
+                title. If False, title_kwargs is ignored. The default is True.
+            title_kwargs: dictionary
+                Keyword arguments for the axes title in axes.set_title(). The
                 default is None which uses default options. Keywords in this
                 dictionary override the default options.
             legend: boolean
@@ -2278,7 +2289,10 @@ class Loop:
             wvl_axes.set_xticks(x_locs)
             wvl_axes.set_xticklabels(tick_labels(x_locs))
 
-        finalize_axes(axes, legend=legend and label, legend_kwargs=legend_kwargs, tighten=tighten)
+        finalize_axes(axes, legend=legend and label,
+                      legend_kwargs=legend_kwargs,
+                      title=title, title_kwargs=title_kwargs,
+                      tighten=tighten)
         return axes
 
     def _calibration_points(self, pulse_indices=None, use_mask=True, fix_zero=True):
