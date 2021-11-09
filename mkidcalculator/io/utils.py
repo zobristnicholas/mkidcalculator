@@ -230,7 +230,8 @@ def ev_nm_convert(x):
     If x is a wavelength in nm, the corresponding energy in eV is returned.
     If x is an energy in eV, the corresponding wavelength in nm is returned.
     """
-    return c.speed_of_light * c.h / c.eV * 1e9 / x
+    with np.errstate(divide='ignore'):
+        return c.speed_of_light * c.h / c.eV * 1e9 / x
 
 
 def load_legacy_binary_data(binary_file, channel, n_points, noise=True, offset=0, chunk=None):
