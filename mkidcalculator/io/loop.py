@@ -989,8 +989,14 @@ class Loop:
                 scipy.stats.gaussian_kde with bandwidth / std(energies). This
                 method fixes the kernel width to bandwidth.
             kwargs: optional keyword arguments
-                Optional arguments to scipy.stats.gaussian_kde for the kernel
-                density estimation.
+                Optional arguments to scipy.stats.gaussian_kde or
+                mkidcalculator.external.adaptivekde.ssvkernel. The
+                default for 'bw_method' in scipy.stats.gaussian_kde has been
+                changed to Scott’s method but modified to use the median
+                absolute deviation instead of the standard deviation. The
+                default for 'WinFunc' in
+                mkidcalculator.external.adaptivekde.ssvkernel has been changed
+                to 'Gauss'.
         """
         if pulse_indices is None:
             pulse_indices = range(len(self.pulses))
