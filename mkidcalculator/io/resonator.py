@@ -251,6 +251,8 @@ class Resonator:
             parameter = [parameter]
         args_list = []
         kws_list = []
+        if data_kwargs is None:
+            data_kwargs = {}
         # collect the arguments for each parameter
         for p in parameter:
             data, sigmas, temperatures, powers = _loop_fit_data(
@@ -537,7 +539,8 @@ class Resonator:
                 axes_list[0].figure.tight_layout(rect=[0, 0, 1, 0.9 if title else 1])
         return axes_list
 
-    def plot_parameters(self, parameters, x="power", n_rows=1, n_sigma=2, plot_fit=False, label="best", axes_list=None,
+    def plot_parameters(self, parameters, x="power", n_rows=1, n_sigma=2,
+                        plot_fit=False, fit_label="best", axes_list=None,
                         **loop_kwargs):
         # set up axes and input arguments
         if isinstance(parameters, str):
@@ -594,23 +597,24 @@ class Resonator:
                         axes_list[index].set_xlabel(x_label[x])
                         # plot a fit if it's been done
                         if plot_fit and parameter in self.lmfit_results.keys():
-                            if label in self.lmfit_results[parameter].keys():
-                                result_dict = self.lmfit_results[parameter][label]
+                            if fit_label in self.lmfit_results[parameter].keys():
+                                result_dict = self.lmfit_results[parameter][fit_label]
                                 result = result_dict['result']
                                 model = result_dict['model']
                                 parameters = inspect.signature(model.model).parameters
                                 residual_kwargs = result_dict['kwargs']
-                                kwargs = {}
+                                kws = {}
                                 for key in parameters.keys():
                                     if key in residual_kwargs.keys():
-                                        kwargs.update({key: residual_kwargs[key]})
-                                if 'parallel' in kwargs.keys():
-                                    kwargs['parallel'] = bool(kwargs['parallel'])
+                                        kws.update({key: residual_kwargs[key]})
+                                if 'parallel' in kws.keys():
+                                    kws['parallel'] = bool(kws['parallel'])
                                 args = result_dict['args'][1:]
-                                m = model.model(result.params, *args, **kwargs)
-                                x_m = kwargs[x + "s"] if x != "temperature" else 1000 * kwargs[x + "s"]
+                                m = model.model(result.params, *args, **kws)
+                                x_m = kws[x + "s"] if x != "temperature" else 1000 * kws[x + "s"]
                                 if parameter == "fr":
                                     m *= 1e-9  # Convert to GHz
-                                axes_list[index].plot(x_m, m)
+                                ind = np.argsort(x_m)
+                                axes_list[index].plot(x_m[ind], m[ind])
         figure.tight_layout()
         return axes_list
