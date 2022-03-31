@@ -61,17 +61,14 @@ class Fr:
         tc = params['tc'].value
         bcs = params['bcs'].value
         dynes = params['dynes'].value
-        gamma = np.abs(params['gamma'].value)
         f0 = params['f0'].value
         # calculate dx
         sigma0 = cc.value(0, f0, tc, gamma=dynes, bcs=bcs,
                           low_energy=low_energy, parallel=parallel)
         sigma1 = cc.value(temperatures, f0, tc, gamma=dynes, bcs=bcs,
                           low_energy=low_energy, parallel=parallel)
-        # Use th full expression relating dZs / Xs to dsigma for Zs
-        # proportional to sigma**-gamma
-        dx = 0.5 * alpha * gamma * imag(
-            (sigma1 - sigma0) / sigma0**(gamma + 1)) / imag(sigma0**-gamma)
+        # Thin film formula
+        dx = -0.5 * alpha * imag(sigma1**-1 - sigma0**-1) / imag(sigma0**-1)
         return dx
 
     @classmethod
@@ -220,11 +217,6 @@ class Fr:
                 The powers at which the fr data is taken. The default is
                 None. If specified, this helps set the pc parameter to a
                 reasonable value.
-            gamma: float (optional)
-                The float corresponding to the superconducting limit of
-                the resonator. The default is 1 which corresponds to the
-                thin film, local limit. 1/2 is the thick film, local
-                limit. 1/3 is the thick film, extreme anomalous limit.
             fit_resonance: boolean (optional)
                 A boolean specifying if the offset frequency should be
                 varied during the fit. The default is True.
@@ -271,7 +263,6 @@ class Fr:
         params = lm.Parameters(usersyms={'scaled_alpha_inv': scaled_alpha_inv})
         # resonator params
         params.add("f0", value=float(f0), vary=fit_resonance, min=0)
-        params.add("gamma", value=float(gamma), vary=False)
         # Mattis-Bardeen params
         params.add("tc", value=float(tc), vary=fit_mb and fit_tc, min=0)
         params.add("bcs", value=float(bcs), vary=fit_mb and not fit_tc, min=0)

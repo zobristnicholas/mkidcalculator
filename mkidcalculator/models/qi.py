@@ -54,12 +54,11 @@ class Qi:
         tc = params['tc'].value
         bcs = params['bcs'].value
         dynes = params['dynes'].value
-        gamma = np.abs(params['gamma'].value)
         f0 = params['f0'].value
         # calculate Qinv
         sigma = cc.value(temperatures, f0, tc, gamma=dynes, bcs=bcs,
                          low_energy=low_energy, parallel=parallel)
-        q_inv = alpha * np.real(sigma**-gamma) / np.imag(sigma**-gamma)
+        q_inv = alpha * np.real(sigma**-1) / np.imag(sigma**-1)
         return q_inv
 
     @classmethod
@@ -187,7 +186,7 @@ class Qi:
 
     @classmethod
     def guess(cls, data, f0, tc, alpha=0.5, bcs=BCS, temperatures=None,
-              powers=None, gamma=1., fit_resonance=False, fit_mb=True,
+              powers=None, fit_resonance=False, fit_mb=True,
               fit_tc=False, fit_alpha=True, fit_dynes=False, fit_tls=True,
               fit_fd=True, fit_pc=False, fit_loss=False):
         """
@@ -212,11 +211,6 @@ class Qi:
                 The powers at which the Qi data is taken. The default is
                 None. If specified, this helps set the pc parameter to a
                 reasonable value.
-            gamma: float (optional)
-                The float corresponding to the superconducting limit of
-                the resonator. The default is 1 which corresponds to the
-                thin film, local limit. 1/2 is the thick film, local
-                limit. 1/3 is the thick film, extreme anomalous limit.
             fit_resonance: boolean (optional)
                 A boolean specifying if the offset frequency, f0, should
                 be varied during the fit. The default is False.
@@ -275,7 +269,6 @@ class Qi:
         params = lm.Parameters(usersyms={'scaled_alpha_inv': scaled_alpha_inv})
         # resonator params
         params.add("f0", value=float(f0), vary=fit_resonance, min=0)
-        params.add("gamma", value=float(gamma), vary=False)
         # constant loss parameters
         params.add("q0_inv", value=float(q0_inv), vary=fit_loss)
         # two level system params
