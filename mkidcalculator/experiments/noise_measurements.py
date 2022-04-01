@@ -25,24 +25,24 @@ def noise_monte_carlo(n_samples, f, t_hot, t_cold, s0, s1, s2=None, s3=None,
             Temperature in Kelvin of the lowest temperature calibration
             attenuator.
         s0: numpy.ndarray
-            Average of PSD_II and PSD_QQ when the HEMT input is terminated at
-            the t_hot attenuator.
+            Average of the single-sided PSD_II and PSD_QQ when the HEMT input
+            is terminated at the t_hot attenuator.
         s1: numpy.ndarray
-            Average of PSD_II and PSD_QQ when the HEMT input is terminated at
-            the t_cold attenuator.
+            Average of the single-sided  PSD_II and PSD_QQ when the HEMT
+            input is terminated at the t_cold attenuator.
         s2: numpy.ndarray (optional)
-            Average of PSD_II and PSD_QQ when the HEMT input is connected to an
-            MKID. If an MKID is connected to the same switch as the calibration
-            attenuators, this noise spectrum can be provided to calculate
-            the input noise. The default is None, which assumes no MKID is
-            connected.
+            Average of the single-sided PSD_II and PSD_QQ when the HEMT
+            input is connected to an MKID. If an MKID is connected to the
+            same switch as the calibration attenuators, this noise spectrum
+            can be provided to calculate the input noise. The default is
+            None, which assumes no MKID is connected.
         s3: numpy.ndarray (optional)
-            Average of PSD_II and PSD_QQ when the HEMT input is connected to an
-            MKID and a parametric amplifier is turned on. If a parametric
-            amplifier (or other amplifier that has unity gain when off) is
-            between the MKID and the same switch as the calibration
-            attenuators, this noise spectrum can be provided to calculate
-            the parametric amplifier noise. The default is None,
+            Average of the single-sided PSD_II and PSD_QQ when the HEMT input
+            is connected to an MKID and a parametric amplifier is turned on. If
+            a parametric amplifier (or other amplifier that has unity gain
+            when off) is between the MKID and the same switch as the
+            calibration attenuators, this noise spectrum can be provided to
+            calculate the parametric amplifier noise. The default is None,
             which assumes no parametric amplifier is connected. s2 and gp
             must be provided if this parameter is used.
         gp: float (optional)
@@ -186,24 +186,24 @@ def compute_noise_numbers(f, t_hot, t_cold, s0, s1, s2=None, s3=None,
             Temperature in Kelvin of the lowest temperature calibration
             attenuator.
         s0: numpy.ndarray
-            Average of PSD_II and PSD_QQ when the HEMT input is terminated at
-            the t_hot attenuator.
+            Average of the single-sided PSD_II and PSD_QQ when the HEMT input
+            is terminated at the t_hot attenuator.
         s1: numpy.ndarray
-            Average of PSD_II and PSD_QQ when the HEMT input is terminated at
-            the t_cold attenuator.
+            Average of the single-sided  PSD_II and PSD_QQ when the HEMT
+            input is terminated at the t_cold attenuator.
         s2: numpy.ndarray (optional)
-            Average of PSD_II and PSD_QQ when the HEMT input is connected to an
-            MKID. If an MKID is connected to the same switch as the calibration
-            attenuators, this noise spectrum can be provided to calculate
-            the input noise. The default is None, which assumes no MKID is
-            connected.
+            Average of the single-sided PSD_II and PSD_QQ when the HEMT
+            input is connected to an MKID. If an MKID is connected to the
+            same switch as the calibration attenuators, this noise spectrum
+            can be provided to calculate the input noise. The default is
+            None, which assumes no MKID is connected.
         s3: numpy.ndarray (optional)
-            Average of PSD_II and PSD_QQ when the HEMT input is connected to an
-            MKID and a parametric amplifier is turned on. If a parametric
-            amplifier (or other amplifier that has unity gain when off) is
-            between the MKID and the same switch as the calibration
-            attenuators, this noise spectrum can be provided to calculate
-            the parametric amplifier noise. The default is None,
+            Average of the single-sided PSD_II and PSD_QQ when the HEMT input
+            is connected to an MKID and a parametric amplifier is turned on. If
+            a parametric amplifier (or other amplifier that has unity gain
+            when off) is between the MKID and the same switch as the
+            calibration attenuators, this noise spectrum can be provided to
+            calculate the parametric amplifier noise. The default is None,
             which assumes no parametric amplifier is connected. s2 and gp
             must be provided if this parameter is used.
         gp: float (optional)
@@ -270,14 +270,14 @@ def compute_noise_numbers(f, t_hot, t_cold, s0, s1, s2=None, s3=None,
     """
     _check_inputs(s2, s3, gp)
     # calibration parameters
-    s_hot = sc.h * f * z0 / np.tanh(sc.h * f / (2 * sc.k * t_hot)) / 2
-    s_cold = sc.h * f * z0 / np.tanh(sc.h * f / (2 * sc.k * t_cold)) / 2
-    sz = sc.h * f * z0 / 2
+    s_hot = sc.h * f * z0 / np.tanh(sc.h * f / (2 * sc.k * t_hot)) / 4
+    s_cold = sc.h * f * z0 / np.tanh(sc.h * f / (2 * sc.k * t_cold)) / 4
+    sz = sc.h * f * z0 / 4
     # HEMT gain and noise
     gh = (s0 - s1) / (s_hot - s_cold) * lh
     sh = (s1 * (s_hot + (lh - 1) * sz)
           - s0 * (s_cold + (lh - 1) * sz)) / (s0 - s1)
-    ah = sh / (sc.h * f * z0)
+    ah = 2 * sh / (sc.h * f * z0)
     results = {'gh': gh, 'sh': sh, 'ah': ah}
     if summarize:
         loc, interval = noise_estimate(ah, prior=0.5, n_sigma=n_sigma)
@@ -286,9 +286,9 @@ def compute_noise_numbers(f, t_hot, t_cold, s0, s1, s2=None, s3=None,
     if s2 is not None:
         si = (((s2 - s1) * s_hot + (s0 - s2) * s_cold) * lp
               - sz * ((lp - 1) * s0 - (lp - 1) * s1)) / (s0 - s1)
-        ai = si / (sc.h * f * z0)
+        ai = 2 * si / (sc.h * f * z0)
         gh_sys = gh / lh  # system gain
-        ah_sys = s2 / (sc.h * f * z0 * gh_sys)  # total system noise
+        ah_sys = 2 * s2 / (sc.h * f * z0 * gh_sys)  # total system noise
         results.update({'si': si, 'ai': ai, 'gh_sys': gh_sys,
                         'ah_sys': ah_sys})
         if summarize:
@@ -302,9 +302,9 @@ def compute_noise_numbers(f, t_hot, t_cold, s0, s1, s2=None, s3=None,
                (s0 - s3 - gp * (s0 - s2)) * s_cold) * lp
               + ((lh - 1) * lp + gp * (1 + (1 - 2 * lh) * lp))
               * (s0 - s1) * sz) / (gp * (s0 - s1))
-        ap = sp / (sc.h * f * z0)
+        ap = 2 * sp / (sc.h * f * z0)
         gp_sys = gh / lh * gp / lp
-        ap_sys = s3 / (sc.h * f * z0 * gp_sys)
+        ap_sys = 2 * s3 / (sc.h * f * z0 * gp_sys)
         results.update({'sp': sp, 'ap': ap, 'gp_sys': gp_sys,
                         'ap_sys': ap_sys})
         if summarize:
