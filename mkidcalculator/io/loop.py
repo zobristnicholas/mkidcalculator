@@ -19,7 +19,7 @@ from mkidcalculator.io.utils import (ev_nm_convert, lmfit, sort_and_fix, setup_a
 
 log = logging.getLogger(__name__)
 log.addHandler(logging.NullHandler())
-EPS = np.finfo(np.float).eps
+EPS = np.finfo(float).eps
 
 
 class Loop:

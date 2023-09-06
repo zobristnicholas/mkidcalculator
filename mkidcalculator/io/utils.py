@@ -295,7 +295,7 @@ def load_legacy_binary_data(binary_file, channel, n_points, noise=True, offset=0
 
 
 def structured_to_complex(array):
-    if array is None or array.dtype == np.complex or array.dtype == np.complex64:
+    if array is None or array.dtype == complex or array.dtype == np.complex64:
         return array
     else:
         return array["I"] + 1j * array["Q"]

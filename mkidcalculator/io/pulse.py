@@ -606,13 +606,13 @@ class Pulse:
             raise ValueError("The noise data PSDs must have a shape compatible with the pulse data")
         # assemble noise matrix
         s = np.array([[self.noise.pp_psd, self.noise.pd_psd],
-                      [np.conj(self.noise.pd_psd), self.noise.dd_psd]], dtype=np.complex)
+                      [np.conj(self.noise.pd_psd), self.noise.dd_psd]], dtype=complex)
 
         # normalize the template for response = phase + dissipation
         template = self.template / np.abs(self.template[0].min() + self.template[1].min())
         template_fft = fft.rfft(template)
         # compute the optimal filter: conj(template_fft) @ s_inv (single sided)
-        filter_fft = np.zeros(shape, dtype=np.complex)
+        filter_fft = np.zeros(shape, dtype=complex)
         for index in range(1, shape[1]):
             filter_fft[:, index] = la.lstsq(s[:, :, index].T, np.conj(template_fft[:, index]), rcond=None)[0]
         # return to time domain
@@ -794,7 +794,7 @@ class Pulse:
             n_points = self.loop.template(energy).shape[1]
             if calculation_type == "optimal_fit":
                 s = np.array([[self.noise.pp_psd, self.noise.pd_psd],
-                              [np.conj(self.noise.pd_psd), self.noise.dd_psd]], dtype=np.complex)
+                              [np.conj(self.noise.pd_psd), self.noise.dd_psd]], dtype=complex)
                 s = s.transpose((2, 0, 1))[1:]  # n_frequencies x 2 x 2
                 s_inv = np.linalg.inv(s)
                 dm_fft = template_fft[1:, :, :] * d_calibration + d_template_fft[1:, :, :] * calibration
@@ -1101,7 +1101,7 @@ class Pulse:
             maxima = argrelmax(self.p_trace[index, :peak])[0]
             start = maxima[-1] if maxima.size else peak
             peak_offset[index] = peak - start
-        peak_index = stats.mode(self._peak_index).mode.item()  # most common peak index
+        peak_index = stats.mode(self._peak_index, keepdims=True).mode.item()  # most common peak index
         peak_offset = int(min(np.max(peak_offset), peak_index // 2 - 1))  # largest offset bounded by the peak index
         log.debug("peak offset computed")
 

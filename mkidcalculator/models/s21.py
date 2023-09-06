@@ -10,7 +10,7 @@ from mkidcalculator.models.utils import bandpass, _compute_sigma
 
 log = logging.getLogger(__name__)
 log.addHandler(logging.NullHandler())
-EPS = np.finfo(np.float).eps
+EPS = np.finfo(float).eps
 
 
 class S21:
